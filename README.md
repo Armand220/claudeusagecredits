@@ -25,7 +25,8 @@ installed as an app on your phone or computer.
 - **Distracted** button (`D`) to tally wandering thoughts during focus
 - Breathing guide during breaks (box breathing), and an idea for each break
   (stretch, water, rest your eyes…)
-- **Zen mode**: a fullscreen, distraction-free timer (`F`)
+- **Zen mode**: a fullscreen, distraction-free timer (`F`); the cursor and
+  controls fade away while you're still
 - **Floating mini timer** that stays on top of other windows (`P`)
 - The browser tab icon becomes a little progress ring
 
@@ -70,6 +71,7 @@ installed as an app on your phone or computer.
   pills; Stats shows how your focus splits between tags
 - Edit inline, drag to reorder, swipe on phones (right to tick off, left to
   delete), undo deletes
+- **Daily tasks** (🔁 when editing) come back unticked every morning
 - "Finish around" estimate for what's left
 - **Today's intention**: a line under the timer for what you want from the
   day (`I`); tick it off when it's done. It clears itself tomorrow and stays

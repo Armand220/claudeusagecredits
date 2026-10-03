@@ -1235,6 +1235,20 @@ body.is-zen .break-idea { background: transparent; font-size: clamp(14px, 1.8vmi
   font-weight: 500;
 }
 .task-edit input[type="text"] { flex: 1; }
+.task-repeat-btn {
+  flex: none;
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  font-size: 15px;
+  filter: grayscale(1);
+  opacity: .6;
+  transition: opacity .2s, filter .2s, background-color .2s;
+}
+.task-repeat-btn[aria-pressed="true"] { filter: none; opacity: 1; background: var(--accent-soft); border-color: var(--accent); }
+.task-repeat { font-size: 12px; }
 .task-edit input[type="number"] { width: 56px; text-align: center; }
 
 .task-delete {
@@ -1689,6 +1703,9 @@ body.is-zen .zen-hint {
 @keyframes hint-fade { 0%, 70% { opacity: 1; } 100% { opacity: 0; } }
 @media (hover: none) { body.is-zen .zen-hint { display: none; } }
 body.is-zen .aurora span { --blob-opacity: .75; }
+body.is-zen.is-idle, body.is-zen.is-idle * { cursor: none !important; }
+body.is-zen .zen-btn { transition: opacity .6s ease; }
+body.is-zen.is-idle .zen-btn { opacity: 0; }
 
 ::view-transition-old(root),
 ::view-transition-new(root) { animation-duration: .45s; }

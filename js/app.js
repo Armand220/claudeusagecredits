@@ -1,11 +1,11 @@
-import * as audio from './audio.js?v=56';
-import * as fx from './fx.js?v=56';
-import { toast } from './toast.js?v=56';
-import * as effects from './effects.js?v=56';
-import * as scenery from './scenery.js?v=56';
-import * as pip from './pip.js?v=56';
-import { shareCard, makeCardFile } from './share.js?v=56';
-import * as photo from './photo.js?v=56';
+import * as audio from './audio.js?v=57';
+import * as fx from './fx.js?v=57';
+import { toast } from './toast.js?v=57';
+import * as effects from './effects.js?v=57';
+import * as scenery from './scenery.js?v=57';
+import * as pip from './pip.js?v=57';
+import { shareCard, makeCardFile } from './share.js?v=57';
+import * as photo from './photo.js?v=57';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -104,6 +104,8 @@ function cleanTasks(raw) {
       pomos: clampInt(t.pomos, 0, 999, 0),
       done: Boolean(t.done),
       ...(t.counted ? { counted: true } : {}),
+      // Daily tasks come back unticked each day; `day` is when they last did.
+      ...(t.daily ? { daily: true, day: typeof t.day === 'string' ? t.day : todayKey() } : {}),
     }));
 }
 
@@ -1047,6 +1049,7 @@ function setZen(on) {
     el.body.classList.toggle('is-zen', on);
     el.zen.setAttribute('aria-pressed', String(on));
     el.zen.setAttribute('aria-label', on ? 'Leave zen mode' : 'Zen mode');
+    wakeZen();
   };
   if (document.startViewTransition && fx.motionOK()) document.startViewTransition(apply);
   else apply();
@@ -1059,6 +1062,15 @@ function setZen(on) {
 document.addEventListener('fullscreenchange', () => {
   if (!document.fullscreenElement && isZen()) setZen(false);
 });
+
+// In zen mode the cursor and the exit button fade away when you're still.
+let idleTimer = 0;
+function wakeZen() {
+  el.body.classList.remove('is-idle');
+  clearTimeout(idleTimer);
+  if (isZen()) idleTimer = setTimeout(() => { if (isZen()) el.body.classList.add('is-idle'); }, 3000);
+}
+['pointermove', 'pointerdown', 'keydown'].forEach((t) => document.addEventListener(t, wakeZen, { passive: true }));
 
 // ---------------------------------------------------------------------------
 // Wake lock & notifications
@@ -1193,6 +1205,15 @@ function taskRow(task) {
   const title = document.createElement('span');
   title.className = 'task-name';
   title.append(...nameWithTags(task.title, 'task-title'));
+  if (task.daily) {
+    const rep = document.createElement('span');
+    rep.className = 'task-repeat';
+    rep.textContent = '🔁';
+    rep.title = 'Repeats every day';
+    rep.setAttribute('role', 'img');
+    rep.setAttribute('aria-label', 'Repeats every day');
+    title.append(rep);
+  }
   const count = document.createElement('span');
   count.className = 'task-count';
   count.textContent = `${task.pomos}/${task.est}`;
@@ -1244,7 +1265,23 @@ function startEdit(li) {
   est.inputMode = 'numeric';
   est.value = String(task.est);
   est.setAttribute('aria-label', 'Estimated pomodoros');
-  form.append(input, est);
+  let daily = Boolean(task.daily);
+  const repeat = document.createElement('button');
+  repeat.type = 'button';
+  repeat.className = 'task-repeat-btn pressable';
+  repeat.textContent = '🔁';
+  repeat.title = 'Repeat every day';
+  repeat.setAttribute('aria-label', 'Repeat every day');
+  repeat.setAttribute('aria-pressed', String(daily));
+  // Keep focus in the name field, so the edit doesn't end on this tap.
+  repeat.addEventListener('pointerdown', (e) => e.preventDefault());
+  repeat.addEventListener('click', () => {
+    daily = !daily;
+    repeat.setAttribute('aria-pressed', String(daily));
+    audio.sfx(daily ? 'on' : 'off', repeat);
+    fx.pop(repeat, 1.15);
+  });
+  form.append(input, est, repeat);
   select.replaceWith(form);
   li.classList.add('is-editing');
   input.focus();
@@ -1259,6 +1296,12 @@ function startEdit(li) {
       const title = input.value.trim();
       if (title) task.title = title.slice(0, 120);
       task.est = clampInt(est.value, 1, 20, task.est);
+      if (daily && !task.daily) task.day = todayKey();
+      if (daily) task.daily = true;
+      else {
+        delete task.daily;
+        delete task.day;
+      }
       save();
       audio.sfx('on', li);
     } else {
@@ -1466,9 +1509,28 @@ function renderTasks({ entering } = {}) {
   const active = tasks.find((t) => t.id === activeTaskId);
   el.currentTask.hidden = !active;
   if (active) el.currentTaskTitle.replaceChildren(...nameWithTags(active.title, 'current-task-name'));
-  el.clearDone.hidden = !tasks.some((t) => t.done);
+  el.clearDone.hidden = !tasks.some((t) => t.done && !t.daily);
   renderSummary();
 }
+
+// A new day: daily tasks come back unticked, with a fresh count.
+function rollOverDailyTasks() {
+  const k = todayKey();
+  let changed = false;
+  for (const t of tasks) {
+    if (!t.daily || t.day === k) continue;
+    t.day = k;
+    t.done = false;
+    t.pomos = 0;
+    delete t.counted;
+    changed = true;
+  }
+  if (!changed) return;
+  save();
+  renderTasks();
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden) rollOverDailyTasks(); });
+setInterval(rollOverDailyTasks, 5 * 60000);
 
 function renderSummary() {
   if (!tasks.length) {
@@ -3659,7 +3721,8 @@ el.taskList.addEventListener('dblclick', (e) => {
 });
 
 el.clearDone.addEventListener('click', () => {
-  removeTasks(tasks.filter((t) => t.done).map((t) => t.id), el.clearDone);
+  // Daily tasks stay: they come back tomorrow.
+  removeTasks(tasks.filter((t) => t.done && !t.daily).map((t) => t.id), el.clearDone);
 });
 
 el.goal.addEventListener('click', (e) => {
@@ -3715,6 +3778,7 @@ statTabs.forEach((t, i) => {
 
 // What's new: the newest first. Bump `id` when adding an entry.
 const CHANGES = [
+  { id: 18, icon: '🔁', text: 'Tasks can repeat every day: edit a task and tap 🔁, and it comes back unticked each morning.' },
   { id: 17, icon: '🌅', text: 'The background now follows the time of day, Stats shows your personal bests, and the shared image includes today\'s intention.' },
   { id: 16, icon: '🔔', text: 'Optional soft bells halfway through a session and with a minute to go (Settings > Sound). Media keys and your lock screen can now start, pause and skip.' },
   { id: 15, icon: '🎯', text: 'Set your daily goal in minutes instead of sessions (great with Flowtime), and export your sessions as a spreadsheet.' },
@@ -4033,6 +4097,7 @@ audio.setChimeVolume(settings.chimeVolume / 100);
 scenery.setEnabled(settings.scenery);
 applyTheme();
 applyMode();
+rollOverDailyTasks();
 renderTasks();
 renderChips();
 renderMixer();
