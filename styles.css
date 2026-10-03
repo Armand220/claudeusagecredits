@@ -615,6 +615,8 @@ body.is-running .time .colon { animation: blink 1s steps(1) infinite; }
   font-weight: 600;
 }
 .chip:hover { color: var(--ink); border-color: color-mix(in srgb, var(--accent) 40%, transparent); }
+body.sounds-gated .chip[aria-pressed="true"] .eq i { animation-play-state: paused; }
+body.sounds-gated .mixer { opacity: .6; }
 .chip[aria-pressed="true"] {
   background: var(--accent);
   border-color: transparent;
@@ -645,7 +647,7 @@ body.is-running .time .colon { animation: blink 1s steps(1) infinite; }
 .mix-list { display: grid; gap: 6px; }
 .mix-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(90px, 160px) 32px;
+  grid-template-columns: minmax(0, 1fr) auto minmax(80px, 150px) 32px;
   align-items: center;
   gap: 10px;
   padding: 4px 4px 4px 12px;
@@ -667,6 +669,14 @@ body.is-running .time .colon { animation: blink 1s steps(1) infinite; }
 }
 .mix-vol::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; border-radius: 50%; background: var(--surface); border: 3px solid var(--accent); box-shadow: 0 1px 4px rgb(0 0 0 / 20%); }
 .mix-vol::-moz-range-thumb { width: 12px; height: 12px; border-radius: 50%; background: var(--surface); border: 3px solid var(--accent); }
+.mix-orbit { width: 32px; height: 32px; border: 0; border-radius: 9px; background: none; color: var(--ink-3); display: grid; place-items: center; }
+.mix-orbit svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.mix-orbit:hover { color: var(--ink); background: var(--line); }
+.mix-orbit[aria-pressed="true"] { color: var(--on-accent); background: var(--accent); }
+.mix-orbit[aria-pressed="true"] svg { animation: spin 3s linear infinite; }
+.mix-note { font-size: 11px; font-weight: 600; color: var(--ink-3); padding: 0 4px; }
+.orb.is-orbiting { transition: transform .4s var(--spring-strong), box-shadow .2s, left .1s linear, top .1s linear; }
+.orb.is-orbiting::after { animation-duration: 1.2s; }
 .mix-remove { width: 32px; height: 32px; border: 0; border-radius: 9px; background: none; color: var(--ink-3); display: grid; place-items: center; }
 .mix-remove:hover { color: var(--danger); background: var(--line); }
 .mix-remove svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; }

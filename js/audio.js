@@ -11,6 +11,7 @@ let master, sfxBus, chimeBus, ambientBus;
 const buffers = {};
 let sfxOn = true;
 let ambientLevel = 0.5;
+let ambientGate = 1;
 let tracked = null;
 let analyser = null;
 let meterBuf = null;
@@ -35,7 +36,7 @@ function ensure() {
     master.connect(comp).connect(ctx.destination);
     sfxBus = gain(0.5, master);
     chimeBus = gain(0.75, master);
-    ambientBus = gain(curve(ambientLevel), master);
+    ambientBus = gain(curve(ambientLevel) * ambientGate, master);
     analyser = ctx.createAnalyser();
     analyser.fftSize = 512;
     meterBuf = new Float32Array(analyser.fftSize);
@@ -66,7 +67,13 @@ export function meter() {
 
 export function setAmbientVolume(v) {
   ambientLevel = Math.max(0, Math.min(1, v));
-  if (ctx) ambientBus.gain.setTargetAtTime(curve(ambientLevel), ctx.currentTime, 0.05);
+  if (ctx) ambientBus.gain.setTargetAtTime(curve(ambientLevel) * ambientGate, ctx.currentTime, 0.05);
+}
+
+/** Fade all ambient sound out (false) or back in (true) without changing the mix. */
+export function setAmbientGate(open) {
+  ambientGate = open ? 1 : 0;
+  if (ctx) ambientBus.gain.setTargetAtTime(curve(ambientLevel) * ambientGate, ctx.currentTime, open ? 0.35 : 0.25);
 }
 
 // ---------------------------------------------------------------------------
@@ -875,6 +882,20 @@ const SCENES = {
     };
   },
 
+  binaural(S) {
+    // A gentle 10 Hz (alpha) binaural beat: a slightly different tone in each
+    // ear, which your brain hears as a slow pulse. Needs headphones.
+    const merger = ctx.createChannelMerger(2);
+    merger.connect(gain(0.1, S.out));
+    const left = track(osc('sine', 200));
+    const right = track(osc('sine', 210));
+    left.connect(merger, 0, 0);
+    right.connect(merger, 0, 1);
+    left.start();
+    right.start();
+    noiseSource('pink').connect(filter('lowpass', 900)).connect(gain(0.05, S.out));
+  },
+
   brown(S) {
     for (const x of [-1.6, 1.6]) {
       noiseSource('brown').connect(filter('lowpass', 900)).connect(gain(0.6, S.P(x, 0, -0.3)));
@@ -919,6 +940,7 @@ const layers = new Map();
 let layerTimer = 0;
 
 function tickLayers() {
+  if (!ambientGate) return; // no need to schedule events nobody hears
   const until = ctx.currentTime + 1.2;
   layers.forEach((l) => l.tick && l.tick(until));
 }

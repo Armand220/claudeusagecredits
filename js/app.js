@@ -1,9 +1,9 @@
-import * as audio from './audio.js?v=20';
-import * as fx from './fx.js?v=20';
-import { toast } from './toast.js?v=20';
-import * as effects from './effects.js?v=20';
-import * as scenery from './scenery.js?v=20';
-import * as pip from './pip.js?v=20';
+import * as audio from './audio.js?v=21';
+import * as fx from './fx.js?v=21';
+import { toast } from './toast.js?v=21';
+import * as effects from './effects.js?v=21';
+import * as scenery from './scenery.js?v=21';
+import * as pip from './pip.js?v=21';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -32,6 +32,7 @@ const DEFAULTS = {
   theme: 'auto',
   palette: 'sunset',
   scenery: true,
+  soundsWithTimer: false,
 };
 const PALETTES = ['sunset', 'ocean', 'forest', 'lavender', 'rose', 'mono'];
 const LIMITS = { focus: [1, 180], short: [1, 60], long: [1, 90], longEvery: [2, 12], goal: [1, 24] };
@@ -122,7 +123,7 @@ for (const k of Object.keys(sound.mix)) {
   }
   const m = obj(sound.mix[k]);
   const [dx, dz] = audio.defaultAnchor(k);
-  sound.mix[k] = { on: Boolean(m.on), vol: clampNum(m.vol, 0, 1, 0.8), x: clampNum(m.x, -4, 4, dx), z: clampNum(m.z, -4, 4, dz) };
+  sound.mix[k] = { on: Boolean(m.on), vol: clampNum(m.vol, 0, 1, k === 'binaural' ? 0.5 : 0.8), x: clampNum(m.x, -4, 4, dx), z: clampNum(m.z, -4, 4, dz), orbit: Boolean(m.orbit) };
 }
 
 function save() {
@@ -250,6 +251,15 @@ function afterTimerChange() {
   schedule();
   renderTimer(true);
   syncWakeLock();
+  syncSoundGate();
+}
+
+// With "only while the timer runs", ambient sound fades with the timer.
+function syncSoundGate() {
+  const open = !settings.soundsWithTimer || timer.running;
+  audio.setAmbientGate(open);
+  scenery.setScenes(open ? activeKinds() : []);
+  el.body.classList.toggle('sounds-gated', !open && activeKinds().length > 0);
 }
 
 function nextAfter(mode) {
@@ -622,6 +632,7 @@ const newId = () => (crypto.randomUUID ? crypto.randomUUID() : `${Date.now().toS
 
 const ICON_GRIP = '<svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/></svg>';
 const ICON_EDIT = '<svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4zM13.5 6.5l4 4"/></svg>';
+const ICON_ORBIT = '<svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.3-5.6"/><path d="M20 4v4h-4"/><circle cx="12" cy="12" r="2.2"/></svg>';
 const ICON_X = '<svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7l10 10M17 7 7 17"/></svg>';
 
 function taskRow(task) {
@@ -1428,7 +1439,7 @@ $$('dialog.sheet').forEach((dialog) => {
 function fillSettings() {
   const f = el.settingsForm;
   for (const k of Object.keys(LIMITS)) f.elements[k].value = settings[k];
-  for (const k of ['autoBreaks', 'autoFocus', 'breathing', 'chime', 'sfx', 'notify', 'wakeLock', 'scenery']) f.elements[k].checked = settings[k];
+  for (const k of ['autoBreaks', 'autoFocus', 'breathing', 'chime', 'sfx', 'notify', 'wakeLock', 'scenery', 'soundsWithTimer']) f.elements[k].checked = settings[k];
   f.elements.theme.value = settings.theme;
   f.elements.palette.value = settings.palette;
   markPreset();
@@ -1500,8 +1511,9 @@ el.settingsForm.addEventListener('change', async (e) => {
     if (name === 'breathing') renderTimer(true);
     if (name === 'scenery') {
       scenery.setEnabled(settings.scenery);
-      scenery.setScenes(activeKinds());
+      syncSoundGate();
     }
+    if (name === 'soundsWithTimer') syncSoundGate();
   }
   save();
 });
@@ -1576,6 +1588,7 @@ const SOUND_INFO = {
   brown: { icon: '🟤', name: 'Brown noise' },
   fan: { icon: '🌀', name: 'Fan' },
   lofi: { icon: '🎹', name: 'Lo-fi' },
+  binaural: { icon: '〰️', name: 'Binaural', fixed: true },
 };
 const ROOM_R = 4; // metres from you to the edge of the room
 const ROOM_SPAN = 44; // % of the pad from its centre to that edge
@@ -1609,7 +1622,7 @@ function startAmbientIfPending() {
 function setSound(kind, on) {
   if (on) {
     const [dx, dz] = audio.defaultAnchor(kind);
-    sound.mix[kind] = { vol: 0.8, x: dx, z: dz, ...(sound.mix[kind] || {}), on: true };
+    sound.mix[kind] = { vol: kind === 'binaural' ? 0.5 : 0.8, x: dx, z: dz, orbit: false, ...(sound.mix[kind] || {}), on: true };
     if (!counters.soundsTried.includes(kind)) {
       counters.soundsTried.push(kind);
       if (audio.ambientKinds.every((k) => counters.soundsTried.includes(k))) unlock('explorer', { delay: 600 });
@@ -1624,7 +1637,8 @@ function setSound(kind, on) {
 }
 
 function afterSoundChange() {
-  scenery.setScenes(activeKinds());
+  syncSoundGate();
+  syncOrbit();
   wakeGlow();
   renderChips();
   renderMixer();
@@ -1702,16 +1716,30 @@ function renderMixer() {
       remove.className = 'mix-remove pressable';
       remove.setAttribute('aria-label', `Turn off ${SOUND_INFO[k].name}`);
       remove.innerHTML = ICON_X;
-      row.append(name, slider, remove);
+      let orbit;
+      if (SOUND_INFO[k].fixed) {
+        orbit = document.createElement('span');
+        orbit.className = 'mix-note';
+        orbit.textContent = 'headphones';
+      } else {
+        orbit = document.createElement('button');
+        orbit.type = 'button';
+        orbit.className = 'mix-orbit pressable';
+        orbit.setAttribute('aria-pressed', String(Boolean(m.orbit)));
+        orbit.setAttribute('aria-label', `Orbit ${SOUND_INFO[k].name} around you`);
+        orbit.title = 'Orbit around you';
+        orbit.innerHTML = ICON_ORBIT;
+      }
+      row.append(name, orbit, slider, remove);
       return row;
     }),
   );
 
-  const orbs = kinds.map((k) => {
+  const orbs = kinds.filter((k) => !SOUND_INFO[k].fixed).map((k) => {
     const m = sound.mix[k];
     const orb = document.createElement('button');
     orb.type = 'button';
-    orb.className = 'orb';
+    orb.className = `orb${m.orbit ? ' is-orbiting' : ''}`;
     orb.dataset.kind = k;
     orb.textContent = SOUND_INFO[k].icon;
     Object.assign(orb.style, orbPosition(k));
@@ -1721,6 +1749,37 @@ function renderMixer() {
   });
   el.room.querySelectorAll('.orb').forEach((o) => o.remove());
   el.room.append(...orbs);
+}
+
+// Orbiting sounds circle your head, one lap every 30 seconds.
+const ORBIT_LAP = 30;
+let orbitTimer = 0;
+let orbitSavedAt = 0;
+const dragging = new Set();
+
+function syncOrbit() {
+  const any = activeKinds().some((k) => sound.mix[k].orbit && !SOUND_INFO[k].fixed);
+  if (any && !orbitTimer) orbitTimer = setInterval(orbitStep, 100);
+  if (!any && orbitTimer) {
+    clearInterval(orbitTimer);
+    orbitTimer = 0;
+    save();
+  }
+}
+
+function orbitStep() {
+  const step = ((Math.PI * 2) / ORBIT_LAP) * 0.1;
+  for (const k of activeKinds()) {
+    const m = sound.mix[k];
+    if (!m.orbit || SOUND_INFO[k].fixed || dragging.has(k)) continue;
+    const r = Math.max(1, Math.hypot(m.x, m.z));
+    const a = Math.atan2(m.z, m.x) + step;
+    moveSound(k, Math.cos(a) * r, Math.sin(a) * r);
+  }
+  if (Date.now() - orbitSavedAt > 5000) {
+    orbitSavedAt = Date.now();
+    save();
+  }
 }
 
 function moveSound(k, x, z) {
@@ -1752,6 +1811,20 @@ el.mixList.addEventListener('change', (e) => {
   save();
 });
 el.mixList.addEventListener('click', (e) => {
+  const orbitBtn = e.target.closest('.mix-orbit');
+  if (orbitBtn) {
+    const k = orbitBtn.closest('.mix-row').dataset.kind;
+    const m = sound.mix[k];
+    m.orbit = !m.orbit;
+    if (m.orbit && Math.hypot(m.x, m.z) < 1) moveSound(k, 0, -2);
+    orbitBtn.setAttribute('aria-pressed', String(m.orbit));
+    el.room.querySelector(`.orb[data-kind="${k}"]`)?.classList.toggle('is-orbiting', m.orbit);
+    audio.sfx(m.orbit ? 'on' : 'off', orbitBtn);
+    fx.pop(orbitBtn, 1.15);
+    syncOrbit();
+    save();
+    return;
+  }
   const btn = e.target.closest('.mix-remove');
   if (!btn) return;
   audio.sfx('off', btn);
@@ -1765,6 +1838,7 @@ el.room.addEventListener('pointerdown', (e) => {
   const k = orb.dataset.kind;
   orb.setPointerCapture(e.pointerId);
   orb.classList.add('is-dragging');
+  dragging.add(k);
   audio.unlock();
   startAmbientIfPending();
   audio.sfx('tap', orb);
@@ -1780,6 +1854,7 @@ el.room.addEventListener('pointerdown', (e) => {
     orb.removeEventListener('pointerup', up);
     orb.removeEventListener('pointercancel', up);
     orb.classList.remove('is-dragging');
+    dragging.delete(k);
     audio.sfx('pop', orb);
     save();
   };
@@ -2174,7 +2249,8 @@ applyMode();
 renderTasks();
 renderChips();
 renderMixer();
-scenery.setScenes(activeKinds());
+syncSoundGate();
+syncOrbit();
 renderGoal();
 setInterval(renderGoal, 60000);
 initTaskDrag();

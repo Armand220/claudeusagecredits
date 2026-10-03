@@ -12,7 +12,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..700&family=Outfit:wght@200..700&display=swap">
-  <link rel="stylesheet" href="styles.css?v=20">
+  <link rel="stylesheet" href="styles.css?v=21">
 </head>
 <body data-mode="focus">
   <div class="aurora" aria-hidden="true"><span></span><span></span><span></span></div>
@@ -136,6 +136,7 @@
             <button type="button" class="chip pressable" data-sound="night" aria-pressed="false"><span class="eq" aria-hidden="true"><i></i><i></i><i></i></span>Night</button>
             <button type="button" class="chip pressable" data-sound="clock" aria-pressed="false"><span class="eq" aria-hidden="true"><i></i><i></i><i></i></span>Clock</button>
             <button type="button" class="chip pressable" data-sound="lofi" aria-pressed="false"><span class="eq" aria-hidden="true"><i></i><i></i><i></i></span>Lo-fi beats</button>
+            <button type="button" class="chip pressable" data-sound="binaural" aria-pressed="false" title="A gentle 10 Hz binaural beat. Needs headphones."><span class="eq" aria-hidden="true"><i></i><i></i><i></i></span>Binaural</button>
             <button type="button" class="chip pressable" data-sound="brown" aria-pressed="false"><span class="eq" aria-hidden="true"><i></i><i></i><i></i></span>Brown noise</button>
             <button type="button" class="chip pressable" data-sound="fan" aria-pressed="false"><span class="eq" aria-hidden="true"><i></i><i></i><i></i></span>Fan</button>
           </div>
@@ -296,6 +297,7 @@
         <legend>Sound</legend>
         <label class="switch"><input type="checkbox" name="sfx"><span>Interface sounds &amp; haptics</span></label>
         <label class="switch"><input type="checkbox" name="chime"><span>Chime when a session ends</span></label>
+        <label class="switch"><input type="checkbox" name="soundsWithTimer"><span>Ambient sound only while the timer runs</span></label>
         <label class="switch" id="notify-row"><input type="checkbox" name="notify"><span>Notification when a session ends</span></label>
       </fieldset>
 
@@ -389,6 +391,6 @@
     </div>
   </dialog>
 
-  <script type="module" src="js/app.js?v=20"></script>
+  <script type="module" src="js/app.js?v=21"></script>
 </body>
 </html>
