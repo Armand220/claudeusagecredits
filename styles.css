@@ -2069,7 +2069,8 @@ body.is-zen .cycle-dots i { width: 10px; height: 10px; }
   }
   .nav-btn:active { transform: scale(.9); transition-duration: .08s; }
   .nav-btn svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-  .nav-btn[aria-current="page"] { color: var(--accent-strong); }
+  .nav-btn[aria-current="page"] { color: var(--ink); }
+  .nav-btn[aria-current="page"] svg { color: var(--accent-strong); }
   .nav-badge {
     position: absolute;
     top: 3px;
