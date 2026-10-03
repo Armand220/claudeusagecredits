@@ -12,7 +12,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..700&family=Outfit:wght@200..700&display=swap">
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="styles.css?v=2">
 </head>
 <body data-mode="focus">
   <div class="aurora" aria-hidden="true"><span></span><span></span><span></span></div>
@@ -20,7 +20,7 @@
   <div class="app">
     <header class="topbar">
       <a class="brand" href="./" aria-label="Tempo home">
-        <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true">
+        <svg class="brand-mark" width="30" height="30" viewBox="0 0 32 32" aria-hidden="true">
           <circle cx="16" cy="16" r="12" fill="none" stroke="currentColor" stroke-width="3" opacity=".25"/>
           <path d="M16 4a12 12 0 0 1 12 12" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
           <circle cx="16" cy="16" r="3" fill="currentColor"/>
@@ -29,15 +29,15 @@
       </a>
       <nav class="topbar-actions">
         <button class="icon-btn pressable" id="btn-install" type="button" hidden aria-label="Install app" data-sfx="tap">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0-4.5-4.5M12 15l4.5-4.5M5 19h14"/></svg>
+          <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0-4.5-4.5M12 15l4.5-4.5M5 19h14"/></svg>
           <span class="label">Install</span>
         </button>
         <button class="icon-btn pressable" id="btn-stats" type="button" aria-label="Stats">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20V11m7 9V5m7 15v-6"/></svg>
+          <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20V11m7 9V5m7 15v-6"/></svg>
           <span class="label">Stats</span>
         </button>
         <button class="icon-btn pressable" id="btn-settings" type="button" aria-label="Settings">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10m4 0h2M4 17h4m4 0h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>
+          <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10m4 0h2M4 17h4m4 0h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>
           <span class="label">Settings</span>
         </button>
       </nav>
@@ -73,17 +73,17 @@
 
         <div class="controls">
           <button class="round-btn pressable" id="btn-reset" type="button" aria-label="Reset timer" title="Reset (R)">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a8 8 0 1 0 2.4-5.7M4 4v4.5h4.5"/></svg>
+            <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a8 8 0 1 0 2.4-5.7M4 4v4.5h4.5"/></svg>
           </button>
           <button class="primary-btn pressable" id="btn-toggle" type="button" aria-pressed="false" title="Start / pause (Space)">
             <span class="pb-icon" aria-hidden="true">
-              <svg class="i-play" viewBox="0 0 24 24"><path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.4-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z"/></svg>
-              <svg class="i-pause" viewBox="0 0 24 24"><rect x="6" y="5" width="4.5" height="14" rx="1.5"/><rect x="13.5" y="5" width="4.5" height="14" rx="1.5"/></svg>
+              <svg class="i-play" width="22" height="22" viewBox="0 0 24 24"><path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.4-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z"/></svg>
+              <svg class="i-pause" width="22" height="22" viewBox="0 0 24 24"><rect x="6" y="5" width="4.5" height="14" rx="1.5"/><rect x="13.5" y="5" width="4.5" height="14" rx="1.5"/></svg>
             </span>
             <span id="toggle-label">Start</span>
           </button>
           <button class="round-btn pressable" id="btn-skip" type="button" aria-label="Skip to next session" title="Skip (S)">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 5l9 7-9 7V5zM18 5v14"/></svg>
+            <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 5l9 7-9 7V5zM18 5v14"/></svg>
           </button>
         </div>
 
@@ -98,7 +98,7 @@
           <div class="panel-head">
             <h2 id="sounds-heading">Ambient sound</h2>
             <label class="volume" title="Volume">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9H4zM16.5 8.5a5 5 0 0 1 0 7"/></svg>
+              <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9H4zM16.5 8.5a5 5 0 0 1 0 7"/></svg>
               <span class="sr-only">Volume</span>
               <input type="range" id="volume" min="0" max="100" value="50">
             </label>
@@ -112,7 +112,7 @@
             <button type="button" class="chip pressable" role="radio" data-sound="fan" aria-checked="false"><span class="eq" aria-hidden="true"><i></i><i></i><i></i></span>Fan</button>
           </div>
           <p class="hint">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 15v-3a8 8 0 0 1 16 0v3"/><rect x="3" y="14" width="4.5" height="7" rx="2"/><rect x="16.5" y="14" width="4.5" height="7" rx="2"/></svg>
+            <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 15v-3a8 8 0 0 1 16 0v3"/><rect x="3" y="14" width="4.5" height="7" rx="2"/><rect x="16.5" y="14" width="4.5" height="7" rx="2"/></svg>
             3D spatial audio. Put on headphones and the rain falls all around you.
           </p>
         </section>
@@ -128,11 +128,11 @@
             <input id="task-input" type="text" maxlength="120" placeholder="What are you working on?" enterkeyhint="done">
             <label class="est" title="Estimated pomodoros">
               <span class="sr-only">Estimated pomodoros</span>
-              <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="13" r="7"/><path d="M12 6V3m-2 0h4M12 13V10"/></svg>
+              <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="13" r="7"/><path d="M12 6V3m-2 0h4M12 13V10"/></svg>
               <input id="task-est" type="number" min="1" max="20" value="1" inputmode="numeric">
             </label>
             <button class="add-btn pressable" type="submit" aria-label="Add task">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+              <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
             </button>
           </form>
 
@@ -157,7 +157,7 @@
       <header class="sheet-head">
         <h2 id="stats-title">Your focus</h2>
         <button type="button" class="icon-btn close pressable" data-close aria-label="Close">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+          <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
         </button>
       </header>
       <div class="tiles">
@@ -186,7 +186,7 @@
       <header class="sheet-head">
         <h2 id="settings-title">Settings</h2>
         <button type="button" class="icon-btn close pressable" data-close aria-label="Close">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+          <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
         </button>
       </header>
 
@@ -232,6 +232,6 @@
     </form>
   </dialog>
 
-  <script type="module" src="js/app.js"></script>
+  <script type="module" src="js/app.js?v=2"></script>
 </body>
 </html>

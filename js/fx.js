@@ -12,11 +12,20 @@ export function ripple(el, event) {
   const y = (event && event.clientY ? event.clientY : r.top + r.height / 2) - r.top;
   const dot = document.createElement('span');
   dot.className = 'ripple';
-  dot.style.width = dot.style.height = `${size}px`;
-  dot.style.left = `${x - size / 2}px`;
-  dot.style.top = `${y - size / 2}px`;
+  // Positioned inline so it can never take up space in the button's layout,
+  // even if the stylesheet hasn't loaded yet.
+  Object.assign(dot.style, {
+    position: 'absolute',
+    pointerEvents: 'none',
+    width: `${size}px`,
+    height: `${size}px`,
+    left: `${x - size / 2}px`,
+    top: `${y - size / 2}px`,
+  });
   el.appendChild(dot);
-  dot.addEventListener('animationend', () => dot.remove(), { once: true });
+  const remove = () => dot.remove();
+  dot.addEventListener('animationend', remove, { once: true });
+  setTimeout(remove, 1000);
 }
 
 /** Springy scale "pop" on an element. */
@@ -70,6 +79,8 @@ export function burst(source, opts = {}) {
   const colors = opts.colors ?? [getComputedStyle(document.body).getPropertyValue('--accent').trim() || '#e4643f'];
   const layer = document.createElement('div');
   layer.className = 'fx-layer';
+  layer.style.cssText = 'position:fixed;inset:0;z-index:9999;pointer-events:none;overflow:hidden';
+  setTimeout(() => layer.remove(), 2500);
   document.body.appendChild(layer);
   let alive = count;
 
@@ -77,6 +88,7 @@ export function burst(source, opts = {}) {
     const p = document.createElement('span');
     const shape = opts.confetti ? (i % 3 === 0 ? 'is-strip' : i % 3 === 1 ? 'is-dot' : 'is-square') : 'is-dot';
     p.className = `fx-particle ${shape}`;
+    p.style.position = 'absolute';
     const s = size * (0.6 + Math.random() * 0.8);
     p.style.width = `${shape === 'is-strip' ? s * 0.5 : s}px`;
     p.style.height = `${shape === 'is-strip' ? s * 1.6 : s}px`;

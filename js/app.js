@@ -1,5 +1,5 @@
-import * as audio from './audio.js';
-import * as fx from './fx.js';
+import * as audio from './audio.js?v=2';
+import * as fx from './fx.js?v=2';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -376,7 +376,7 @@ async function notify(ended, next) {
 
 const newId = () => (crypto.randomUUID ? crypto.randomUUID() : `${Date.now().toString(36)}${Math.random().toString(36).slice(2)}`);
 
-const ICON_X = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7l10 10M17 7 7 17"/></svg>';
+const ICON_X = '<svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7l10 10M17 7 7 17"/></svg>';
 
 function taskRow(task) {
   const li = document.createElement('li');
