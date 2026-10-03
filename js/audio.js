@@ -1035,6 +1035,99 @@ const SCENES = {
     noiseSource('pink').connect(filter('lowpass', 900)).connect(gain(0.05, S.out));
   },
 
+  wind(S) {
+    // Gusts that sweep past you from one side to the other, over a low,
+    // restless breath of air, with the odd whistle.
+    const now = ctx.currentTime;
+    const bedF = filter('bandpass', 300, 0.5);
+    bedF.frequency.setValueAtTime(300, now);
+    const bedG = gain(0.7, S.P(0, 1, -1, 0.3));
+    bedG.gain.setValueAtTime(0.7, now);
+    noiseSource('pink').connect(bedF).connect(bedG);
+    let bedNext = now;
+    let next = now + 0.3;
+
+    function gust(t) {
+      const dur = rand(3, 6.5);
+      const dir = Math.random() < 0.5 ? -1 : 1;
+      const y = rand(0.5, 2);
+      const z = rand(-3, 2);
+      const ax = S.ax();
+      const az = S.az();
+      const p = S.E(-dir * 6, y, z, 0.35);
+      place(p, ax - dir * 6, y, az + z, t);
+      glide(p, ax + dir * 6, y, az + z + rand(-1, 1), t + dur);
+
+      const f0 = rand(350, 700);
+      const bp = filter('bandpass', f0, rand(0.8, 1.6));
+      bp.frequency.setValueAtTime(f0, t);
+      bp.frequency.linearRampToValueAtTime(rand(700, 1400), t + dur * 0.5);
+      bp.frequency.linearRampToValueAtTime(rand(300, 600), t + dur);
+      const g = gain(0, p);
+      g.gain.setValueAtTime(0, t);
+      g.gain.linearRampToValueAtTime(rand(0.9, 1.6), t + dur * 0.45);
+      g.gain.linearRampToValueAtTime(0, t + dur);
+      noiseSource('pink', t, dur + 0.1).connect(bp).connect(g);
+
+      if (Math.random() < 0.35) {
+        const w0 = rand(900, 1800);
+        const wf = filter('bandpass', w0, 18);
+        wf.frequency.setValueAtTime(w0, t);
+        wf.frequency.linearRampToValueAtTime(w0 * rand(1.1, 1.4), t + dur * 0.6);
+        const wg = gain(0, p);
+        wg.gain.setValueAtTime(0, t);
+        wg.gain.linearRampToValueAtTime(0.4, t + dur * 0.5);
+        wg.gain.linearRampToValueAtTime(0, t + dur);
+        noiseSource('white', t, dur + 0.1).connect(wf).connect(wg);
+      }
+    }
+
+    return (until, now2 = 0) => {
+      if (next < now2) next = now2;
+      if (bedNext < now2) bedNext = now2;
+      while (next < until) {
+        gust(next);
+        next += rand(2.2, 5);
+      }
+      while (bedNext < until) {
+        const d = rand(2, 4);
+        bedG.gain.linearRampToValueAtTime(rand(0.35, 0.9), bedNext + d);
+        bedF.frequency.linearRampToValueAtTime(rand(200, 450), bedNext + d);
+        bedNext += d;
+      }
+    };
+  },
+
+  stream(S) {
+    // A brook flowing past in front of you, left to right: running water
+    // along its course and lots of tiny bubbles popping up here and there.
+    [-3, -1.5, 0, 1.5, 3].forEach((x, i) => {
+      const p = S.P(x, -0.8, Math.sin(i * 1.7) * 0.4, 0.6);
+      noiseSource('pink').connect(filter('bandpass', rand(500, 900), 0.7)).connect(gain(0.5, p));
+    });
+    let next = ctx.currentTime + 0.05;
+
+    function bubble(t) {
+      const p = S.E(rand(-3.2, 3.2), -0.8, rand(-0.5, 0.5), 0.8);
+      const f = rand(500, 1600);
+      const o = osc('sine', f);
+      sweep(o.frequency, f, f * rand(1.6, 2.6), t, rand(0.02, 0.06));
+      const g = gain(0.0001, p);
+      envelope(g, t, 0.003, rand(0.08, 0.3), rand(0.02, 0.06));
+      o.connect(g);
+      o.start(t);
+      o.stop(t + 0.1);
+    }
+
+    return (until, now = 0) => {
+      if (next < now) next = now;
+      while (next < until) {
+        bubble(next);
+        next += Math.random() < 0.3 ? rand(0.005, 0.02) : rand(0.02, 0.09);
+      }
+    };
+  },
+
   brown(S) {
     for (const x of [-1.6, 1.6]) {
       noiseSource('brown').connect(filter('lowpass', 900)).connect(gain(0.6, S.P(x, 0, -0.3)));
@@ -1081,6 +1174,8 @@ const DEFAULT_ANCHORS = {
   brown: [0, 2.4],
   fan: [3.2, 0.2],
   lofi: [0, -2],
+  wind: [2.4, 2.2],
+  stream: [-1.4, -3.2],
 };
 export const defaultAnchor = (kind) => DEFAULT_ANCHORS[kind] || [0, 0];
 // Sounds keep their full volume up to this distance, then fade gently.

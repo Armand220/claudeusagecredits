@@ -1,10 +1,10 @@
-import * as audio from './audio.js?v=32';
-import * as fx from './fx.js?v=32';
-import { toast } from './toast.js?v=32';
-import * as effects from './effects.js?v=32';
-import * as scenery from './scenery.js?v=32';
-import * as pip from './pip.js?v=32';
-import { shareCard } from './share.js?v=32';
+import * as audio from './audio.js?v=33';
+import * as fx from './fx.js?v=33';
+import { toast } from './toast.js?v=33';
+import * as effects from './effects.js?v=33';
+import * as scenery from './scenery.js?v=33';
+import * as pip from './pip.js?v=33';
+import { shareCard } from './share.js?v=33';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -1746,6 +1746,8 @@ const SOUND_INFO = {
   fan: { icon: '🌀', name: 'Fan' },
   lofi: { icon: '🎹', name: 'Lo-fi' },
   binaural: { icon: '〰️', name: 'Binaural', fixed: true },
+  wind: { icon: '🍃', name: 'Wind' },
+  stream: { icon: '💧', name: 'Stream' },
 };
 const ROOM_R = 4; // metres from you to the edge of the room
 const ROOM_SPAN = 44; // % of the pad from its centre to that edge

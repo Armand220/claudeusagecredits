@@ -2,8 +2,8 @@
 // waves, rising embers, fireflies under the stars, drifting dust in a breeze.
 // One canvas behind the page; it only animates while a scene is showing.
 
-import * as audio from './audio.js?v=32';
-import { motionOK } from './fx.js?v=32';
+import * as audio from './audio.js?v=33';
+import { motionOK } from './fx.js?v=33';
 
 const canvas = document.createElement('canvas');
 canvas.className = 'scenery';
@@ -268,6 +268,46 @@ const FACTORIES = {
           g.globalAlpha = a * fade * (colors.dark ? 0.38 : 0.32) * (0.75 + level * 0.8);
           g.font = `${(n.size * (1 + level * 0.18)).toFixed(1)}px Georgia, serif`;
           g.fillText(n.glyph, x, n.y);
+        }
+      },
+    };
+  },
+
+  wind() {
+    let leaves = [];
+    const tones = ['#d9822b', '#c8553d', '#e0a33a', '#8a9a3b', '#b5651d'];
+    const make = (anywhere) => ({
+      x: anywhere ? Math.random() * W : -30,
+      y: Math.random() * H * 0.9,
+      vx: rand(40, 120),
+      vy: rand(-10, 25),
+      rot: Math.random() * 6.28,
+      spin: rand(-3, 3),
+      size: rand(9, 16),
+      color: tones[Math.floor(Math.random() * tones.length)],
+      phase: Math.random() * 6.28,
+    });
+    return {
+      init() {
+        leaves = Array.from({ length: Math.round((W * H) / 32000) + 8 }, () => make(true));
+      },
+      draw(dt, a, t) {
+        const gust = 0.6 + 0.6 * Math.max(0, Math.sin(t * 0.5)) + Math.min(1, audio.meter() * 4);
+        for (const l of leaves) {
+          l.x += l.vx * gust * dt;
+          l.y += (l.vy + Math.sin(t * 2 + l.phase) * 30) * dt;
+          l.rot += l.spin * dt * gust;
+          if (l.x > W + 40 || l.y > H + 40 || l.y < -40) Object.assign(l, make(false));
+          g.save();
+          g.translate(l.x, l.y);
+          g.rotate(l.rot);
+          g.scale(1, 0.45 + 0.35 * Math.abs(Math.sin(t * 3 + l.phase)));
+          g.globalAlpha = a * (colors.dark ? 0.55 : 0.7);
+          g.fillStyle = l.color;
+          g.beginPath();
+          g.ellipse(0, 0, l.size, l.size * 0.5, 0, 0, Math.PI * 2);
+          g.fill();
+          g.restore();
         }
       },
     };
