@@ -12,7 +12,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..700&family=Outfit:wght@200..700&display=swap">
-  <link rel="stylesheet" href="styles.css?v=25">
+  <link rel="stylesheet" href="styles.css?v=26">
 </head>
 <body data-mode="focus">
   <div class="aurora" aria-hidden="true"><span></span><span></span><span></span></div>
@@ -54,6 +54,18 @@
         </button>
       </nav>
     </header>
+
+    <div class="mini-bar" id="mini-bar">
+      <button type="button" class="mini-main pressable" id="mini-main" aria-label="Back to the timer">
+        <span class="mini-dot" aria-hidden="true"></span>
+        <span class="mini-time" id="mini-time">25:00</span>
+        <span class="mini-mode" id="mini-mode">Focus</span>
+      </button>
+      <button type="button" class="mini-toggle pressable" id="mini-toggle" aria-label="Start or pause">
+        <svg class="i-play" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.4-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z"/></svg>
+        <svg class="i-pause" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="5" width="4.5" height="14" rx="1.5"/><rect x="13.5" y="5" width="4.5" height="14" rx="1.5"/></svg>
+      </button>
+    </div>
 
     <main class="layout">
       <section class="card timer-card" aria-label="Timer">
@@ -120,7 +132,7 @@
       </section>
 
       <div class="side">
-        <section class="card panel" aria-labelledby="sounds-heading">
+        <section class="card panel sounds-panel" aria-labelledby="sounds-heading">
           <div class="panel-head">
             <h2 id="sounds-heading">Ambient sound</h2>
             <label class="volume" title="Volume">
@@ -214,6 +226,23 @@
       </div>
     </main>
   </div>
+
+  <nav class="bottom-nav" id="bottom-nav" aria-label="Sections">
+    <span class="nav-indicator" aria-hidden="true"></span>
+    <button type="button" class="nav-btn" data-view="timer" aria-current="page">
+      <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5M10 2h4"/></svg>
+      <span>Timer</span>
+    </button>
+    <button type="button" class="nav-btn" data-view="sounds">
+      <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 15v-3a8 8 0 0 1 16 0v3"/><rect x="3" y="14" width="4.5" height="7" rx="2"/><rect x="16.5" y="14" width="4.5" height="7" rx="2"/></svg>
+      <span>Sounds</span>
+    </button>
+    <button type="button" class="nav-btn" data-view="tasks">
+      <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11"/><path d="M3.5 6l1.2 1.2L7 5M3.5 12l1.2 1.2L7 11M3.5 18l1.2 1.2L7 17"/></svg>
+      <span>Tasks</span>
+      <span class="nav-badge" id="nav-badge" hidden></span>
+    </button>
+  </nav>
 
   <div class="sr-only" id="announcer" aria-live="polite"></div>
 
@@ -418,6 +447,6 @@
     </div>
   </dialog>
 
-  <script type="module" src="js/app.js?v=25"></script>
+  <script type="module" src="js/app.js?v=26"></script>
 </body>
 </html>

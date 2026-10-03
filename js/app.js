@@ -1,9 +1,9 @@
-import * as audio from './audio.js?v=25';
-import * as fx from './fx.js?v=25';
-import { toast } from './toast.js?v=25';
-import * as effects from './effects.js?v=25';
-import * as scenery from './scenery.js?v=25';
-import * as pip from './pip.js?v=25';
+import * as audio from './audio.js?v=26';
+import * as fx from './fx.js?v=26';
+import { toast } from './toast.js?v=26';
+import * as effects from './effects.js?v=26';
+import * as scenery from './scenery.js?v=26';
+import * as pip from './pip.js?v=26';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -167,6 +167,9 @@ const el = {
   settingsForm: $('#settings-form'),
   install: $('#btn-install'),
   zen: $('#btn-zen'),
+  miniTime: $('#mini-time'),
+  miniMode: $('#mini-mode'),
+  navBadge: $('#nav-badge'),
   extend: $('#btn-extend'),
   pip: $('#btn-pip'),
   mixer: $('#mixer'),
@@ -432,6 +435,8 @@ function renderTimer(force = false) {
   el.head.setAttribute('cy', `${110 + 100 * Math.sin(a)}`);
 
   el.body.classList.toggle('is-running', timer.running);
+  el.miniTime.textContent = clock;
+  el.miniMode.textContent = MODES[timer.mode].label;
   el.extend.hidden = isFresh();
   el.toggle.setAttribute('aria-pressed', String(timer.running));
   el.toggleLabel.textContent = timer.running ? 'Pause' : isFresh() ? 'Start' : 'Resume';
@@ -953,6 +958,10 @@ function renderTasks({ entering } = {}) {
     const li = el.taskList.querySelector(`[data-id="${CSS.escape(id)}"]`);
     if (li) fx.enter(li);
   }
+
+  const open = tasks.filter((t) => !t.done).length;
+  el.navBadge.hidden = open === 0;
+  el.navBadge.textContent = String(open);
 
   const active = tasks.find((t) => t.id === activeTaskId);
   el.currentTask.hidden = !active;
@@ -2183,6 +2192,47 @@ el.volume.addEventListener('change', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Phones: app-style sections with a bottom navigation bar
+
+const VIEWS = ['timer', 'sounds', 'tasks'];
+const navBtns = $$('.nav-btn');
+const phoneLayout = window.matchMedia('(max-width: 760px)');
+
+function setView(view, { scroll = true } = {}) {
+  if (!VIEWS.includes(view)) view = 'timer';
+  const changed = el.body.dataset.view !== view;
+  el.body.dataset.view = view;
+  navBtns.forEach((b) => {
+    if (b.dataset.view === view) b.setAttribute('aria-current', 'page');
+    else b.removeAttribute('aria-current');
+  });
+  $('#bottom-nav').style.setProperty('--i', String(VIEWS.indexOf(view)));
+  if (changed && phoneLayout.matches) {
+    const target = view === 'timer' ? $('.timer-card') : view === 'sounds' ? $('.sounds-panel') : $('.tasks-panel');
+    fx.enter(target);
+    if (scroll) window.scrollTo({ top: 0 });
+  }
+}
+
+navBtns.forEach((b) => {
+  b.addEventListener('click', () => {
+    if (b.getAttribute('aria-current') === 'page') {
+      fx.pop(b, 1.08);
+      return;
+    }
+    audio.sfx('tap', b);
+    fx.haptic(6);
+    setView(b.dataset.view);
+  });
+});
+
+$('#mini-main').addEventListener('click', (e) => {
+  audio.sfx('tap', e.currentTarget);
+  setView('timer');
+});
+$('#mini-toggle').addEventListener('click', (e) => toggleTimer(e.currentTarget));
+
+// ---------------------------------------------------------------------------
 // Wiring
 
 function toggleTimer(source) {
@@ -2424,6 +2474,7 @@ document.addEventListener('keydown', (e) => {
     el.skip.click();
   } else if (key === 'n') {
     e.preventDefault();
+    setView('tasks');
     if (isZen()) setZen(false);
     setTimeout(() => el.taskInput.focus(), isZen() ? 500 : 0);
   } else if (['1', '2', '3'].includes(key)) {
@@ -2576,6 +2627,7 @@ if (timer.running) schedule();
 syncWakeLock();
 effects.initSpotlight();
 effects.initTilt($('.timer-card'));
+setView('timer', { scroll: false });
 requestAnimationFrame(() => el.body.classList.add('is-ready'));
 selectStatTab(0, { animate: false });
 // Someone who already used an earlier version doesn't need the welcome.
