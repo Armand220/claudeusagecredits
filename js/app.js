@@ -1,7 +1,7 @@
-import * as audio from './audio.js?v=5';
-import * as fx from './fx.js?v=5';
-import { toast } from './toast.js?v=5';
-import * as effects from './effects.js?v=5';
+import * as audio from './audio.js?v=6';
+import * as fx from './fx.js?v=6';
+import { toast } from './toast.js?v=6';
+import * as effects from './effects.js?v=6';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -22,6 +22,7 @@ const DEFAULTS = {
   goal: 4,
   autoBreaks: false,
   autoFocus: false,
+  breathing: true,
   chime: true,
   sfx: true,
   notify: false,
@@ -121,6 +122,7 @@ const el = {
   settingsDialog: $('#settings-dialog'),
   settingsForm: $('#settings-form'),
   install: $('#btn-install'),
+  zen: $('#btn-zen'),
   goal: $('#goal-pill'),
   goalFill: $('#goal-fill'),
   goalCount: $('#goal-count'),
@@ -322,6 +324,7 @@ function renderTimer(force = false) {
   const f = Math.max(0, Math.min(1, rem / totalMs()));
   el.ring.style.strokeDashoffset = `${RING_C * (1 - f)}`;
   updateTicks(f);
+  renderBreath(rem);
   const a = f * Math.PI * 2;
   el.head.setAttribute('cx', `${110 + 100 * Math.cos(a)}`);
   el.head.setAttribute('cy', `${110 + 100 * Math.sin(a)}`);
@@ -331,13 +334,46 @@ function renderTimer(force = false) {
   el.toggleLabel.textContent = timer.running ? 'Pause' : isFresh() ? 'Start' : 'Resume';
 }
 
+// Box breathing during breaks: 4s in, 4s hold, 4s out, 4s hold.
+const BREATH = [
+  ['in', 'Breathe in'],
+  ['hold-in', 'Hold'],
+  ['out', 'Breathe out'],
+  ['hold-out', 'Hold'],
+];
+let breathPhase = -1;
+
+function renderBreath(rem) {
+  const on = settings.breathing && timer.running && timer.mode !== 'focus';
+  if (!on) {
+    if (breathPhase !== -1) {
+      breathPhase = -1;
+      delete el.dial.dataset.breath;
+      el.sessionLabel.textContent = sessionNote();
+    }
+    return;
+  }
+  const elapsed = Math.max(0, totalMs() - rem);
+  const phase = Math.floor((elapsed % 16000) / 4000);
+  if (phase === breathPhase) return;
+  breathPhase = phase;
+  el.dial.dataset.breath = BREATH[phase][0];
+  el.sessionLabel.textContent = BREATH[phase][1];
+}
+
+function sessionNote() {
+  const pos = (timer.cycle % settings.longEvery) + 1;
+  return MODES[timer.mode].note(pos, settings.longEvery);
+}
+
 function applyMode() {
   const mode = timer.mode;
   el.body.dataset.mode = mode;
   el.tabs.forEach((t) => t.setAttribute('aria-selected', String(t.dataset.mode === mode)));
   el.modes.style.setProperty('--i', String(MODE_ORDER.indexOf(mode)));
-  const pos = (timer.cycle % settings.longEvery) + 1;
-  el.sessionLabel.textContent = MODES[mode].note(pos, settings.longEvery);
+  breathPhase = -1;
+  delete el.dial.dataset.breath;
+  el.sessionLabel.textContent = sessionNote();
   updateThemeColor();
   renderTimer(true);
 }
@@ -359,6 +395,30 @@ function announce(msg) {
   el.announcer.textContent = '';
   setTimeout(() => { el.announcer.textContent = msg; }, 50);
 }
+
+// ---------------------------------------------------------------------------
+// Zen mode: a fullscreen, distraction-free timer
+
+const isZen = () => el.body.classList.contains('is-zen');
+
+function setZen(on) {
+  if (on === isZen()) return;
+  const apply = () => {
+    el.body.classList.toggle('is-zen', on);
+    el.zen.setAttribute('aria-pressed', String(on));
+    el.zen.setAttribute('aria-label', on ? 'Leave zen mode' : 'Zen mode');
+  };
+  if (document.startViewTransition && fx.motionOK()) document.startViewTransition(apply);
+  else apply();
+  audio.sfx(on ? 'open' : 'close', el.zen);
+  const root = document.documentElement;
+  if (on && root.requestFullscreen && !document.fullscreenElement) root.requestFullscreen().catch(() => {});
+  if (!on && document.fullscreenElement) document.exitFullscreen().catch(() => {});
+}
+
+document.addEventListener('fullscreenchange', () => {
+  if (!document.fullscreenElement && isZen()) setZen(false);
+});
 
 // ---------------------------------------------------------------------------
 // Wake lock & notifications
@@ -861,7 +921,7 @@ $$('dialog.sheet').forEach((dialog) => {
 function fillSettings() {
   const f = el.settingsForm;
   for (const k of Object.keys(LIMITS)) f.elements[k].value = settings[k];
-  for (const k of ['autoBreaks', 'autoFocus', 'chime', 'sfx', 'notify', 'wakeLock']) f.elements[k].checked = settings[k];
+  for (const k of ['autoBreaks', 'autoFocus', 'breathing', 'chime', 'sfx', 'notify', 'wakeLock']) f.elements[k].checked = settings[k];
   f.elements.theme.value = settings.theme;
 }
 
@@ -899,6 +959,7 @@ el.settingsForm.addEventListener('change', async (e) => {
       }
     }
     if (name === 'wakeLock') syncWakeLock();
+    if (name === 'breathing') renderTimer(true);
   }
   save();
 });
@@ -1006,6 +1067,8 @@ el.reset.addEventListener('click', () => {
   void el.reset.offsetWidth;
   el.reset.classList.add('spin');
 });
+
+el.zen.addEventListener('click', () => setZen(!isZen()));
 
 el.skip.addEventListener('click', () => {
   skip();
@@ -1152,6 +1215,10 @@ document.addEventListener('keydown', (e) => {
     el.taskInput.focus();
   } else if (['1', '2', '3'].includes(key)) {
     el.tabs[Number(key) - 1].click();
+  } else if (key === 'f') {
+    setZen(!isZen());
+  } else if (key === 'escape' && isZen()) {
+    setZen(false);
   }
 });
 

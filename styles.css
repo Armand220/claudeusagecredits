@@ -1033,6 +1033,101 @@ legend {
 }
 .sheet-note { margin: 18px 0 0; font-size: 13px; color: var(--ink-3); }
 
+/* ------------------------------------------------------------- Breathing */
+
+.breath {
+  position: absolute;
+  inset: 24%;
+  border-radius: 50%;
+  background: radial-gradient(circle, color-mix(in srgb, var(--accent) 22%, transparent) 30%, color-mix(in srgb, var(--accent-2) 14%, transparent) 65%, transparent 71%);
+  box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--accent) 28%, transparent);
+  opacity: 0;
+  transform: scale(.55);
+  transition: transform 4s cubic-bezier(.45, 0, .55, 1), opacity .9s ease;
+  pointer-events: none;
+}
+.dial[data-breath] .breath { opacity: 1; }
+.dial[data-breath="in"] .breath,
+.dial[data-breath="hold-in"] .breath { transform: scale(1.18); }
+.dial[data-breath="out"] .breath,
+.dial[data-breath="hold-out"] .breath { transform: scale(.55); }
+.dial[data-breath] .session-label { font-weight: 600; color: var(--accent-strong); letter-spacing: .02em; }
+
+/* -------------------------------------------------------------- Zen mode */
+
+.zen-btn {
+  position: absolute;
+  top: 78px;
+  right: 16px;
+  z-index: 2;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 1px solid var(--glass-border);
+  background: var(--glass-strong);
+  box-shadow: var(--shadow-sm);
+  color: var(--ink-2);
+  display: grid;
+  place-items: center;
+}
+.zen-btn:hover { color: var(--ink); }
+.zen-btn svg { grid-area: 1 / 1; width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; transition: transform .45s var(--spring-strong), opacity .2s; }
+.zen-btn:hover .i-enter { transform: scale(1.18); }
+.zen-btn .i-exit { opacity: 0; transform: scale(.4); }
+body.is-zen .zen-btn .i-enter { opacity: 0; transform: scale(.4); }
+body.is-zen .zen-btn .i-exit { opacity: 1; transform: none; }
+
+.zen-hint { display: none; }
+.dial { view-transition-name: dial; }
+.controls { view-transition-name: controls; }
+
+body.is-zen .topbar,
+body.is-zen .side,
+body.is-zen .modes,
+body.is-zen .current-task-kicker { display: none; }
+body.is-zen .app { max-width: none; }
+body.is-zen .layout {
+  grid-template-columns: 1fr;
+  place-items: center;
+  min-height: calc(100dvh - 40px);
+}
+body.is-zen .timer-card {
+  position: static;
+  width: 100%;
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  transform: none;
+}
+body.is-zen .card::before { display: none; }
+body.is-zen .dial { width: min(68vmin, 620px); margin-top: 0; }
+body.is-zen .time { font-size: clamp(64px, 14vmin, 160px); }
+body.is-zen .session-label { font-size: clamp(14px, 2vmin, 20px); }
+body.is-zen .zen-btn { position: fixed; top: max(16px, env(safe-area-inset-top)); right: max(16px, env(safe-area-inset-right)); }
+body.is-zen .current-task { background: transparent; font-size: clamp(16px, 2.2vmin, 22px); }
+body.is-zen .zen-hint {
+  display: block;
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: max(26px, env(safe-area-inset-top));
+  margin: 0;
+  text-align: center;
+  font-size: 13px;
+  color: var(--ink-3);
+  animation: hint-fade 4s ease forwards;
+}
+@keyframes hint-fade { 0%, 70% { opacity: 1; } 100% { opacity: 0; } }
+@media (hover: none) { body.is-zen .zen-hint { display: none; } }
+body.is-zen .aurora span { --blob-opacity: .75; }
+
+::view-transition-old(root),
+::view-transition-new(root) { animation-duration: .45s; }
+::view-transition-group(dial),
+::view-transition-group(controls) { animation-duration: .6s; animation-timing-function: cubic-bezier(.3, 1.2, .4, 1); }
+
 /* ------------------------------------------------------------ Goal pill */
 
 .topbar { position: relative; }
