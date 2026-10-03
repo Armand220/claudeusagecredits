@@ -1,5 +1,5 @@
-import * as audio from './audio.js?v=2';
-import * as fx from './fx.js?v=2';
+import * as audio from './audio.js?v=3';
+import * as fx from './fx.js?v=3';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -658,13 +658,12 @@ function closeSheet(dialog) {
     return;
   }
   dialog.classList.add('is-closing');
-  const done = (e) => {
-    if (e.target !== dialog) return;
-    dialog.removeEventListener('animationend', done);
+  // A timer rather than animationend: the event can be skipped (background
+  // tab, interrupted animation) and a modal must never get stuck open.
+  setTimeout(() => {
     dialog.classList.remove('is-closing');
     dialog.close();
-  };
-  dialog.addEventListener('animationend', done);
+  }, 200);
 }
 
 $$('dialog.sheet').forEach((dialog) => {
