@@ -1,10 +1,10 @@
-import * as audio from './audio.js?v=33';
-import * as fx from './fx.js?v=33';
-import { toast } from './toast.js?v=33';
-import * as effects from './effects.js?v=33';
-import * as scenery from './scenery.js?v=33';
-import * as pip from './pip.js?v=33';
-import { shareCard } from './share.js?v=33';
+import * as audio from './audio.js?v=34';
+import * as fx from './fx.js?v=34';
+import { toast } from './toast.js?v=34';
+import * as effects from './effects.js?v=34';
+import * as scenery from './scenery.js?v=34';
+import * as pip from './pip.js?v=34';
+import { shareCard } from './share.js?v=34';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -238,8 +238,32 @@ function onTick() {
   schedule();
 }
 
+function maybeOfferNotifications() {
+  if (settings.notifyAsked || settings.notify || !('Notification' in window) || Notification.permission === 'denied') return;
+  settings.notifyAsked = true;
+  save();
+  setTimeout(() => {
+    toast({
+      icon: '🔔',
+      title: 'Want a nudge when time is up?',
+      body: 'Get a notification even when Tempo is in another tab.',
+      duration: 9000,
+      action: {
+        label: 'Turn on',
+        onClick: async () => {
+          const ok = await askNotificationPermission();
+          settings.notify = ok;
+          save();
+          toast(ok ? { icon: '🔔', title: 'Notifications on' } : { icon: '🔕', title: 'Notifications are blocked', body: 'You can allow them in your browser settings.' });
+        },
+      },
+    });
+  }, 1500);
+}
+
 function start() {
   if (timer.running) return;
+  if (timer.mode === 'focus') maybeOfferNotifications();
   if (timer.total == null) timer.total = durationOf(timer.mode);
   timer.endAt = Date.now() + (timer.paused ?? timer.total);
   timer.paused = null;
@@ -1966,6 +1990,9 @@ const BUILT_IN_MIXES = [
   { id: 'cafe', icon: '☕', name: 'Rainy café', mix: { lofi: { vol: 0.7, x: 0, z: -2 }, rain: { vol: 0.55, x: -2, z: 1.8 } } },
   { id: 'deep', icon: '🧠', name: 'Deep focus', mix: { brown: { vol: 0.6, x: 0, z: 2.4 }, binaural: { vol: 0.4, x: 0, z: 0 } } },
   { id: 'stars', icon: '🌌', name: 'Starry beats', mix: { lofi: { vol: 0.6, x: 0, z: -2 }, night: { vol: 0.55, x: -2.2, z: 2 } } },
+  { id: 'forest', icon: '🌲', name: 'Forest stream', mix: { stream: { vol: 0.8, x: -1.4, z: -2.6 }, wind: { vol: 0.45, x: 2.4, z: 2.2 }, night: { vol: 0.3, x: -2.4, z: 1.8 } } },
+  { id: 'autumn', icon: '🍂', name: 'Autumn walk', mix: { wind: { vol: 0.7, x: 0, z: -2.4, orbit: true }, stream: { vol: 0.5, x: 2.2, z: -2 } } },
+  { id: 'storm', icon: '⛈️', name: 'Stormy study', mix: { rain: { vol: 0.9, x: 0, z: -1 }, wind: { vol: 0.6, x: -2.4, z: 1.6 }, lofi: { vol: 0.45, x: 0, z: -2 } } },
 ];
 sound.presets = (Array.isArray(sound.presets) ? sound.presets : [])
   .filter((p) => p && typeof p.name === 'string' && p.mix && typeof p.mix === 'object')

@@ -2,8 +2,8 @@
 // waves, rising embers, fireflies under the stars, drifting dust in a breeze.
 // One canvas behind the page; it only animates while a scene is showing.
 
-import * as audio from './audio.js?v=33';
-import { motionOK } from './fx.js?v=33';
+import * as audio from './audio.js?v=34';
+import { motionOK } from './fx.js?v=34';
 
 const canvas = document.createElement('canvas');
 canvas.className = 'scenery';
@@ -268,6 +268,44 @@ const FACTORIES = {
           g.globalAlpha = a * fade * (colors.dark ? 0.38 : 0.32) * (0.75 + level * 0.8);
           g.font = `${(n.size * (1 + level * 0.18)).toFixed(1)}px Georgia, serif`;
           g.fillText(n.glyph, x, n.y);
+        }
+      },
+    };
+  },
+
+  stream() {
+    let glints = [];
+    const make = (anywhere) => ({
+      x: anywhere ? Math.random() * W : -20,
+      y: H * rand(0.84, 0.99),
+      v: rand(40, 110),
+      len: rand(10, 40),
+      phase: Math.random() * 6.28,
+    });
+    return {
+      init() {
+        glints = Array.from({ length: Math.round(W / 14) }, () => make(true));
+      },
+      draw(dt, a, t) {
+        // The water itself: a soft band along the bottom.
+        const band = g.createLinearGradient(0, H * 0.8, 0, H);
+        band.addColorStop(0, 'rgba(60,150,220,0)');
+        band.addColorStop(1, colors.dark ? 'rgba(60,150,220,0.22)' : 'rgba(60,150,220,0.18)');
+        g.globalAlpha = a;
+        g.fillStyle = band;
+        g.fillRect(0, H * 0.8, W, H * 0.2);
+        // Glints of light drifting downstream.
+        g.lineCap = 'round';
+        g.lineWidth = 1.5;
+        g.strokeStyle = colors.dark ? '#cfe9ff' : '#ffffff';
+        for (const s of glints) {
+          s.x += s.v * dt;
+          if (s.x > W + 40) Object.assign(s, make(false));
+          g.globalAlpha = a * (0.12 + 0.38 * Math.max(0, Math.sin(t * 2.2 + s.phase)));
+          g.beginPath();
+          g.moveTo(s.x, s.y + Math.sin(t * 1.5 + s.phase) * 2);
+          g.lineTo(s.x + s.len, s.y + Math.sin(t * 1.5 + s.phase + 0.6) * 2);
+          g.stroke();
         }
       },
     };

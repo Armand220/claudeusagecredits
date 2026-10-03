@@ -15,7 +15,8 @@ installed as an app on your phone or computer.
 - **+1 min** (or `+` / `-`) to stretch or trim a running session
 - Keeps accurate time in background tabs and picks up where it left off after a reload
 - Chime, optional notification, optional auto-start; when a session ends the
-  toast offers **Start break / Start focus**
+  toast offers **Start break / Start focus** and a one-tap rating of how it went
+- **Distracted** button (`D`) to tally wandering thoughts during focus
 - Breathing guide during breaks (box breathing)
 - **Zen mode**: a fullscreen, distraction-free timer (`F`)
 - **Floating mini timer** that stays on top of other windows (`P`)
@@ -23,7 +24,11 @@ installed as an app on your phone or computer.
 
 **3D sound** (best with headphones)
 - **Mixer**: layer as many sounds as you like, each with its own volume —
-  Rain, Waves, Fireplace, Night, Clock, **Lo-fi beats**, Binaural, Brown noise, Fan
+  Rain, Waves, Fireplace, Wind, Stream, Night, Clock, **Lo-fi beats**,
+  Binaural, Brown noise, Fan
+- **Ready-made mixes** (Cozy cabin, Seaside, Campfire night, Rainy café,
+  Forest stream, Stormy study…) and your own saved mixes
+- **Sleep timer** that fades the sounds out after 15–90 minutes
 - **3D room**: you're in the middle; drag each sound around your head, or
   press orbit to make it circle you
 - **Turn around**: drag your head in the room, or on a phone hold it up and
@@ -34,7 +39,8 @@ installed as an app on your phone or computer.
 - Clicks, pops and typing sounds come from where they happen on screen
 - Option to play ambient sound only while the timer runs
 - Animated backgrounds match the sound: rain streaks, rising embers, fireflies
-  and stars, rolling waves, floating music notes
+  and stars, rolling waves, drifting leaves, glinting water, floating music notes
+- Five chime styles: Bells, Kalimba, Gong, Birds (all around you) and Digital
 
 **Tasks**
 - Add tasks with an estimate; tap one to count sessions towards it
@@ -44,8 +50,10 @@ installed as an app on your phone or computer.
 
 **Progress**
 - Daily goal meter with a celebration when you hit it
-- Stats with Overview (today, streak, last 7 days, 12-week heatmap),
-  History (best focus hours, recent sessions) and Achievements (twelve to unlock)
+- Stats with Overview (today, streak, last 7 days vs the week before,
+  12-week heatmap), History (best focus hours, recent sessions with ratings
+  and distractions) and Achievements (seventeen to unlock)
+- **Share today**: a ready-to-post image of your day's focus
 - Export and import a backup file to move your data between devices
 
 **Look and feel**
@@ -55,6 +63,9 @@ installed as an app on your phone or computer.
   cursor spotlight and a gentle 3D tilt
 - Respects "reduce motion"; accessibility audit (axe) passes with no issues
 - Open in two tabs and they stay in sync
+- On phones: app-style Timer / Sounds / Tasks tabs with a mini timer bar;
+  wide screens show all three side by side
+- Installable, with shortcuts (Start focusing, Take a break, Zen mode)
 
 ## Keyboard shortcuts
 
@@ -68,6 +79,7 @@ installed as an app on your phone or computer.
 | `N` | New task |
 | `F` | Zen mode |
 | `P` | Floating mini timer |
+| `D` | Note a distraction |
 | `M` | Mute / unmute ambient sound |
 | `[` `]` | Ambient volume down / up |
 | `?` | Tips and shortcuts |
@@ -83,6 +95,7 @@ Plain HTML, CSS and JavaScript modules, with no build step and no dependencies.
 - `js/scenery.js`: animated backgrounds
 - `js/effects.js`, `js/fx.js`, `js/toast.js`: visual effects and notifications
 - `js/pip.js`: the floating mini timer
+- `js/share.js`: the shareable image of your day
 - `sw.js`, `manifest.webmanifest`: offline support and app install
 
 Your data is saved in your browser's local storage and never leaves your device.
