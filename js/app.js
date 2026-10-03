@@ -1,12 +1,12 @@
-import * as audio from './audio.js?v=65';
-import * as fx from './fx.js?v=65';
-import { toast } from './toast.js?v=65';
-import * as effects from './effects.js?v=65';
-import * as scenery from './scenery.js?v=65';
-import * as pip from './pip.js?v=65';
-import { shareCard, makeCardFile } from './share.js?v=65';
-import * as party from './party.js?v=65';
-import * as photo from './photo.js?v=65';
+import * as audio from './audio.js?v=66';
+import * as fx from './fx.js?v=66';
+import { toast } from './toast.js?v=66';
+import * as effects from './effects.js?v=66';
+import * as scenery from './scenery.js?v=66';
+import * as pip from './pip.js?v=66';
+import { shareCard, makeCardFile } from './share.js?v=66';
+import * as party from './party.js?v=66';
+import * as photo from './photo.js?v=66';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -44,6 +44,7 @@ const DEFAULTS = {
   goalMinutes: 120,
   bells: false,
   daySky: true,
+  playOnSilent: true,
 };
 const PALETTES = ['sunset', 'ocean', 'forest', 'lavender', 'rose', 'mono'];
 const LIMITS = { focus: [1, 180], short: [1, 60], long: [1, 90], longEvery: [2, 12], goal: [1, 24], chimeVolume: [0, 100], flowRatio: [2, 6], goalMinutes: [15, 720] };
@@ -2949,7 +2950,7 @@ $$('dialog.sheet').forEach((dialog) => {
 function fillSettings() {
   const f = el.settingsForm;
   for (const k of Object.keys(LIMITS)) f.elements[k].value = settings[k];
-  for (const k of ['autoBreaks', 'autoFocus', 'breathing', 'chime', 'sfx', 'notify', 'wakeLock', 'scenery', 'soundsWithTimer', 'flow', 'bells', 'daySky']) f.elements[k].checked = settings[k];
+  for (const k of ['autoBreaks', 'autoFocus', 'breathing', 'chime', 'sfx', 'notify', 'wakeLock', 'scenery', 'soundsWithTimer', 'flow', 'bells', 'daySky', 'playOnSilent']) f.elements[k].checked = settings[k];
   $('#flow-ratio-row').hidden = !settings.flow;
   f.elements.goalType.value = settings.goalType;
   syncGoalInputs();
@@ -3034,6 +3035,7 @@ el.settingsForm.addEventListener('change', async (e) => {
   } else if (input.type === 'checkbox') {
     settings[name] = input.checked;
     if (name === 'sfx') audio.setSfxEnabled(settings.sfx);
+    if (name === 'playOnSilent') audio.setPlayOnSilent(settings.playOnSilent);
     audio.sfx(input.checked ? 'on' : 'off', input);
     if (name === 'notify' && input.checked) {
       const ok = await askNotificationPermission();
@@ -4335,6 +4337,7 @@ statTabs.forEach((t, i) => {
 
 // What's new: the newest first. Bump `id` when adding an entry.
 const CHANGES = [
+  { id: 24, icon: '🔊', text: 'Button sounds now work on phones, and on iPhone they play even with the silent switch on (you can turn that off in Settings > Sound).' },
   { id: 23, icon: '🎉', text: 'Focus parties: tap Party to host, share the code, and everyone shares your timer, sounds and tasks live. Guests can ask for changes; you decide. Private by default: nobody sees anyone\'s IP address.' },
   { id: 22, icon: '👥', text: 'Focus together: while a session runs, tap Invite and send the link. Whoever opens it joins you, and your timers end at the same moment.' },
   { id: 21, icon: '🕒', text: 'In the search (Ctrl K), type a number like 40 to focus that long, or "until 3:30pm" to focus until then.' },
@@ -4472,11 +4475,20 @@ $('#btn-settings').addEventListener('click', (e) => {
 });
 
 // Every button: ripple + haptic on press, generic click sound where tagged.
+// Phones only let sound start on a finished tap (touchend/click), not when a
+// finger first lands, so unlock audio on those; a mouse press counts too.
+['touchend', 'click'].forEach((type) => document.addEventListener(type, () => {
+  audio.unlock();
+  startAmbientIfPending();
+}, { capture: true, passive: true }));
+
 document.addEventListener(
   'pointerdown',
   (e) => {
-    audio.unlock();
-    startAmbientIfPending();
+    if (e.pointerType === 'mouse') {
+      audio.unlock();
+      startAmbientIfPending();
+    }
     const target = e.target.closest('.pressable');
     if (!target || target.disabled) return;
     fx.ripple(target, e);
@@ -4660,6 +4672,8 @@ if ('serviceWorker' in navigator && (location.protocol === 'https:' || ['localho
 // Boot
 
 audio.setSfxEnabled(settings.sfx);
+audio.setPlayOnSilent(settings.playOnSilent);
+$('#silent-row').hidden = !(/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1));
 scenery.mount();
 audio.setChimeVolume(settings.chimeVolume / 100);
 scenery.setEnabled(settings.scenery);

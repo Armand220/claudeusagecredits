@@ -49,12 +49,66 @@ function ensure() {
     reverb.buffer = roomImpulse(2.2, 3.2);
     reverb.connect(gain(0.45, master));
   }
-  if (ctx.state === 'suspended') ctx.resume().catch(() => {});
+  // 'interrupted' is iOS after a call or switching apps; both need a nudge.
+  if (ctx.state !== 'running') ctx.resume().catch(() => {});
   return ctx;
 }
 
-/** Call from a user gesture so browsers allow audio to start. */
-export function unlock() { ensure(); }
+/** Call from a user gesture (a tap, click or key) so browsers allow audio to start. */
+export function unlock() {
+  ensure();
+  applySession();
+  keepSoundOnSilent();
+}
+
+// iPhones mute web audio when the ringer switch is on silent, unless the page
+// says it's playing media. When "play on silent" is on we say so: through the
+// Audio Session API where Safari has it, or else by quietly playing a silent
+// <audio> loop, which puts the page in the same media mode.
+let playOnSilent = true;
+let silentLoop = null;
+const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
+export function setPlayOnSilent(on) {
+  playOnSilent = Boolean(on);
+  applySession();
+  if (!playOnSilent && silentLoop) silentLoop.pause();
+}
+
+function silentWavUrl() {
+  const rate = 8000;
+  const n = rate / 2;
+  const v = new DataView(new ArrayBuffer(44 + n * 2));
+  const tag = (o, s) => [...s].forEach((ch, i) => v.setUint8(o + i, ch.charCodeAt(0)));
+  tag(0, 'RIFF');
+  v.setUint32(4, 36 + n * 2, true);
+  tag(8, 'WAVEfmt ');
+  v.setUint32(16, 16, true);
+  v.setUint16(20, 1, true);
+  v.setUint16(22, 1, true);
+  v.setUint32(24, rate, true);
+  v.setUint32(28, rate * 2, true);
+  v.setUint16(32, 2, true);
+  v.setUint16(34, 16, true);
+  tag(36, 'data');
+  v.setUint32(40, n * 2, true);
+  return URL.createObjectURL(new Blob([v.buffer], { type: 'audio/wav' }));
+}
+
+function keepSoundOnSilent() {
+  if (!isIOS || !playOnSilent || navigator.audioSession || document.hidden) return;
+  if (!silentLoop) {
+    silentLoop = new Audio(silentWavUrl());
+    silentLoop.loop = true;
+    silentLoop.setAttribute('playsinline', '');
+    silentLoop.setAttribute('aria-hidden', 'true');
+  }
+  if (silentLoop.paused) silentLoop.play().catch(() => {});
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden && silentLoop && !layers.size) silentLoop.pause();
+});
 
 export function setSfxEnabled(on) { sfxOn = Boolean(on); }
 
@@ -1862,9 +1916,12 @@ export const ambientKinds = Object.keys(SCENES);
 // iPhone: while ambient sound plays, keep playing through the silent switch
 // like a music app. Otherwise mix politely with other apps (so tapping a
 // button never pauses someone's music).
-function setAudioSession(playing) {
+// While sounds play (or when interface sounds should play on silent), act
+// like a media app; otherwise mix politely with other apps.
+function applySession() {
+  const want = layers.size > 0 || (playOnSilent && isIOS) ? 'playback' : 'auto';
   try {
-    if (navigator.audioSession) navigator.audioSession.type = playing ? 'playback' : 'auto';
+    if (navigator.audioSession && navigator.audioSession.type !== want) navigator.audioSession.type = want;
   } catch {
     /* unsupported */
   }
@@ -1954,7 +2011,7 @@ export function setLayer(kind, on, opts = {}) {
       return p;
     },
   };
-  setAudioSession(true);
+  applySession();
   tracked = layer.nodes;
   layer.tick = SCENES[kind](S);
   tracked = null;
@@ -2000,7 +2057,7 @@ function stopLayer(kind) {
   if (!layers.size) {
     clearInterval(layerTimer);
     layerTimer = 0;
-    setTimeout(() => { if (!layers.size) setAudioSession(false); }, 800);
+    setTimeout(() => { if (!layers.size) applySession(); }, 800);
   }
   const t = ctx.currentTime;
   for (const g of [l.out.gain, l.wet.gain]) {

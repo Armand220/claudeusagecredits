@@ -69,7 +69,8 @@ installed as an app on your phone or computer.
 - **Lo-fi beats** are composed live: swung drums, bass, electric piano chords,
   a bell melody, vinyl crackle and tape wobble, with the band placed around you
 - Everything is synthesised in the browser (no audio files)
-- Clicks, pops and typing sounds come from where they happen on screen
+- Clicks, pops and typing sounds come from where they happen on screen; on
+  iPhone they play even with the silent switch on (optional, in Settings)
 - Option to play ambient sound only while the timer runs
 - **Thunderstorm**: thunder from every side, near cracks and far rumbles;
   each lightning flash lights the side of the screen the thunder then comes
