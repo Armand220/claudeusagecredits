@@ -56,9 +56,14 @@ export async function open() {
   }
 }
 
-export function close() {
-  if (pipWin) pipWin.close();
-  else if (video && document.pictureInPictureElement === video) document.exitPictureInPicture().catch(() => {});
+export async function close() {
+  if (pipWin) {
+    const w = pipWin;
+    pipWin = null;
+    w.close();
+  } else if (video && document.pictureInPictureElement === video) {
+    await document.exitPictureInPicture().catch(() => {});
+  }
 }
 
 const STYLE = `

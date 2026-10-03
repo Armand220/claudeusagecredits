@@ -648,7 +648,11 @@ const SCENES = {
       noiseSource('brown', t, 7).connect(lp).connect(g);
     }
 
-    return (until) => {
+    return (until, now = 0) => {
+      // After a pause (or a closed sound gate), pick up from now rather than
+      // replaying every event that was skipped in the meantime.
+      if (next < now) next = now;
+      if (thunderAt < now) thunderAt = now + rand(20, 60);
       while (next < until) {
         drop(next);
         next += rand(0.012, 0.075);
@@ -692,7 +696,10 @@ const SCENES = {
       noiseSource('pink', crash - dur * 0.08, dur * 0.7).connect(filter('highpass', 1300)).connect(fg);
     }
 
-    return (until) => {
+    return (until, now = 0) => {
+      // After a pause (or a closed sound gate), pick up from now rather than
+      // replaying every event that was skipped in the meantime.
+      if (next < now) next = now;
       while (next < until) {
         wave(next);
         next += rand(5, 8.5);
@@ -714,7 +721,10 @@ const SCENES = {
       noiseSource('white', t, dur + 0.02).connect(f).connect(g);
     }
 
-    return (until) => {
+    return (until, now = 0) => {
+      // After a pause (or a closed sound gate), pick up from now rather than
+      // replaying every event that was skipped in the meantime.
+      if (next < now) next = now;
       while (next < until) {
         crackle(next, Math.random() < 0.06);
         next += Math.random() < 0.2 ? rand(0.008, 0.04) : rand(0.06, 0.5);
@@ -789,7 +799,12 @@ const SCENES = {
       });
     }
 
-    return (until) => {
+    return (until, now = 0) => {
+      // After a pause (or a closed sound gate), pick up from now rather than
+      // replaying every event that was skipped in the meantime.
+      for (const c of crickets) if (c.next < now) c.next = now + rand(0, c.every);
+      if (windNext < now) windNext = now;
+      if (owlAt < now) owlAt = now + rand(20, 60);
       for (const c of crickets) {
         while (c.next < until) {
           if (c.next >= c.restUntil) chirp(c, c.next);
@@ -838,7 +853,10 @@ const SCENES = {
       body.stop(t + 0.1);
     }
 
-    return (until) => {
+    return (until, now = 0) => {
+      // After a pause (or a closed sound gate), pick up from now rather than
+      // replaying every event that was skipped in the meantime.
+      if (next < now) next = Math.ceil(now);
       while (next < until) {
         tick(next, tock);
         tock = !tock;
@@ -970,7 +988,10 @@ const SCENES = {
     let prog = pick(PROGS);
     let melody = false;
 
-    return (until) => {
+    return (until, now = 0) => {
+      // After a pause (or a closed sound gate), pick up from now rather than
+      // replaying every event that was skipped in the meantime.
+      if (next < now) next = now + 0.05;
       while (next < until) {
         const s = step % 16;
         const t = next + (s % 2 ? six * 0.18 : 0); // swing
@@ -1061,8 +1082,8 @@ let layerTimer = 0;
 
 function tickLayers() {
   if (!ambientGate) return; // no need to schedule events nobody hears
-  const until = ctx.currentTime + 1.2;
-  layers.forEach((l) => l.tick && l.tick(until));
+  const now = ctx.currentTime;
+  layers.forEach((l) => l.tick && l.tick(now + 1.2, now));
 }
 
 /** Turn an ambient layer on or off. opts: { volume (0..1), x, z } */
@@ -1109,7 +1130,7 @@ export function setLayer(kind, on, opts = {}) {
   layer.tick = SCENES[kind](S);
   tracked = null;
   layers.set(kind, layer);
-  if (layer.tick) layer.tick(c.currentTime + 1.2);
+  if (layer.tick) layer.tick(c.currentTime + 1.2, c.currentTime);
   if (!layerTimer) layerTimer = setInterval(tickLayers, 250);
 }
 

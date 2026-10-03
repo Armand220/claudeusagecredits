@@ -1,9 +1,9 @@
-import * as audio from './audio.js?v=29';
-import * as fx from './fx.js?v=29';
-import { toast } from './toast.js?v=29';
-import * as effects from './effects.js?v=29';
-import * as scenery from './scenery.js?v=29';
-import * as pip from './pip.js?v=29';
+import * as audio from './audio.js?v=30';
+import * as fx from './fx.js?v=30';
+import { toast } from './toast.js?v=30';
+import * as effects from './effects.js?v=30';
+import * as scenery from './scenery.js?v=30';
+import * as pip from './pip.js?v=30';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -1982,8 +1982,19 @@ function renderMixes() {
       const name = document.createElement('span');
       name.textContent = m.name;
       b.append(icon, name);
-      b.title = Object.keys(m.mix).map((k) => SOUND_INFO[k] ? SOUND_INFO[k].name : k).join(' + ') + (m.custom ? ' — double-click to delete' : '');
-      return b;
+      b.title = Object.keys(m.mix).map((k) => (SOUND_INFO[k] ? SOUND_INFO[k].name : k)).join(' + ');
+      if (!m.custom) return b;
+      const wrap = document.createElement('span');
+      wrap.className = 'mix-card-wrap';
+      const del = document.createElement('button');
+      del.type = 'button';
+      del.className = 'mix-del pressable';
+      del.dataset.del = m.id;
+      del.setAttribute('aria-label', `Delete the mix "${m.name}"`);
+      del.title = 'Delete this mix';
+      del.innerHTML = ICON_X;
+      wrap.append(b, del);
+      return wrap;
     }),
   );
 }
@@ -2007,18 +2018,22 @@ function applyMix(m, source) {
 }
 
 el.mixes.addEventListener('click', (e) => {
+  const del = e.target.closest('.mix-del');
+  if (del) {
+    deleteMix(del.dataset.del, del);
+    return;
+  }
   const card = e.target.closest('.mix-card');
   if (!card) return;
   const m = allMixes().find((x) => x.id === card.dataset.mix);
   if (m) applyMix(m, card);
 });
 
-el.mixes.addEventListener('dblclick', (e) => {
-  const card = e.target.closest('.mix-card');
-  const i = card ? sound.presets.findIndex((p) => p.id === card.dataset.mix) : -1;
+function deleteMix(id, source) {
+  const i = sound.presets.findIndex((p) => p.id === id);
   if (i < 0) return;
   const [gone] = sound.presets.splice(i, 1);
-  audio.sfx('remove', card);
+  audio.sfx('remove', source);
   save();
   renderMixes();
   toast({
@@ -2026,7 +2041,7 @@ el.mixes.addEventListener('dblclick', (e) => {
     title: `Deleted "${gone.name}"`,
     action: { label: 'Undo', onClick: () => { sound.presets.splice(i, 0, gone); save(); renderMixes(); } },
   });
-});
+}
 
 const saveForm = $('#save-mix');
 const saveBtn = $('#btn-save-mix');
@@ -2053,7 +2068,7 @@ saveForm.addEventListener('submit', (e) => {
   renderMixes();
   audio.sfx('check', saveBtn);
   unlock('mixologist', { delay: 1200 });
-  toast({ icon: '⭐', title: `Saved "${name}"`, body: 'Find it with the mixes above. Double-click a saved mix to delete it.' });
+  toast({ icon: '⭐', title: `Saved "${name}"`, body: 'Find it with the mixes above.' });
 });
 saveForm.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') {
@@ -2285,6 +2300,8 @@ async function setTracking(on) {
   }
   tracking = on;
   alpha0 = null;
+  cancelAnimationFrame(trackRaf);
+  trackRaf = 0;
   trackBtn.setAttribute('aria-pressed', String(on));
   el.room.classList.toggle('is-tracking', on);
   if (on) {
@@ -2703,6 +2720,7 @@ window.addEventListener('storage', (e) => {
   renderTasks();
   renderGoal();
   syncWakeLock();
+  syncSoundGate();
 });
 
 // Install as an app
