@@ -4,14 +4,19 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Tempo · Focus Timer</title>
-  <meta name="description" content="A calm Pomodoro focus timer with tasks, ambient sounds and stats. Works offline.">
-  <meta name="theme-color" content="#e4643f">
+  <meta name="description" content="A calm Pomodoro focus timer with tasks, 3D ambient sound and stats. Works offline.">
+  <meta name="theme-color" content="#f7f1ec">
   <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
   <link rel="manifest" href="manifest.webmanifest">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..700&family=Outfit:wght@200..700&display=swap">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body data-mode="focus">
+  <div class="aurora" aria-hidden="true"><span></span><span></span><span></span></div>
+
   <div class="app">
     <header class="topbar">
       <a class="brand" href="./" aria-label="Tempo home">
@@ -23,15 +28,15 @@
         <span>Tempo</span>
       </a>
       <nav class="topbar-actions">
-        <button class="icon-btn" id="btn-install" type="button" hidden aria-label="Install app">
+        <button class="icon-btn pressable" id="btn-install" type="button" hidden aria-label="Install app" data-sfx="tap">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0-4.5-4.5M12 15l4.5-4.5M5 19h14"/></svg>
           <span class="label">Install</span>
         </button>
-        <button class="icon-btn" id="btn-stats" type="button" aria-label="Stats">
+        <button class="icon-btn pressable" id="btn-stats" type="button" aria-label="Stats">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20V11m7 9V5m7 15v-6"/></svg>
           <span class="label">Stats</span>
         </button>
-        <button class="icon-btn" id="btn-settings" type="button" aria-label="Settings">
+        <button class="icon-btn pressable" id="btn-settings" type="button" aria-label="Settings">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10m4 0h2M4 17h4m4 0h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>
           <span class="label">Settings</span>
         </button>
@@ -39,32 +44,45 @@
     </header>
 
     <main class="layout">
-      <section class="timer-card" aria-label="Timer">
+      <section class="card timer-card" aria-label="Timer">
         <div class="modes" role="tablist" aria-label="Session type">
+          <span class="mode-indicator" aria-hidden="true"></span>
           <button role="tab" type="button" class="mode-tab" data-mode="focus" aria-selected="true">Focus</button>
           <button role="tab" type="button" class="mode-tab" data-mode="short" aria-selected="false">Short break</button>
           <button role="tab" type="button" class="mode-tab" data-mode="long" aria-selected="false">Long break</button>
         </div>
 
-        <div class="dial">
+        <div class="dial" id="dial">
+          <div class="dial-glow" aria-hidden="true"></div>
           <svg class="ring" viewBox="0 0 220 220" aria-hidden="true">
+            <defs>
+              <linearGradient id="ring-grad" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0"/>
+                <stop offset="1"/>
+              </linearGradient>
+            </defs>
             <circle class="ring-track" cx="110" cy="110" r="100"/>
             <circle class="ring-progress" id="ring-progress" cx="110" cy="110" r="100"/>
+            <circle class="ring-head" id="ring-head" cx="210" cy="110" r="7"/>
           </svg>
           <div class="dial-center">
-            <div class="time" id="time" role="timer" aria-live="off">25:00</div>
-            <div class="session-label" id="session-label">Session 1 · Time to focus</div>
+            <div class="time" id="time" role="timer" aria-label="25 minutes 0 seconds remaining"></div>
+            <div class="session-label" id="session-label">Session 1 of 4</div>
           </div>
         </div>
 
         <div class="controls">
-          <button class="round-btn" id="btn-reset" type="button" aria-label="Reset timer" title="Reset (R)">
+          <button class="round-btn pressable" id="btn-reset" type="button" aria-label="Reset timer" title="Reset (R)">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a8 8 0 1 0 2.4-5.7M4 4v4.5h4.5"/></svg>
           </button>
-          <button class="primary-btn" id="btn-toggle" type="button" title="Start / pause (Space)">
+          <button class="primary-btn pressable" id="btn-toggle" type="button" aria-pressed="false" title="Start / pause (Space)">
+            <span class="pb-icon" aria-hidden="true">
+              <svg class="i-play" viewBox="0 0 24 24"><path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.4-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z"/></svg>
+              <svg class="i-pause" viewBox="0 0 24 24"><rect x="6" y="5" width="4.5" height="14" rx="1.5"/><rect x="13.5" y="5" width="4.5" height="14" rx="1.5"/></svg>
+            </span>
             <span id="toggle-label">Start</span>
           </button>
-          <button class="round-btn" id="btn-skip" type="button" aria-label="Skip to next session" title="Skip (S)">
+          <button class="round-btn pressable" id="btn-skip" type="button" aria-label="Skip to next session" title="Skip (S)">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 5l9 7-9 7V5zM18 5v14"/></svg>
           </button>
         </div>
@@ -76,7 +94,7 @@
       </section>
 
       <div class="side">
-        <section class="panel" aria-labelledby="sounds-heading">
+        <section class="card panel" aria-labelledby="sounds-heading">
           <div class="panel-head">
             <h2 id="sounds-heading">Ambient sound</h2>
             <label class="volume" title="Volume">
@@ -86,29 +104,34 @@
             </label>
           </div>
           <div class="chips" role="radiogroup" aria-label="Ambient sound">
-            <button type="button" class="chip" role="radio" data-sound="off" aria-checked="true">Off</button>
-            <button type="button" class="chip" role="radio" data-sound="rain" aria-checked="false">Rain</button>
-            <button type="button" class="chip" role="radio" data-sound="waves" aria-checked="false">Waves</button>
-            <button type="button" class="chip" role="radio" data-sound="brown" aria-checked="false">Brown noise</button>
-            <button type="button" class="chip" role="radio" data-sound="white" aria-checked="false">Fan</button>
+            <button type="button" class="chip pressable" role="radio" data-sound="off" aria-checked="true">Off</button>
+            <button type="button" class="chip pressable" role="radio" data-sound="rain" aria-checked="false"><span class="eq" aria-hidden="true"><i></i><i></i><i></i></span>Rain</button>
+            <button type="button" class="chip pressable" role="radio" data-sound="waves" aria-checked="false"><span class="eq" aria-hidden="true"><i></i><i></i><i></i></span>Waves</button>
+            <button type="button" class="chip pressable" role="radio" data-sound="fire" aria-checked="false"><span class="eq" aria-hidden="true"><i></i><i></i><i></i></span>Fireplace</button>
+            <button type="button" class="chip pressable" role="radio" data-sound="brown" aria-checked="false"><span class="eq" aria-hidden="true"><i></i><i></i><i></i></span>Brown noise</button>
+            <button type="button" class="chip pressable" role="radio" data-sound="fan" aria-checked="false"><span class="eq" aria-hidden="true"><i></i><i></i><i></i></span>Fan</button>
           </div>
+          <p class="hint">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 15v-3a8 8 0 0 1 16 0v3"/><rect x="3" y="14" width="4.5" height="7" rx="2"/><rect x="16.5" y="14" width="4.5" height="7" rx="2"/></svg>
+            3D spatial audio. Put on headphones and the rain falls all around you.
+          </p>
         </section>
 
-        <section class="panel tasks-panel" aria-labelledby="tasks-heading">
+        <section class="card panel tasks-panel" aria-labelledby="tasks-heading">
           <div class="panel-head">
             <h2 id="tasks-heading">Tasks</h2>
-            <button type="button" class="text-btn" id="btn-clear-done" hidden>Clear finished</button>
+            <button type="button" class="text-btn pressable" id="btn-clear-done" hidden>Clear finished</button>
           </div>
 
-          <form class="task-form" id="task-form" autocomplete="off">
+          <form class="task-form" id="task-form" autocomplete="off" novalidate>
             <label class="sr-only" for="task-input">New task</label>
-            <input id="task-input" type="text" maxlength="120" placeholder="What are you working on?" required>
+            <input id="task-input" type="text" maxlength="120" placeholder="What are you working on?" enterkeyhint="done">
             <label class="est" title="Estimated pomodoros">
               <span class="sr-only">Estimated pomodoros</span>
               <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="13" r="7"/><path d="M12 6V3m-2 0h4M12 13V10"/></svg>
               <input id="task-est" type="number" min="1" max="20" value="1" inputmode="numeric">
             </label>
-            <button class="add-btn" type="submit" aria-label="Add task">
+            <button class="add-btn pressable" type="submit" aria-label="Add task">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
             </button>
           </form>
@@ -121,7 +144,7 @@
         </section>
 
         <p class="shortcuts-hint">
-          <kbd>Space</kbd> start/pause · <kbd>R</kbd> reset · <kbd>S</kbd> skip · <kbd>N</kbd> new task
+          <kbd>Space</kbd> start/pause · <kbd>R</kbd> reset · <kbd>S</kbd> skip · <kbd>N</kbd> new task · <kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> modes
         </p>
       </div>
     </main>
@@ -130,23 +153,24 @@
   <div class="sr-only" id="announcer" aria-live="polite"></div>
 
   <dialog class="sheet" id="stats-dialog" aria-labelledby="stats-title">
-    <form method="dialog" class="sheet-inner">
+    <div class="sheet-inner">
       <header class="sheet-head">
         <h2 id="stats-title">Your focus</h2>
-        <button class="icon-btn close" value="close" aria-label="Close">
+        <button type="button" class="icon-btn close pressable" data-close aria-label="Close">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
         </button>
       </header>
       <div class="tiles">
         <div class="tile"><span class="tile-label">Today</span><span class="tile-value" id="stat-today">0m</span></div>
         <div class="tile"><span class="tile-label">Sessions today</span><span class="tile-value" id="stat-sessions">0</span></div>
-        <div class="tile"><span class="tile-label">Day streak</span><span class="tile-value" id="stat-streak">0</span></div>
+        <div class="tile"><span class="tile-label">Day streak</span><span class="tile-value" id="stat-streak">0 days</span></div>
         <div class="tile"><span class="tile-label">Last 7 days</span><span class="tile-value" id="stat-week">0m</span></div>
       </div>
       <figure class="chart">
         <figcaption>Focus minutes per day, last 7 days</figcaption>
         <div class="chart-plot" id="chart"></div>
-        <div class="chart-tooltip" id="chart-tooltip" role="status" hidden></div>
+        <div class="chart-days" id="chart-days" aria-hidden="true"></div>
+        <div class="chart-tooltip" id="chart-tooltip" hidden></div>
       </figure>
       <table class="sr-only" id="chart-table">
         <caption>Focus minutes per day</caption>
@@ -154,14 +178,14 @@
         <tbody></tbody>
       </table>
       <p class="sheet-note" id="stat-total"></p>
-    </form>
+    </div>
   </dialog>
 
   <dialog class="sheet" id="settings-dialog" aria-labelledby="settings-title">
-    <form method="dialog" class="sheet-inner" id="settings-form">
+    <form class="sheet-inner" id="settings-form" novalidate>
       <header class="sheet-head">
         <h2 id="settings-title">Settings</h2>
-        <button class="icon-btn close" value="close" aria-label="Close">
+        <button type="button" class="icon-btn close pressable" data-close aria-label="Close">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
         </button>
       </header>
@@ -182,27 +206,32 @@
         <legend>Behaviour</legend>
         <label class="switch"><input type="checkbox" name="autoBreaks"><span>Start breaks automatically</span></label>
         <label class="switch"><input type="checkbox" name="autoFocus"><span>Start focus automatically after a break</span></label>
-        <label class="switch"><input type="checkbox" name="chime"><span>Play a chime when a session ends</span></label>
-        <label class="switch"><input type="checkbox" name="notify"><span>Show a notification when a session ends</span></label>
         <label class="switch" id="wake-row"><input type="checkbox" name="wakeLock"><span>Keep the screen awake while the timer runs</span></label>
+      </fieldset>
+
+      <fieldset>
+        <legend>Sound</legend>
+        <label class="switch"><input type="checkbox" name="sfx"><span>Interface sounds &amp; haptics</span></label>
+        <label class="switch"><input type="checkbox" name="chime"><span>Chime when a session ends</span></label>
+        <label class="switch" id="notify-row"><input type="checkbox" name="notify"><span>Notification when a session ends</span></label>
       </fieldset>
 
       <fieldset>
         <legend>Appearance</legend>
         <div class="segmented" role="radiogroup" aria-label="Theme">
-          <label><input type="radio" name="theme" value="auto"><span>System</span></label>
-          <label><input type="radio" name="theme" value="light"><span>Light</span></label>
-          <label><input type="radio" name="theme" value="dark"><span>Dark</span></label>
+          <label class="pressable"><input type="radio" name="theme" value="auto"><span>System</span></label>
+          <label class="pressable"><input type="radio" name="theme" value="light"><span>Light</span></label>
+          <label class="pressable"><input type="radio" name="theme" value="dark"><span>Dark</span></label>
         </div>
       </fieldset>
 
       <div class="sheet-foot">
-        <button type="button" class="text-btn danger" id="btn-reset-data">Erase all data</button>
-        <button type="button" class="text-btn" id="btn-test-chime">Test chime</button>
+        <button type="button" class="text-btn danger pressable" id="btn-reset-data">Erase all data</button>
+        <button type="button" class="text-btn pressable" id="btn-test-chime">Test chime</button>
       </div>
     </form>
   </dialog>
 
-  <script src="app.js" defer></script>
+  <script type="module" src="js/app.js"></script>
 </body>
 </html>
