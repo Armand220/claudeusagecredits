@@ -23,7 +23,7 @@
   <!-- Fonts load without blocking the first paint. -->
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..700&family=Outfit:wght@200..700&display=swap" media="print" onload="this.media='all'">
   <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..700&family=Outfit:wght@200..700&display=swap"></noscript>
-  <link rel="stylesheet" href="styles.css?v=61">
+  <link rel="stylesheet" href="styles.css?v=62">
 </head>
 <body data-mode="focus">
   <div class="photo-bg" aria-hidden="true"></div>
@@ -124,6 +124,7 @@
               <div class="length-pop" id="length-pop" role="group" aria-label="Session length" hidden></div>
               <button type="button" class="extend-btn pressable" id="btn-extend" title="Add a minute (+)" hidden>+1 min</button>
               <button type="button" class="extend-btn flow-break-btn pressable" id="btn-flow-break" title="Finish and take your break (S)" hidden>☕ Break</button>
+              <button type="button" class="extend-btn invite-btn pressable" id="btn-invite" title="Invite someone to focus with you: your timers end together" aria-label="Invite someone to focus with you" hidden>👥<span class="btn-label"> Invite</span></button>
               <button type="button" class="extend-btn distract-btn pressable" id="btn-distract" title="Mind wandered? Tap to note it (D), then get back to it" hidden>⚡ <span id="distract-count">Distracted</span></button>
             </div>
           </div>
@@ -631,6 +632,6 @@
     </div>
   </dialog>
 
-  <script type="module" src="js/app.js?v=61"></script>
+  <script type="module" src="js/app.js?v=62"></script>
 </body>
 </html>

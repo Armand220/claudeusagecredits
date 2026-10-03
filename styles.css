@@ -2182,6 +2182,12 @@ body.is-zen .intention input { font-size: clamp(15px, 2vmin, 20px); color: var(-
   animation: rise-in .4s var(--spring);
 }
 .extend-btn:hover { color: var(--accent-strong); border-color: var(--accent); }
+.extend-btn { white-space: nowrap; }
+@media (max-width: 400px) {
+  .dial-actions { gap: 4px; }
+  .dial-actions .extend-btn { padding: 3px 8px; }
+  .invite-btn .btn-label { display: none; }
+}
 .distract-btn { font-variant-numeric: tabular-nums; }
 .length-pop {
   position: absolute;

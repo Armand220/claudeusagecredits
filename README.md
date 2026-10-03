@@ -22,6 +22,8 @@ installed as an app on your phone or computer.
   app's icon shows the minutes left
 - Chime, optional notification, optional auto-start; when a session ends the
   toast offers **Start break / Start focus** and a one-tap rating of how it went
+- **Focus together**: tap Invite during a session and send the link; whoever
+  opens it joins, and both timers end at the same moment (no account needed)
 - **Distracted** button (`D`) to tally wandering thoughts during focus
 - Breathing guide during breaks (box breathing), and an idea for each break
   (stretch, water, rest your eyes…)

@@ -1,11 +1,11 @@
-import * as audio from './audio.js?v=61';
-import * as fx from './fx.js?v=61';
-import { toast } from './toast.js?v=61';
-import * as effects from './effects.js?v=61';
-import * as scenery from './scenery.js?v=61';
-import * as pip from './pip.js?v=61';
-import { shareCard, makeCardFile } from './share.js?v=61';
-import * as photo from './photo.js?v=61';
+import * as audio from './audio.js?v=62';
+import * as fx from './fx.js?v=62';
+import { toast } from './toast.js?v=62';
+import * as effects from './effects.js?v=62';
+import * as scenery from './scenery.js?v=62';
+import * as pip from './pip.js?v=62';
+import { shareCard, makeCardFile } from './share.js?v=62';
+import * as photo from './photo.js?v=62';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -111,7 +111,9 @@ function cleanTasks(raw) {
 
 function cleanHistory(raw) {
   return (Array.isArray(raw) ? raw : [])
-    .filter((h) => h && Number.isFinite(h.t) && Number.isFinite(h.m) && h.t > Date.now() - 400 * DAY)
+    // Three years of sessions (at most 20,000) is a few hundred KB.
+    .filter((h) => h && Number.isFinite(h.t) && Number.isFinite(h.m) && h.t > Date.now() - 1100 * DAY)
+    .slice(-20000)
     .map((h) => ({
       t: h.t,
       m: h.m,
@@ -225,6 +227,7 @@ const el = {
   navBadge: $('#nav-badge'),
   extend: $('#btn-extend'),
   flowBreak: $('#btn-flow-break'),
+  invite: $('#btn-invite'),
   lengthBtn: $('#btn-length'),
   lengthPop: $('#length-pop'),
   distract: $('#btn-distract'),
@@ -763,6 +766,7 @@ function renderTimer(force = false) {
   el.miniTime.textContent = clock;
   el.miniMode.textContent = flow ? 'Flowtime' : MODES[timer.mode].label;
   el.extend.hidden = isFresh() || flow;
+  el.invite.hidden = !(timer.running && timer.mode === 'focus' && !timer.flow);
   el.body.classList.toggle('is-flow', flow);
   el.flowBreak.hidden = !flow || isFresh();
   if (flow) {
@@ -3216,6 +3220,70 @@ $('#btn-share-mix').addEventListener('click', async (e) => {
   }
 });
 
+// ----- Focus together: #join=<end time>.<length> — whoever opens the link
+// joins a session that ends at the same moment as yours.
+
+async function inviteToFocus(btn) {
+  if (!(timer.running && timer.mode === 'focus' && !timer.flow)) return;
+  const url = `${window.location.origin}${window.location.pathname}#join=${Math.round(timer.endAt)}.${Math.round(totalMs())}`;
+  const at = new Date(timer.endAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  fx.pop(btn, 1.1);
+  if (navigator.share && phoneLayout.matches) {
+    try {
+      await navigator.share({ title: 'Focus with me', text: `I'm focusing until ${at}. Join me on Tempo:`, url });
+      return;
+    } catch (err) {
+      if (err && err.name === 'AbortError') return;
+    }
+  }
+  try {
+    await navigator.clipboard.writeText(url);
+    audio.sfx('check', btn);
+    toast({ icon: '👥', title: 'Invite link copied', body: `Whoever opens it joins you; your timers both end at ${at}.`, duration: 4500 });
+  } catch {
+    window.prompt('Copy this link to invite someone:', url);
+  }
+}
+el.invite.addEventListener('click', (e) => inviteToFocus(e.currentTarget));
+
+function offerJoin() {
+  const raw = new URLSearchParams(window.location.hash.replace(/^#/, '')).get('join');
+  if (!raw) return;
+  window.history.replaceState(null, '', window.location.pathname + window.location.search);
+  const [endAt, total] = raw.split('.').map(Number);
+  const left = endAt - Date.now();
+  if (!Number.isFinite(endAt) || !Number.isFinite(total) || total < 60000 || total > 180 * 60000 || left > total + 60000) return;
+  if (left < 30000) {
+    toast({ icon: '👥', title: 'That focus session has ended', body: 'Ask for a new link, or start your own.', duration: 5000 });
+    return;
+  }
+  const at = new Date(endAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  toast({
+    icon: '👥',
+    title: 'Join a focus session?',
+    body: `Someone is focusing until ${at} (${fmtMinutes(Math.round(left / 60000))} left). Your timers will end together.`,
+    duration: 20000,
+    action: { label: 'Join', onClick: () => {
+      const now = Date.now();
+      if (endAt - now < 5000) return;
+      if (timer.running && elapsedMs() > 5000 && !window.confirm('The timer is running. Join this session instead?')) return;
+      audio.unlock();
+      switchTo('focus');
+      timer.total = endAt - now; // what you'll actually focus, for your stats
+      timer.endAt = endAt;
+      timer.running = true;
+      timer.paused = null;
+      timer.flow = false;
+      afterTimerChange();
+      setView('timer');
+      audio.sfx('start', el.toggle);
+      fx.burst(el.toggle, { count: 14, spread: 80, size: 6 });
+      toast({ icon: '👥', title: 'Joined', body: `Focusing together until ${at}.`, duration: 3000 });
+    } },
+  });
+}
+window.addEventListener('hashchange', offerJoin);
+
 function offerSharedMix() {
   const m = mixFromHash(window.location.hash);
   if (!m) return;
@@ -3847,6 +3915,7 @@ statTabs.forEach((t, i) => {
 
 // What's new: the newest first. Bump `id` when adding an entry.
 const CHANGES = [
+  { id: 22, icon: '👥', text: 'Focus together: while a session runs, tap Invite and send the link. Whoever opens it joins you, and your timers end at the same moment.' },
   { id: 21, icon: '🕒', text: 'In the search (Ctrl K), type a number like 40 to focus that long, or "until 3:30pm" to focus until then.' },
   { id: 20, icon: '🎲', text: 'Tap Surprise me in the mixes for a random mix that goes together. A session left paused for ten minutes now gets a gentle reminder.' },
   { id: 19, icon: '⛈️', text: 'New sound: Thunderstorm. Each lightning flash lights the side of the screen its thunder then rolls in from.' },
@@ -3897,7 +3966,12 @@ function markChangesSeen() {
 }
 
 // First visit: a short welcome.
+// Someone arriving through a shared link (a mix or an invite) sees that
+// offer first; the welcome waits for their next visit.
+const arrivedWithLink = /(?:^#|&)(mix|join)=/.test(window.location.hash);
+
 function maybeWelcome() {
+  if (arrivedWithLink) return;
   if (settings.welcomed) {
     // Returning visitors hear about new things once.
     const seen = Number(settings.seenChanges) || 0;
@@ -4287,6 +4361,7 @@ function paletteCommands(query) {
   add({ cat: 'Timer', top: true, icon: '🧘', title: isZen() ? 'Leave zen mode' : 'Zen mode', keys: 'F', run: () => setZen(!isZen()) });
   if (pip.supported()) add({ cat: 'Timer', icon: '🪟', title: 'Floating mini timer', keys: 'P', run: togglePip });
   if (timer.mode === 'focus' && !isFresh()) add({ cat: 'Timer', icon: '⚡', title: 'Note a distraction', keys: 'D', run: () => noteDistraction() });
+  if (timer.running && timer.mode === 'focus' && !timer.flow) add({ cat: 'Timer', top: true, icon: '👥', title: 'Invite someone to focus with you', words: 'share together friend link', run: () => inviteToFocus(el.invite) });
   // Sound
   const playing = activeKinds();
   for (const k of audio.ambientKinds) {
@@ -4517,6 +4592,7 @@ document.addEventListener('keydown', (e) => {
   }
 }
 offerSharedMix();
+offerJoin();
 requestAnimationFrame(() => el.body.classList.add('is-ready'));
 selectStatTab(0, { animate: false });
 renderWhatsNew();
