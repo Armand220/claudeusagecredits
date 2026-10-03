@@ -18,7 +18,7 @@ function container() {
  * toast({ title, body, icon, action: { label, onClick }, duration })
  * Returns a function that dismisses the toast.
  */
-export function toast({ title, body = '', icon = '', action = null, duration = 4200, tone = '' } = {}) {
+export function toast({ title, body = '', icon = '', action = null, actions = [], duration = 4200, tone = '' } = {}) {
   const root = container();
   const el = document.createElement('div');
   el.className = `toast${tone ? ` is-${tone}` : ''}`;
@@ -51,16 +51,24 @@ export function toast({ title, body = '', icon = '', action = null, duration = 4
     setTimeout(() => el.remove(), 260);
   };
 
-  if (action) {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'toast-action pressable';
-    btn.textContent = action.label;
-    btn.addEventListener('click', () => {
-      action.onClick?.(btn);
-      dismiss();
-    });
-    el.appendChild(btn);
+  const all = action ? [action, ...actions] : actions;
+  if (all.length) {
+    const wrap = document.createElement('div');
+    wrap.className = 'toast-actions';
+    for (const a of all) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = `toast-action pressable${a.kind ? ` is-${a.kind}` : ''}`;
+      btn.textContent = a.label;
+      if (a.ariaLabel) btn.setAttribute('aria-label', a.ariaLabel);
+      if (a.title) btn.title = a.title;
+      btn.addEventListener('click', () => {
+        if (a.onClick) a.onClick(btn);
+        if (!a.keepOpen) dismiss();
+      });
+      wrap.appendChild(btn);
+    }
+    el.appendChild(wrap);
   }
 
   const bar = document.createElement('span');

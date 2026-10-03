@@ -1,9 +1,9 @@
-import * as audio from './audio.js?v=27';
-import * as fx from './fx.js?v=27';
-import { toast } from './toast.js?v=27';
-import * as effects from './effects.js?v=27';
-import * as scenery from './scenery.js?v=27';
-import * as pip from './pip.js?v=27';
+import * as audio from './audio.js?v=28';
+import * as fx from './fx.js?v=28';
+import { toast } from './toast.js?v=28';
+import * as effects from './effects.js?v=28';
+import * as scenery from './scenery.js?v=28';
+import * as pip from './pip.js?v=28';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -73,6 +73,7 @@ function cleanTimer(raw) {
   const out = { mode: 'focus', running: false, endAt: 0, total: null, paused: null, cycle: 0, ...obj(raw) };
   if (!MODES[out.mode]) out.mode = 'focus';
   out.cycle = clampInt(out.cycle, 0, 1e6, 0);
+  out.distractions = clampInt(out.distractions, 0, 99, 0);
   out.running = Boolean(out.running) && Number.isFinite(out.endAt);
   return out;
 }
@@ -92,7 +93,14 @@ function cleanTasks(raw) {
 function cleanHistory(raw) {
   return (Array.isArray(raw) ? raw : [])
     .filter((h) => h && Number.isFinite(h.t) && Number.isFinite(h.m) && h.t > Date.now() - 400 * DAY)
-    .map((h) => ({ t: h.t, m: h.m, s: h.s ? 1 : 0, ...(typeof h.task === 'string' ? { task: h.task.slice(0, 120) } : {}) }));
+    .map((h) => ({
+      t: h.t,
+      m: h.m,
+      s: h.s ? 1 : 0,
+      ...(typeof h.task === 'string' ? { task: h.task.slice(0, 120) } : {}),
+      ...(Number.isInteger(h.r) && h.r >= 1 && h.r <= 4 ? { r: h.r } : {}),
+      ...(Number.isInteger(h.d) && h.d > 0 ? { d: Math.min(h.d, 99) } : {}),
+    }));
 }
 
 function cleanCounters(raw) {
@@ -173,6 +181,8 @@ const el = {
   miniMode: $('#mini-mode'),
   navBadge: $('#nav-badge'),
   extend: $('#btn-extend'),
+  distract: $('#btn-distract'),
+  distractCount: $('#distract-count'),
   pip: $('#btn-pip'),
   mixer: $('#mixer'),
   mixes: $('#mixes'),
@@ -261,10 +271,33 @@ function addTime(ms, source) {
   return true;
 }
 
+const RATINGS = ['😫', '😐', '🙂', '🤩'];
+const RATING_NAMES = ['Rough', 'Okay', 'Good', 'Great'];
+
+function noteDistraction(source) {
+  if (timer.mode !== 'focus' || isFresh()) return;
+  timer.distractions = Math.min(99, (timer.distractions || 0) + 1);
+  save();
+  renderDistractions();
+  audio.sfx('tick', source || el.distract);
+  fx.pop(el.distract, 1.12);
+  if (timer.distractions === 1) {
+    toast({ icon: '⚡', title: 'Noted. Back to it!', body: 'Jot the thought down as a task if it matters, then refocus.', duration: 3500 });
+  }
+}
+
+function renderDistractions() {
+  const n = timer.distractions || 0;
+  el.distract.hidden = timer.mode !== 'focus' || isFresh();
+  el.distractCount.textContent = n ? String(n) : 'Distracted';
+  el.distract.setAttribute('aria-label', n ? `Distractions this session: ${n}. Tap to add one.` : 'Note a distraction');
+}
+
 function clearSession() {
   timer.running = false;
   timer.total = null;
   timer.paused = null;
+  timer.distractions = 0;
 }
 
 function reset() {
@@ -308,7 +341,13 @@ function complete({ late = 0 } = {}) {
     const task = tasks.find((t) => t.id === activeTaskId);
     // Another open tab may have recorded this same session already.
     if (!history.some((h) => h.s && h.t === endedAt)) {
-      history.push({ t: endedAt, m: Math.round(totalMs() / 60000), s: 1, ...(task ? { task: task.title } : {}) });
+      history.push({
+        t: endedAt,
+        m: Math.round(totalMs() / 60000),
+        s: 1,
+        ...(task ? { task: task.title } : {}),
+        ...(timer.distractions ? { d: timer.distractions } : {}),
+      });
     }
     if (task && !task.done) task.pomos += 1;
     timer.cycle += 1;
@@ -339,14 +378,27 @@ function complete({ late = 0 } = {}) {
   );
   const auto = next === 'focus' ? settings.autoFocus : settings.autoBreaks;
   if (auto) start();
-  else {
+  const startAction = { label: next === 'focus' ? 'Start focus' : 'Start break', onClick: () => { if (!timer.running) toggleTimer(el.toggle); } };
+  if (ended === 'focus') {
+    // One tap to note how the session went.
+    const rate = (r) => () => {
+      const h = history.find((x) => x.s && x.t === endedAt);
+      if (h) h.r = r;
+      save();
+      audio.sfx('pop', el.toggle);
+    };
     toast({
-      icon: next === 'focus' ? '🎯' : '☕',
-      title: ended === 'focus' ? 'Focus session done' : 'Break is over',
-      body: next === 'focus' ? 'Ready when you are.' : `Time for a ${settings[next]}-minute break.`,
-      duration: 9000,
-      action: { label: next === 'focus' ? 'Start focus' : 'Start break', onClick: () => { if (!timer.running) toggleTimer(el.toggle); } },
+      icon: '☕',
+      title: 'Focus session done. How did it go?',
+      body: auto ? `Your ${settings[next]}-minute break has started.` : `Time for a ${settings[next]}-minute break.`,
+      duration: 12000,
+      actions: [
+        ...RATINGS.map((emoji, i) => ({ label: emoji, kind: 'emoji', ariaLabel: RATING_NAMES[i], title: RATING_NAMES[i], onClick: rate(i + 1) })),
+        ...(auto ? [] : [startAction]),
+      ],
     });
+  } else if (!auto) {
+    toast({ icon: '🎯', title: 'Break is over', body: 'Ready when you are.', duration: 9000, action: startAction });
   }
   if (ended === 'focus') {
     const today = dayTotals(new Date());
@@ -369,7 +421,13 @@ function skip() {
     const elapsed = totalMs() - remainingMs();
     const task = tasks.find((t) => t.id === activeTaskId);
     if (!isFresh() && elapsed >= 60000) {
-      history.push({ t: Date.now(), m: Math.floor(elapsed / 60000), s: 0, ...(task ? { task: task.title } : {}) });
+      history.push({
+        t: Date.now(),
+        m: Math.floor(elapsed / 60000),
+        s: 0,
+        ...(task ? { task: task.title } : {}),
+        ...(timer.distractions ? { d: timer.distractions } : {}),
+      });
     }
     timer.cycle += 1;
   } else if (ended === 'long') {
@@ -442,6 +500,7 @@ function renderTimer(force = false) {
   el.miniTime.textContent = clock;
   el.miniMode.textContent = MODES[timer.mode].label;
   el.extend.hidden = isFresh();
+  renderDistractions();
   el.toggle.setAttribute('aria-pressed', String(timer.running));
   el.toggleLabel.textContent = timer.running ? 'Pause' : isFresh() ? 'Start' : 'Resume';
 }
@@ -1309,6 +1368,18 @@ function fmtWhen(ts) {
 
 function renderLog() {
   const list = $('#session-log');
+  const lastFocus = history.filter((h) => h.s).slice(-20);
+  const rated = lastFocus.filter((h) => h.r);
+  const parts = [];
+  if (rated.length) {
+    const avg = Math.round(rated.reduce((n, h) => n + h.r, 0) / rated.length);
+    parts.push(`Sessions feel ${RATING_NAMES[avg - 1].toLowerCase()} on average ${RATINGS[avg - 1]}`);
+  }
+  if (lastFocus.length >= 3) {
+    const per = lastFocus.reduce((n, h) => n + (h.d || 0), 0) / lastFocus.length;
+    parts.push(`${per.toFixed(1)} distractions per session`);
+  }
+  $('#log-summary').textContent = parts.join(' · ');
   const recent = history.slice(-12).reverse();
   if (!recent.length) {
     const li = document.createElement('li');
@@ -1327,6 +1398,13 @@ function renderLog() {
       const what = document.createElement('span');
       what.className = 'log-what';
       what.textContent = h.task || (h.s ? 'Focus session' : 'Focus (ended early)');
+      if (h.r || h.d) {
+        const meta = document.createElement('span');
+        meta.className = 'log-meta';
+        meta.textContent = [h.r ? RATINGS[h.r - 1] : '', h.d ? `⚡${h.d}` : ''].filter(Boolean).join(' ');
+        meta.title = [h.r ? `Felt ${RATING_NAMES[h.r - 1].toLowerCase()}` : '', h.d ? `${h.d} distraction${h.d === 1 ? '' : 's'}` : ''].filter(Boolean).join(', ');
+        what.append(' ', meta);
+      }
       const dur = document.createElement('span');
       dur.className = 'log-dur';
       dur.textContent = fmtMinutes(h.m);
@@ -1665,6 +1743,7 @@ const ROOM_R = 4; // metres from you to the edge of the room
 const ROOM_SPAN = 44; // % of the pad from its centre to that edge
 
 let ambientStarted = false;
+let gatedHintShown = false;
 let mutedKinds = [];
 
 const activeKinds = () => audio.ambientKinds.filter((k) => sound.mix[k] && sound.mix[k].on);
@@ -1704,6 +1783,16 @@ function setSound(kind, on) {
   startAmbientIfPending();
   ambientStarted = ambientStarted || on;
   audio.setLayer(kind, on, on ? layerOpts(kind) : undefined);
+  if (on && settings.soundsWithTimer && !timer.running && !gatedHintShown) {
+    gatedHintShown = true;
+    toast({
+      icon: '⏯️',
+      title: 'Sounds start with the timer',
+      body: 'You chose to hear ambient sound only while the timer runs.',
+      duration: 6000,
+      action: { label: 'Start', onClick: () => { if (!timer.running) toggleTimer(el.toggle); } },
+    });
+  }
   afterSoundChange();
 }
 
@@ -2297,6 +2386,7 @@ el.reset.addEventListener('click', () => {
 
 el.zen.addEventListener('click', () => setZen(!isZen()));
 el.extend.addEventListener('click', () => addTime(60000, el.extend));
+el.distract.addEventListener('click', () => noteDistraction(el.distract));
 el.pip.hidden = !pip.supported();
 el.pip.addEventListener('click', togglePip);
 
@@ -2519,6 +2609,8 @@ document.addEventListener('keydown', (e) => {
     setTimeout(() => el.taskInput.focus(), isZen() ? 500 : 0);
   } else if (['1', '2', '3'].includes(key)) {
     el.tabs[Number(key) - 1].click();
+  } else if (key === 'd') {
+    noteDistraction();
   } else if (key === '+' || key === '=') {
     addTime(60000, el.extend);
   } else if (key === '-' || key === '_') {

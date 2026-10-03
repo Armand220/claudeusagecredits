@@ -1828,9 +1828,9 @@ body.is-zen .aurora span { --blob-opacity: .75; }
 
 /* ----------------------------------------------------------- Cycle dots */
 
+.dial-actions { display: flex; justify-content: center; gap: 6px; margin-top: 6px; }
 .extend-btn {
   justify-self: center;
-  margin-top: 6px;
   padding: 3px 10px;
   border: 1px solid var(--line);
   border-radius: 999px;
@@ -1842,6 +1842,21 @@ body.is-zen .aurora span { --blob-opacity: .75; }
   animation: rise-in .4s var(--spring);
 }
 .extend-btn:hover { color: var(--accent-strong); border-color: var(--accent); }
+.distract-btn { font-variant-numeric: tabular-nums; }
+.log-meta { font-weight: 500; color: var(--ink-2); font-size: 12px; white-space: nowrap; }
+.log-summary { margin: -6px 0 10px; }
+.toast-actions { display: flex; gap: 6px; flex: none; }
+.toast-action.is-emoji {
+  width: 38px;
+  padding: 6px 0;
+  background: var(--track);
+  font-size: 18px;
+  line-height: 1;
+}
+.toast-action.is-emoji:hover { background: var(--accent-soft); transform: scale(1.12); }
+.toast:has(.is-emoji) { flex-wrap: wrap; }
+.toast:has(.is-emoji) .toast-text { flex-basis: calc(100% - 60px); }
+.toast:has(.is-emoji) .toast-actions { width: 100%; justify-content: flex-end; }
 .cycle-dots { display: flex; justify-content: center; gap: 6px; margin-top: 8px; min-height: 8px; }
 .cycle-dots i {
   display: block;
