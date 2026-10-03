@@ -1,7 +1,7 @@
-import * as audio from './audio.js?v=11';
-import * as fx from './fx.js?v=11';
-import { toast } from './toast.js?v=11';
-import * as effects from './effects.js?v=11';
+import * as audio from './audio.js?v=12';
+import * as fx from './fx.js?v=12';
+import { toast } from './toast.js?v=12';
+import * as effects from './effects.js?v=12';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -28,7 +28,9 @@ const DEFAULTS = {
   notify: false,
   wakeLock: false,
   theme: 'auto',
+  palette: 'sunset',
 };
+const PALETTES = ['sunset', 'ocean', 'forest', 'lavender', 'rose', 'mono'];
 const LIMITS = { focus: [1, 180], short: [1, 60], long: [1, 90], longEvery: [2, 12], goal: [1, 24] };
 const RING_C = 2 * Math.PI * 100;
 
@@ -54,6 +56,7 @@ const stored = readStore();
 const settings = { ...DEFAULTS, ...obj(stored.settings) };
 for (const [k, [min, max]] of Object.entries(LIMITS)) settings[k] = clampInt(settings[k], min, max, DEFAULTS[k]);
 if (!['auto', 'light', 'dark'].includes(settings.theme)) settings.theme = 'auto';
+if (!PALETTES.includes(settings.palette)) settings.palette = 'sunset';
 
 const timer = { mode: 'focus', running: false, endAt: 0, total: null, paused: null, cycle: 0, ...obj(stored.timer) };
 if (!MODES[timer.mode]) timer.mode = 'focus';
@@ -451,6 +454,9 @@ function updateThemeColor() {
 function applyTheme() {
   if (settings.theme === 'auto') delete document.documentElement.dataset.theme;
   else document.documentElement.dataset.theme = settings.theme;
+  el.body.dataset.palette = settings.palette;
+  favKey = '';
+  renderFavicon(Math.max(0, Math.min(1, remainingMs() / totalMs())));
   updateThemeColor();
 }
 
@@ -1199,7 +1205,32 @@ function fillSettings() {
   for (const k of Object.keys(LIMITS)) f.elements[k].value = settings[k];
   for (const k of ['autoBreaks', 'autoFocus', 'breathing', 'chime', 'sfx', 'notify', 'wakeLock']) f.elements[k].checked = settings[k];
   f.elements.theme.value = settings.theme;
+  f.elements.palette.value = settings.palette;
+  markPreset();
 }
+
+function markPreset() {
+  const current = `${settings.focus},${settings.short},${settings.long}`;
+  $$('.preset').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.preset === current)));
+}
+
+$$('.preset').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    const [focus, short, long] = btn.dataset.preset.split(',').map(Number);
+    Object.assign(settings, { focus, short, long });
+    const f = el.settingsForm;
+    f.elements.focus.value = focus;
+    f.elements.short.value = short;
+    f.elements.long.value = long;
+    markPreset();
+    audio.sfx('pop', btn);
+    fx.pop(btn, 1.06);
+    ['focus', 'short', 'long'].forEach((k) => fx.pop(f.elements[k], 1.06));
+    applyMode();
+    renderSummary();
+    save();
+  });
+});
 
 el.settingsForm.addEventListener('submit', (e) => {
   e.preventDefault();
@@ -1217,10 +1248,16 @@ el.settingsForm.addEventListener('change', async (e) => {
     applyMode();
     renderSummary();
     renderGoal();
+    markPreset();
   } else if (name === 'theme') {
     settings.theme = input.value;
     applyTheme();
     audio.sfx('pop', input.closest('label'));
+  } else if (name === 'palette') {
+    settings.palette = input.value;
+    applyTheme();
+    audio.sfx('pop', input.closest('label'));
+    fx.burst(input.closest('label'), { count: 10, spread: 34, size: 5 });
   } else if (input.type === 'checkbox') {
     settings[name] = input.checked;
     if (name === 'sfx') audio.setSfxEnabled(settings.sfx);

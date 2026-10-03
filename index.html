@@ -12,7 +12,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..700&family=Outfit:wght@200..700&display=swap">
-  <link rel="stylesheet" href="styles.css?v=11">
+  <link rel="stylesheet" href="styles.css?v=12">
 </head>
 <body data-mode="focus">
   <div class="aurora" aria-hidden="true"><span></span><span></span><span></span></div>
@@ -226,6 +226,12 @@
 
       <fieldset>
         <legend>Durations (minutes)</legend>
+        <div class="presets" role="group" aria-label="Presets">
+          <button type="button" class="preset pressable" data-preset="25,5,15"><strong>Classic</strong><span>25 · 5 · 15</span></button>
+          <button type="button" class="preset pressable" data-preset="50,10,20"><strong>Deep</strong><span>50 · 10 · 20</span></button>
+          <button type="button" class="preset pressable" data-preset="15,3,10"><strong>Sprint</strong><span>15 · 3 · 10</span></button>
+          <button type="button" class="preset pressable" data-preset="90,20,30"><strong>Flow</strong><span>90 · 20 · 30</span></button>
+        </div>
         <div class="grid-3">
           <label class="field"><span>Focus</span><input type="number" name="focus" min="1" max="180" inputmode="numeric"></label>
           <label class="field"><span>Short break</span><input type="number" name="short" min="1" max="60" inputmode="numeric"></label>
@@ -256,6 +262,14 @@
 
       <fieldset>
         <legend>Appearance</legend>
+        <div class="swatches" role="radiogroup" aria-label="Colour">
+          <label class="swatch-opt pressable" title="Sunset"><input type="radio" name="palette" value="sunset"><span class="swatch" data-p="sunset"></span><span class="sr-only">Sunset</span></label>
+          <label class="swatch-opt pressable" title="Ocean"><input type="radio" name="palette" value="ocean"><span class="swatch" data-p="ocean"></span><span class="sr-only">Ocean</span></label>
+          <label class="swatch-opt pressable" title="Forest"><input type="radio" name="palette" value="forest"><span class="swatch" data-p="forest"></span><span class="sr-only">Forest</span></label>
+          <label class="swatch-opt pressable" title="Lavender"><input type="radio" name="palette" value="lavender"><span class="swatch" data-p="lavender"></span><span class="sr-only">Lavender</span></label>
+          <label class="swatch-opt pressable" title="Rose"><input type="radio" name="palette" value="rose"><span class="swatch" data-p="rose"></span><span class="sr-only">Rose</span></label>
+          <label class="swatch-opt pressable" title="Mono"><input type="radio" name="palette" value="mono"><span class="swatch" data-p="mono"></span><span class="sr-only">Mono</span></label>
+        </div>
         <div class="segmented" role="radiogroup" aria-label="Theme">
           <label class="pressable"><input type="radio" name="theme" value="auto"><span>System</span></label>
           <label class="pressable"><input type="radio" name="theme" value="light"><span>Light</span></label>
@@ -308,6 +322,6 @@
     </div>
   </dialog>
 
-  <script type="module" src="js/app.js?v=11"></script>
+  <script type="module" src="js/app.js?v=12"></script>
 </body>
 </html>
