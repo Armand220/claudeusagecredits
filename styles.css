@@ -808,7 +808,7 @@ body.is-running .time .colon { animation: blink 1s steps(1) infinite; }
 .add-btn svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; transition: transform .5s var(--spring-strong); }
 .add-btn:hover svg { transform: rotate(90deg); }
 
-.task-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.task-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; overflow-x: clip; }
 
 .task {
   display: flex;
@@ -821,6 +821,26 @@ body.is-running .time .colon { animation: blink 1s steps(1) infinite; }
   transition: border-color .25s, background-color .25s, box-shadow .25s, transform .3s var(--spring);
 }
 .task:hover { transform: translateY(-1px); box-shadow: var(--shadow-sm); }
+.task { position: relative; touch-action: pan-y; }
+.task.is-swiping { transition: none; }
+.task[data-swipe]::before {
+  position: absolute;
+  top: 50%;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  margin-top: -17px;
+  border-radius: 50%;
+  font-size: 16px;
+  font-weight: 800;
+  opacity: var(--p, 0);
+  transform: scale(calc(.5 + var(--p, 0) * .5));
+}
+.task[data-swipe="right"]::before { content: "✓"; right: calc(100% + 12px); background: #2f9e5b; color: #fff; }
+.task[data-swipe="left"]::before { content: "✕"; left: calc(100% + 12px); background: var(--danger); color: #fff; }
+.task[data-armed]::before { animation: armed .35s var(--spring-strong); }
+@keyframes armed { 50% { transform: scale(1.25); } }
 .task.is-active {
   border-color: color-mix(in srgb, var(--accent) 55%, transparent);
   background: linear-gradient(90deg, var(--accent-soft), transparent 80%), var(--glass-strong);

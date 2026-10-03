@@ -1,9 +1,9 @@
-import * as audio from './audio.js?v=17';
-import * as fx from './fx.js?v=17';
-import { toast } from './toast.js?v=17';
-import * as effects from './effects.js?v=17';
-import * as scenery from './scenery.js?v=17';
-import * as pip from './pip.js?v=17';
+import * as audio from './audio.js?v=18';
+import * as fx from './fx.js?v=18';
+import { toast } from './toast.js?v=18';
+import * as effects from './effects.js?v=18';
+import * as scenery from './scenery.js?v=18';
+import * as pip from './pip.js?v=18';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -710,6 +710,79 @@ function startEdit(li) {
   });
   form.addEventListener('focusout', (e) => {
     if (!form.contains(e.relatedTarget)) finish(true);
+  });
+}
+
+// Phones: swipe a task right to tick it off, left to delete it.
+function initTaskSwipe() {
+  const THRESHOLD = 90;
+  el.taskList.addEventListener('pointerdown', (e) => {
+    if (e.pointerType !== 'touch') return;
+    const li = e.target.closest('.task');
+    if (!li || e.target.closest('.task-grip, .task-edit, input')) return;
+    const x0 = e.clientX;
+    const y0 = e.clientY;
+    let dx = 0;
+    let active = false;
+
+    const cleanup = () => {
+      li.removeEventListener('pointermove', move);
+      li.removeEventListener('pointerup', up);
+      li.removeEventListener('pointercancel', up);
+    };
+    const move = (ev) => {
+      const mx = ev.clientX - x0;
+      const my = ev.clientY - y0;
+      if (!active) {
+        if (Math.abs(my) > 10 && Math.abs(my) > Math.abs(mx)) {
+          cleanup();
+          return;
+        }
+        if (Math.abs(mx) < 12) return;
+        active = true;
+        li.setPointerCapture(ev.pointerId);
+        li.classList.add('is-swiping');
+      }
+      dx = mx;
+      const p = Math.min(1, Math.abs(dx) / THRESHOLD);
+      li.style.transform = `translateX(${dx}px)`;
+      li.dataset.swipe = dx > 0 ? 'right' : 'left';
+      li.style.setProperty('--p', p.toFixed(2));
+      if (p >= 1 && !li.dataset.armed) {
+        li.dataset.armed = '1';
+        fx.haptic(12);
+        audio.sfx('tick', li);
+      } else if (p < 1 && li.dataset.armed) {
+        delete li.dataset.armed;
+      }
+    };
+    const up = () => {
+      cleanup();
+      if (!active) return;
+      // The swipe shouldn't also count as a tap on the task.
+      const swallow = (ce) => {
+        ce.stopPropagation();
+        ce.preventDefault();
+      };
+      li.addEventListener('click', swallow, { capture: true, once: true });
+      setTimeout(() => li.removeEventListener('click', swallow, { capture: true }), 350);
+      li.classList.remove('is-swiping');
+      delete li.dataset.armed;
+      if (dx > THRESHOLD) {
+        const check = li.querySelector('.task-check');
+        check.checked = !check.checked;
+        check.dispatchEvent(new Event('change', { bubbles: true }));
+      } else if (dx < -THRESHOLD) {
+        li.style.transform = 'translateX(-105%)';
+        removeTasks([li.dataset.id], li);
+      } else {
+        li.style.transform = '';
+        delete li.dataset.swipe;
+      }
+    };
+    li.addEventListener('pointermove', move);
+    li.addEventListener('pointerup', up);
+    li.addEventListener('pointercancel', up);
   });
 }
 
@@ -2004,6 +2077,7 @@ scenery.setScenes(activeKinds());
 renderGoal();
 setInterval(renderGoal, 60000);
 initTaskDrag();
+initTaskSwipe();
 if (timer.running) schedule();
 syncWakeLock();
 effects.initSpotlight();
