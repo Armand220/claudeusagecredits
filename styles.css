@@ -1834,7 +1834,7 @@ button.heat { padding: 0; border: 0; cursor: pointer; }
 .session-log { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; max-height: 260px; overflow-y: auto; }
 .log-item {
   display: grid;
-  grid-template-columns: 9.5em minmax(0, 1fr) auto;
+  grid-template-columns: 9.5em minmax(0, 1fr) auto auto;
   gap: 10px;
   align-items: center;
   padding: 8px 12px;
@@ -1848,8 +1848,83 @@ button.heat { padding: 0; border: 0; cursor: pointer; }
 .log-dur { font-weight: 700; color: var(--accent-strong); font-variant-numeric: tabular-nums; }
 .log-item.is-partial .log-what { color: var(--ink-2); font-weight: 500; }
 .log-item.is-partial .log-dur { color: var(--ink-3); }
+.log-note-btn {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  margin: -4px -6px -4px 0;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--ink-3);
+}
+.log-note-btn svg { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.log-note-btn:hover { color: var(--accent-strong); background: var(--accent-soft); }
+.log-note {
+  grid-column: 2 / -1;
+  margin: -4px 0 0;
+  font-size: 12.5px;
+  color: var(--ink-2);
+  overflow-wrap: anywhere;
+}
+.log-note::before { content: "📝 "; }
 .log-empty { padding: 14px; text-align: center; font-size: 13px; color: var(--ink-3); border: 1.5px dashed var(--line); border-radius: 12px; }
-@media (max-width: 420px) { .log-item { grid-template-columns: minmax(0, 1fr) auto; } .log-when { grid-column: 1 / -1; font-size: 12px; } }
+@media (max-width: 420px) { .log-item { grid-template-columns: minmax(0, 1fr) auto auto; } .log-when { grid-column: 1 / -1; font-size: 12px; } .log-note { grid-column: 1 / -1; } }
+
+.note-sheet { width: min(440px, calc(100vw - 24px)); }
+.note-sheet .sheet-head { margin-bottom: 4px; }
+.note-sheet .sheet-note { margin: 0 0 12px; }
+#note-text {
+  width: 100%;
+  resize: vertical;
+  min-height: 84px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 15px;
+}
+#note-text:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.note-foot { display: flex; align-items: center; justify-content: space-between; margin-top: 12px; }
+.note-count { font-size: 12px; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.note-save { min-height: 44px; padding: 0 20px; font-size: 15px; }
+
+.intention {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: min(100%, 380px);
+  margin: 14px auto 0;
+  padding: 2px 14px;
+  border: 1px dashed var(--line);
+  border-radius: 999px;
+  transition: border-color .25s, background-color .25s;
+}
+.intention:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); }
+.intention:focus-within { border-style: solid; border-color: var(--accent); background: var(--surface); }
+.intention.is-set:not(:focus-within) { border-color: transparent; background: var(--accent-soft); }
+.intention-icon { flex: none; font-size: 15px; }
+.intention input {
+  flex: 1;
+  min-width: 0;
+  padding: 9px 4px;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font-size: 14.5px;
+  font-weight: 500;
+  text-align: center;
+  text-overflow: ellipsis;
+}
+.intention input:focus { outline: none; }
+.intention input::placeholder { color: var(--ink-3); }
+.intention:has(input:focus-visible) { box-shadow: 0 0 0 3px var(--accent-soft); }
+body.is-zen .intention:not(.is-set) { display: none; }
+body.is-zen .intention { margin-top: 18px; background: transparent; border-color: transparent; }
+body.is-zen .intention input { font-size: clamp(15px, 2vmin, 20px); color: var(--ink-2); }
 
 .field-note { margin: -2px 0 10px; font-size: 13px; color: var(--ink-3); }
 .data-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }

@@ -1,11 +1,11 @@
-import * as audio from './audio.js?v=47';
-import * as fx from './fx.js?v=47';
-import { toast } from './toast.js?v=47';
-import * as effects from './effects.js?v=47';
-import * as scenery from './scenery.js?v=47';
-import * as pip from './pip.js?v=47';
-import { shareCard, makeCardFile } from './share.js?v=47';
-import * as photo from './photo.js?v=47';
+import * as audio from './audio.js?v=48';
+import * as fx from './fx.js?v=48';
+import { toast } from './toast.js?v=48';
+import * as effects from './effects.js?v=48';
+import * as scenery from './scenery.js?v=48';
+import * as pip from './pip.js?v=48';
+import { shareCard, makeCardFile } from './share.js?v=48';
+import * as photo from './photo.js?v=48';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -112,7 +112,19 @@ function cleanHistory(raw) {
       ...(Number.isInteger(h.r) && h.r >= 1 && h.r <= 4 ? { r: h.r } : {}),
       ...(Number.isInteger(h.d) && h.d > 0 ? { d: Math.min(h.d, 99) } : {}),
       ...(h.f ? { f: 1 } : {}),
+      ...(typeof h.n === 'string' && h.n.trim() ? { n: h.n.trim().slice(0, 140) } : {}),
     }));
+}
+
+// Today's intention: a line you write for the day; it clears itself tomorrow.
+const todayKey = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+};
+
+function cleanIntention(raw) {
+  const o = obj(raw);
+  return { d: todayKey(), text: o.d === todayKey() && typeof o.text === 'string' ? o.text.slice(0, 100) : '' };
 }
 
 function cleanCounters(raw) {
@@ -134,6 +146,7 @@ let activeTaskId = tasks.some((t) => t.id === stored.activeTaskId) ? stored.acti
 let history = cleanHistory(stored.history);
 const achievements = { ...obj(stored.achievements) };
 const counters = cleanCounters(stored.counters);
+let intention = cleanIntention(stored.intention);
 
 const clampNum = (v, min, max, fallback) => (Number.isFinite(Number(v)) && v !== null && v !== '' ? Math.min(max, Math.max(min, Number(v))) : fallback);
 const sound = { volume: 50, ...obj(stored.sound) };
@@ -156,7 +169,7 @@ for (const k of Object.keys(sound.mix)) {
 
 function save() {
   try {
-    localStorage.setItem(STORE_KEY, JSON.stringify({ settings, timer, tasks, activeTaskId, history, sound, achievements, counters }));
+    localStorage.setItem(STORE_KEY, JSON.stringify({ settings, timer, tasks, activeTaskId, history, sound, achievements, counters, intention }));
   } catch {
     /* storage full or blocked: the app still works for this visit */
   }
@@ -574,6 +587,7 @@ function complete({ late = 0, flowMs = 0 } = {}) {
       duration: 12000,
       actions: [
         ...RATINGS.map((emoji, i) => ({ label: emoji, kind: 'emoji', ariaLabel: RATING_NAMES[i], title: RATING_NAMES[i], onClick: rate(i + 1) })),
+        { label: '📝', kind: 'emoji', ariaLabel: 'Note what you got done', title: 'Note what you got done', onClick: () => openNote(endedAt, el.toggle) },
         ...(auto ? [] : [startAction]),
       ],
     });
@@ -1672,9 +1686,109 @@ function logItem(h, whenText) {
   const dur = document.createElement('span');
   dur.className = 'log-dur';
   dur.textContent = fmtMinutes(h.m);
-  li.append(when, what, dur);
+  const edit = document.createElement('button');
+  edit.type = 'button';
+  edit.className = 'log-note-btn pressable';
+  edit.dataset.t = String(h.t);
+  edit.innerHTML = ICON_EDIT;
+  edit.title = h.n ? 'Edit note' : 'Add a note';
+  edit.setAttribute('aria-label', `${h.n ? 'Edit the note for' : 'Add a note to'} the session at ${new Date(h.t).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`);
+  li.append(when, what, dur, edit);
+  if (h.n) {
+    const note = document.createElement('p');
+    note.className = 'log-note';
+    note.textContent = h.n;
+    li.append(note);
+  }
   return li;
 }
+
+// Notes on sessions: what you got done.
+let noteFor = null;
+
+function openNote(t, from) {
+  const h = history.find((x) => x.t === t);
+  if (!h) return;
+  noteFor = t;
+  const when = new Date(h.t).toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' });
+  $('#note-session').textContent = `${when} · ${fmtMinutes(h.m)}${h.task ? ` · ${splitTags(h.task).label}` : ''}`;
+  const text = $('#note-text');
+  text.value = h.n || '';
+  $('#note-count').textContent = `${text.value.length}/140`;
+  openSheet($('#note-dialog'), from);
+  setTimeout(() => text.focus(), 60);
+}
+
+$('#note-text').addEventListener('input', (e) => {
+  $('#note-count').textContent = `${e.target.value.length}/140`;
+});
+$('#note-text').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    $('#note-form').requestSubmit();
+  }
+});
+$('#note-form').addEventListener('submit', (e) => {
+  e.preventDefault();
+  const h = history.find((x) => x.t === noteFor);
+  const text = $('#note-text').value.trim().slice(0, 140);
+  if (h) {
+    if (text) h.n = text;
+    else delete h.n;
+    save();
+    renderLog();
+    renderDayDetail();
+  }
+  audio.sfx(text ? 'check' : 'off', $('.note-save'));
+  closeSheet($('#note-dialog'));
+  if (text) toast({ icon: '📝', title: 'Note saved', body: text, duration: 2500 });
+});
+document.addEventListener('click', (e) => {
+  const b = e.target.closest('.log-note-btn');
+  if (b) openNote(Number(b.dataset.t), b);
+});
+
+// ----- Today's intention
+
+function renderIntention() {
+  if (intention.d !== todayKey()) intention = cleanIntention(null);
+  const input = $('#intention-input');
+  if (document.activeElement !== input) input.value = intention.text;
+  $('#intention-form').classList.toggle('is-set', Boolean(intention.text));
+}
+
+function saveIntention({ celebrate = false } = {}) {
+  const input = $('#intention-input');
+  const text = input.value.trim().slice(0, 100);
+  if (text === intention.text && intention.d === todayKey()) return;
+  intention = { d: todayKey(), text };
+  save();
+  renderIntention();
+  if (celebrate && text) {
+    const form = $('#intention-form');
+    audio.sfx('check', form);
+    fx.pop(form, 1.04);
+    fx.burst(form, { count: 10, spread: 60, size: 5 });
+  }
+}
+
+$('#intention-form').addEventListener('submit', (e) => {
+  e.preventDefault();
+  saveIntention({ celebrate: true });
+  $('#intention-input').blur();
+});
+$('#intention-input').addEventListener('blur', () => saveIntention());
+$('#intention-input').addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    e.stopPropagation();
+    e.target.value = intention.text;
+    e.target.blur();
+  }
+});
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') renderIntention();
+});
+renderIntention();
 
 // A strip showing when today's sessions happened.
 function renderTimeline() {
@@ -3118,6 +3232,7 @@ statTabs.forEach((t, i) => {
 
 // What's new: the newest first. Bump `id` when adding an entry.
 const CHANGES = [
+  { id: 11, icon: '🌱', text: 'Write today\'s intention under the timer, and jot down what you got done after each session (📝). Notes show in Stats.' },
   { id: 10, icon: '🐦', text: 'New sounds: Birdsong (a morning forest all around you) and Café (chatter, clinking cups and the espresso machine), with new mixes Morning walk and Coffee shop.' },
   { id: 9, icon: '🏷️', text: 'Add #tags to task names (like "Essay #school") to see focus by tag in Stats. Tap a day in the heatmap to see its sessions.' },
   { id: 8, icon: '🚆', text: 'Two new 3D sounds: a Study hall full of quiet typing and page turns, and a Train ride with hills rolling past. Ambient sound now dips while the chime plays.' },
@@ -3279,6 +3394,11 @@ document.addEventListener('keydown', (e) => {
     setTimeout(() => el.taskInput.focus(), isZen() ? 500 : 0);
   } else if (['1', '2', '3'].includes(key)) {
     el.tabs[Number(key) - 1].click();
+  } else if (key === 'i') {
+    e.preventDefault();
+    if (isZen()) setZen(false);
+    setView('timer');
+    setTimeout(() => $('#intention-input').focus(), isZen() ? 500 : 0);
   } else if (key === 'd') {
     noteDistraction();
   } else if (key === '+' || key === '=') {
@@ -3354,6 +3474,8 @@ window.addEventListener('storage', (e) => {
   Object.keys(achievements).forEach((k) => delete achievements[k]);
   Object.assign(achievements, obj(d.achievements));
   Object.assign(counters, cleanCounters(d.counters));
+  intention = cleanIntention(d.intention);
+  renderIntention();
   // Saved mixes are shared; what's playing stays per tab.
   const sp = obj(d.sound).presets;
   if (Array.isArray(sp)) {

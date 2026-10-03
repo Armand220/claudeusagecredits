@@ -65,6 +65,10 @@ installed as an app on your phone or computer.
 - Edit inline, drag to reorder, swipe on phones (right to tick off, left to
   delete), undo deletes
 - "Finish around" estimate for what's left
+- **Today's intention**: a line under the timer for what you want from the
+  day (`I`); it clears itself tomorrow and stays visible in zen mode
+- **Session notes**: tap 📝 when a session ends (or the pencil next to any
+  session in Stats) to note what you got done
 
 **Progress**
 - Daily goal meter with a celebration when you hit it
@@ -98,6 +102,7 @@ installed as an app on your phone or computer.
 | `N` | New task |
 | `F` | Zen mode |
 | `P` | Floating mini timer |
+| `I` | Write today's intention |
 | `D` | Note a distraction |
 | `M` | Mute / unmute ambient sound |
 | `[` `]` | Ambient volume down / up |

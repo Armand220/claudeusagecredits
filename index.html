@@ -23,7 +23,7 @@
   <!-- Fonts load without blocking the first paint. -->
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..700&family=Outfit:wght@200..700&display=swap" media="print" onload="this.media='all'">
   <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..700&family=Outfit:wght@200..700&display=swap"></noscript>
-  <link rel="stylesheet" href="styles.css?v=47">
+  <link rel="stylesheet" href="styles.css?v=48">
 </head>
 <body data-mode="focus">
   <div class="photo-bg" aria-hidden="true"></div>
@@ -147,6 +147,11 @@
           <span class="current-task-kicker">Working on</span>
           <span class="current-task-title" id="current-task-title"></span>
         </p>
+
+        <form class="intention" id="intention-form" autocomplete="off" novalidate>
+          <span class="intention-icon" aria-hidden="true">🌱</span>
+          <input id="intention-input" type="text" maxlength="100" placeholder="Today, I want to…" aria-label="Today's intention" enterkeyhint="done">
+        </form>
       </section>
 
       <div class="side">
@@ -512,6 +517,24 @@
     </div>
   </dialog>
 
+  <dialog class="sheet note-sheet" id="note-dialog" aria-labelledby="note-title">
+    <form class="sheet-inner" id="note-form" method="dialog" novalidate>
+      <header class="sheet-head">
+        <h2 id="note-title">What did you get done?</h2>
+        <button type="button" class="icon-btn close pressable" data-close aria-label="Close">
+          <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+        </button>
+      </header>
+      <p class="sheet-note" id="note-session"></p>
+      <label class="sr-only" for="note-text">Note</label>
+      <textarea id="note-text" maxlength="140" rows="3" placeholder="Finished the outline, fixed two bugs…"></textarea>
+      <div class="note-foot">
+        <span class="note-count" id="note-count" aria-live="polite">0/140</span>
+        <button type="submit" class="primary-btn pressable note-save">Save note</button>
+      </div>
+    </form>
+  </dialog>
+
   <dialog class="sheet" id="help-dialog" aria-labelledby="help-title">
     <div class="sheet-inner">
       <header class="sheet-head">
@@ -533,6 +556,7 @@
           <div><dt><kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd></dt><dd>Focus, short break, long break</dd></div>
           <div><dt><kbd>+</kbd> <kbd>−</kbd></dt><dd>Add or remove a minute</dd></div>
           <div><dt><kbd>[</kbd> <kbd>]</kbd></dt><dd>Ambient volume down / up</dd></div>
+          <div><dt><kbd>I</kbd></dt><dd>Write today's intention</dd></div>
           <div><dt><kbd>D</kbd></dt><dd>Note a distraction during focus</dd></div>
           <div><dt><kbd>N</kbd></dt><dd>Add a task</dd></div>
           <div><dt><kbd>F</kbd></dt><dd>Zen mode</dd></div>
@@ -545,6 +569,7 @@
         <h3>Good to know</h3>
         <ul class="tips">
           <li><span aria-hidden="true">🎧</span><span>Wear headphones. Every sound is placed in 3D around you, and button clicks come from where you tap.</span></li>
+          <li><span aria-hidden="true">🌱</span><span>Write today's intention under the timer (I). After a session, tap 📝 to note what you got done; tap the pencil next to any session in Stats to add or change its note.</span></li>
           <li><span aria-hidden="true">🏷️</span><span>Add #tags to task names, like "Read chapter 3 #school". Stats then shows how your focus splits between them. Tap any day in the heatmap to see its sessions.</span></li>
           <li><span aria-hidden="true">👆</span><span>Tap a task to count focus sessions towards it. Drag the grip to reorder, double-click a name to rename it. On a phone, swipe a task right to tick it off or left to delete it.</span></li>
           <li><span aria-hidden="true">🎛️</span><span>Tap several sounds to mix them, or pick a ready-made mix. In the room, drag each sound around you, press orbit to send it circling, or drag your own head to turn around.</span></li>
@@ -560,6 +585,6 @@
     </div>
   </dialog>
 
-  <script type="module" src="js/app.js?v=47"></script>
+  <script type="module" src="js/app.js?v=48"></script>
 </body>
 </html>
