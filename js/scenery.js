@@ -4,8 +4,8 @@
 // sunbeams and birds in a forest, warm café lights and rising steam.
 // One canvas behind the page; it only animates while a scene is showing.
 
-import * as audio from './audio.js?v=49';
-import { motionOK } from './fx.js?v=49';
+import * as audio from './audio.js?v=50';
+import { motionOK } from './fx.js?v=50';
 
 const canvas = document.createElement('canvas');
 canvas.className = 'scenery';
@@ -536,6 +536,19 @@ const FACTORIES = {
     let bokeh = [];
     let wisps = [];
     const warm = ['255,190,120', '255,160,90', '255,220,160', '240,140,110'];
+    // Soft discs drawn once, then stamped every frame.
+    const discs = warm.map((c) => {
+      const d = document.createElement('canvas');
+      d.width = d.height = 96;
+      const s = d.getContext('2d');
+      const grd = s.createRadialGradient(48, 48, 0, 48, 48, 48);
+      grd.addColorStop(0, `rgba(${c},1)`);
+      grd.addColorStop(0.7, `rgba(${c},0.6)`);
+      grd.addColorStop(1, `rgba(${c},0)`);
+      s.fillStyle = grd;
+      s.fillRect(0, 0, 96, 96);
+      return d;
+    });
     const makeWisp = (anywhere) => ({
       x: rand(0.05, 0.95) * W,
       y: anywhere ? rand(0.3, 1) * H : H + 20,
@@ -550,7 +563,7 @@ const FACTORIES = {
           x: Math.random() * W,
           y: rand(0.05, 0.6) * H,
           r: rand(14, 46),
-          c: warm[Math.floor(Math.random() * warm.length)],
+          disc: discs[Math.floor(Math.random() * discs.length)],
           phase: Math.random() * 6.28,
           drift: rand(-4, 4),
         }));
@@ -562,15 +575,8 @@ const FACTORIES = {
           if (b.x < -60) b.x = W + 60;
           if (b.x > W + 60) b.x = -60;
           const glow = 0.5 + 0.5 * Math.sin(t * 0.6 + b.phase);
-          const grd = g.createRadialGradient(b.x, b.y, 0, b.x, b.y, b.r);
-          grd.addColorStop(0, `rgba(${b.c},${(colors.dark ? 0.2 : 0.16) * (0.6 + 0.4 * glow)})`);
-          grd.addColorStop(0.7, `rgba(${b.c},${(colors.dark ? 0.12 : 0.1) * (0.6 + 0.4 * glow)})`);
-          grd.addColorStop(1, `rgba(${b.c},0)`);
-          g.globalAlpha = a;
-          g.fillStyle = grd;
-          g.beginPath();
-          g.arc(b.x, b.y, b.r, 0, Math.PI * 2);
-          g.fill();
+          g.globalAlpha = a * (colors.dark ? 0.2 : 0.16) * (0.6 + 0.4 * glow);
+          g.drawImage(b.disc, b.x - b.r, b.y - b.r, b.r * 2, b.r * 2);
         }
         g.strokeStyle = colors.dark ? '#f2e8e0' : '#ffffff';
         g.lineWidth = 3;

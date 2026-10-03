@@ -1,11 +1,11 @@
-import * as audio from './audio.js?v=49';
-import * as fx from './fx.js?v=49';
-import { toast } from './toast.js?v=49';
-import * as effects from './effects.js?v=49';
-import * as scenery from './scenery.js?v=49';
-import * as pip from './pip.js?v=49';
-import { shareCard, makeCardFile } from './share.js?v=49';
-import * as photo from './photo.js?v=49';
+import * as audio from './audio.js?v=50';
+import * as fx from './fx.js?v=50';
+import { toast } from './toast.js?v=50';
+import * as effects from './effects.js?v=50';
+import * as scenery from './scenery.js?v=50';
+import * as pip from './pip.js?v=50';
+import { shareCard, makeCardFile } from './share.js?v=50';
+import * as photo from './photo.js?v=50';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
