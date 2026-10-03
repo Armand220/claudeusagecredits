@@ -23,6 +23,8 @@ export const supported = Boolean(AC);
 function ensure() {
   if (!AC) return null;
   if (!ctx) {
+    // iPhone: play through the silent switch, like a music app would.
+    try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch { /* unsupported */ }
     ctx = new AC({ latencyHint: 'interactive' });
     const comp = ctx.createDynamicsCompressor();
     comp.threshold.value = -12;

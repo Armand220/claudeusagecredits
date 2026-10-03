@@ -12,7 +12,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..700&family=Outfit:wght@200..700&display=swap">
-  <link rel="stylesheet" href="styles.css?v=10">
+  <link rel="stylesheet" href="styles.css?v=11">
 </head>
 <body data-mode="focus">
   <div class="aurora" aria-hidden="true"><span></span><span></span><span></span></div>
@@ -38,6 +38,9 @@
         <button class="icon-btn pressable" id="btn-install" type="button" hidden aria-label="Install app" data-sfx="tap">
           <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0-4.5-4.5M12 15l4.5-4.5M5 19h14"/></svg>
           <span class="label">Install</span>
+        </button>
+        <button class="icon-btn pressable hide-sm" id="btn-help" type="button" aria-label="Tips and shortcuts" title="Tips & shortcuts (?)">
+          <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6v.4M12 17h.01"/></svg>
         </button>
         <button class="icon-btn pressable" id="btn-stats" type="button" aria-label="Stats">
           <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20V11m7 9V5m7 15v-6"/></svg>
@@ -82,6 +85,7 @@
           <div class="dial-center">
             <div class="time" id="time" role="timer" aria-label="25 minutes 0 seconds remaining"></div>
             <div class="session-label" id="session-label">Session 1 of 4</div>
+            <div class="cycle-dots" id="cycle-dots" aria-hidden="true"></div>
           </div>
         </div>
 
@@ -162,7 +166,7 @@
         </section>
 
         <p class="shortcuts-hint">
-          <kbd>Space</kbd> start/pause · <kbd>R</kbd> reset · <kbd>S</kbd> skip · <kbd>N</kbd> new task · <kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> modes · <kbd>F</kbd> zen
+          <kbd>Space</kbd> start/pause · <kbd>R</kbd> reset · <kbd>S</kbd> skip · <kbd>N</kbd> new task · <kbd>F</kbd> zen · <kbd>M</kbd> mute · <kbd>?</kbd> help
         </p>
       </div>
     </main>
@@ -261,11 +265,49 @@
 
       <div class="sheet-foot">
         <button type="button" class="text-btn danger pressable" id="btn-reset-data">Erase all data</button>
-        <button type="button" class="text-btn pressable" id="btn-test-chime">Test chime</button>
+        <span class="foot-right">
+          <button type="button" class="text-btn pressable" id="btn-open-help">Tips &amp; shortcuts</button>
+          <button type="button" class="text-btn pressable" id="btn-test-chime">Test chime</button>
+        </span>
       </div>
     </form>
   </dialog>
 
-  <script type="module" src="js/app.js?v=10"></script>
+  <dialog class="sheet" id="help-dialog" aria-labelledby="help-title">
+    <div class="sheet-inner">
+      <header class="sheet-head">
+        <h2 id="help-title">Tips &amp; shortcuts</h2>
+        <button type="button" class="icon-btn close pressable" data-close aria-label="Close">
+          <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+        </button>
+      </header>
+      <section class="help-section">
+        <h3>Keyboard</h3>
+        <dl class="keys">
+          <div><dt><kbd>Space</kbd></dt><dd>Start or pause</dd></div>
+          <div><dt><kbd>R</kbd></dt><dd>Reset the session</dd></div>
+          <div><dt><kbd>S</kbd></dt><dd>Skip to the next session</dd></div>
+          <div><dt><kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd></dt><dd>Focus, short break, long break</dd></div>
+          <div><dt><kbd>N</kbd></dt><dd>Add a task</dd></div>
+          <div><dt><kbd>F</kbd></dt><dd>Zen mode</dd></div>
+          <div><dt><kbd>M</kbd></dt><dd>Mute or unmute the ambient sound</dd></div>
+          <div><dt><kbd>?</kbd></dt><dd>This help</dd></div>
+        </dl>
+      </section>
+      <section class="help-section">
+        <h3>Good to know</h3>
+        <ul class="tips">
+          <li><span aria-hidden="true">🎧</span><span>Wear headphones. Every sound is placed in 3D around you, and button clicks come from where you tap.</span></li>
+          <li><span aria-hidden="true">👆</span><span>Tap a task to count focus sessions towards it. Drag the grip to reorder, double-click a name to rename it.</span></li>
+          <li><span aria-hidden="true">🧘</span><span>Zen mode hides everything except the timer. During breaks, follow the breathing orb.</span></li>
+          <li><span aria-hidden="true">🎯</span><span>Set a daily goal in Settings. Your streak, heatmap and achievements are in Stats.</span></li>
+          <li><span aria-hidden="true">📲</span><span>Install Tempo from your browser's menu to use it like an app, even offline.</span></li>
+          <li><span aria-hidden="true">🔒</span><span>Everything you do here stays on this device.</span></li>
+        </ul>
+      </section>
+    </div>
+  </dialog>
+
+  <script type="module" src="js/app.js?v=11"></script>
 </body>
 </html>

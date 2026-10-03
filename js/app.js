@@ -1,7 +1,7 @@
-import * as audio from './audio.js?v=10';
-import * as fx from './fx.js?v=10';
-import { toast } from './toast.js?v=10';
-import * as effects from './effects.js?v=10';
+import * as audio from './audio.js?v=11';
+import * as fx from './fx.js?v=11';
+import { toast } from './toast.js?v=11';
+import * as effects from './effects.js?v=11';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -123,6 +123,9 @@ const el = {
   settingsForm: $('#settings-form'),
   install: $('#btn-install'),
   zen: $('#btn-zen'),
+  dots: $('#cycle-dots'),
+  helpDialog: $('#help-dialog'),
+  favicon: $('link[rel="icon"]'),
   goal: $('#goal-pill'),
   goalFill: $('#goal-fill'),
   goalCount: $('#goal-count'),
@@ -326,6 +329,7 @@ function renderTimer(force = false) {
   el.ring.style.strokeDashoffset = `${RING_C * (1 - f)}`;
   updateTicks(f);
   renderBreath(rem);
+  renderFavicon(f);
   const a = f * Math.PI * 2;
   el.head.setAttribute('cx', `${110 + 100 * Math.cos(a)}`);
   el.head.setAttribute('cy', `${110 + 100 * Math.sin(a)}`);
@@ -362,6 +366,63 @@ function renderBreath(rem) {
   el.sessionLabel.textContent = BREATH[phase][1];
 }
 
+// The browser-tab icon becomes a tiny progress ring while a session is on.
+const FAV_DEFAULT = { href: el.favicon.href, type: el.favicon.type };
+const favCanvas = document.createElement('canvas');
+favCanvas.width = favCanvas.height = 64;
+let favKey = '';
+
+function renderFavicon(f) {
+  if (isFresh()) {
+    if (favKey !== 'idle') {
+      favKey = 'idle';
+      el.favicon.type = FAV_DEFAULT.type;
+      el.favicon.href = FAV_DEFAULT.href;
+    }
+    return;
+  }
+  const key = `${timer.mode}:${Math.round(f * 60)}:${timer.running}`;
+  if (key === favKey) return;
+  favKey = key;
+  const c = favCanvas.getContext('2d');
+  const accent = getComputedStyle(el.body).getPropertyValue('--accent').trim() || '#e5512f';
+  c.clearRect(0, 0, 64, 64);
+  c.lineWidth = 10;
+  c.lineCap = 'round';
+  c.strokeStyle = 'rgba(140, 125, 117, .35)';
+  c.beginPath();
+  c.arc(32, 32, 25, 0, Math.PI * 2);
+  c.stroke();
+  c.strokeStyle = accent;
+  c.beginPath();
+  c.arc(32, 32, 25, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * Math.max(0.001, f));
+  c.stroke();
+  c.fillStyle = accent;
+  if (timer.running) {
+    c.beginPath();
+    c.arc(32, 32, 8, 0, Math.PI * 2);
+    c.fill();
+  } else {
+    c.fillRect(23, 21, 6, 22);
+    c.fillRect(35, 21, 6, 22);
+  }
+  el.favicon.type = 'image/png';
+  el.favicon.href = favCanvas.toDataURL('image/png');
+}
+
+function renderDots() {
+  const n = settings.longEvery;
+  const filled = timer.mode === 'long' ? n : timer.cycle % n;
+  el.dots.replaceChildren(
+    ...Array.from({ length: n }, (_, i) => {
+      const dot = document.createElement('i');
+      if (i < filled) dot.className = 'is-done';
+      else if (i === filled && timer.mode === 'focus') dot.className = 'is-current';
+      return dot;
+    }),
+  );
+}
+
 function sessionNote() {
   const pos = (timer.cycle % settings.longEvery) + 1;
   return MODES[timer.mode].note(pos, settings.longEvery);
@@ -375,6 +436,7 @@ function applyMode() {
   breathPhase = -1;
   delete el.dial.dataset.breath;
   el.sessionLabel.textContent = sessionNote();
+  renderDots();
   updateThemeColor();
   renderTimer(true);
 }
@@ -1240,6 +1302,20 @@ el.chips.forEach((chip) => {
   });
 });
 
+let lastKind = sound.kind !== 'off' ? sound.kind : 'rain';
+
+function toggleMute() {
+  if (sound.kind !== 'off') {
+    lastKind = sound.kind;
+    $('.chip[data-sound="off"]').click();
+    toast({ icon: '🔇', title: 'Ambient sound off', body: 'Press M to bring it back', duration: 2200 });
+  } else {
+    $(`.chip[data-sound="${lastKind}"]`).click();
+    const name = $(`.chip[data-sound="${lastKind}"]`).textContent.trim();
+    toast({ icon: '🔊', title: `${name} is back`, duration: 2000 });
+  }
+}
+
 el.volume.value = String(sound.volume);
 audio.setAmbientVolume(sound.volume / 100);
 el.volume.style.setProperty('--fill', `${sound.volume}%`);
@@ -1390,6 +1466,12 @@ el.goal.addEventListener('click', (e) => {
   openSheet(el.statsDialog, e.currentTarget);
 });
 
+$('#btn-help').addEventListener('click', (e) => openSheet(el.helpDialog, e.currentTarget));
+$('#btn-open-help').addEventListener('click', (e) => {
+  closeSheet(el.settingsDialog);
+  setTimeout(() => openSheet(el.helpDialog, e.target), 220);
+});
+
 $('#btn-stats').addEventListener('click', (e) => {
   renderStats();
   openSheet(el.statsDialog, e.currentTarget);
@@ -1440,6 +1522,11 @@ document.addEventListener('keydown', (e) => {
     el.taskInput.focus();
   } else if (['1', '2', '3'].includes(key)) {
     el.tabs[Number(key) - 1].click();
+  } else if (key === '?') {
+    e.preventDefault();
+    openSheet(el.helpDialog, $('#btn-help'));
+  } else if (key === 'm') {
+    toggleMute();
   } else if (key === 'f') {
     setZen(!isZen());
   } else if (key === 'escape' && isZen()) {
