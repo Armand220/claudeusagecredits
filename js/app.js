@@ -1,9 +1,10 @@
-import * as audio from './audio.js?v=31';
-import * as fx from './fx.js?v=31';
-import { toast } from './toast.js?v=31';
-import * as effects from './effects.js?v=31';
-import * as scenery from './scenery.js?v=31';
-import * as pip from './pip.js?v=31';
+import * as audio from './audio.js?v=32';
+import * as fx from './fx.js?v=32';
+import { toast } from './toast.js?v=32';
+import * as effects from './effects.js?v=32';
+import * as scenery from './scenery.js?v=32';
+import * as pip from './pip.js?v=32';
+import { shareCard } from './share.js?v=32';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -2588,6 +2589,32 @@ $('#welcome-tips').addEventListener('click', (e) => {
   setTimeout(() => openSheet(el.helpDialog, e.target), 220);
 });
 
+$('#btn-share').addEventListener('click', async (e) => {
+  const btn = e.currentTarget;
+  audio.sfx('pop', btn);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const week = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(today);
+    d.setDate(d.getDate() - i);
+    week.push({ label: i === 0 ? 'Today' : d.toLocaleDateString([], { weekday: 'short' }), m: dayTotals(d).m, today: i === 0 });
+  }
+  const cs = getComputedStyle(el.body);
+  const v = (n) => cs.getPropertyValue(`--${n}`).trim();
+  const t = dayTotals(today);
+  const result = await shareCard({
+    today: fmtMinutes(t.m),
+    sessions: t.s,
+    streak: streakDays(),
+    week,
+    date: today.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' }),
+    colors: { accent: v('accent'), accent2: v('accent-2'), bg: v('bg'), ink: v('ink'), ink2: v('ink-2'), track: v('track'), card: v('surface') },
+  }).catch(() => 'failed');
+  if (result === 'downloaded') toast({ icon: '🖼️', title: 'Image saved', body: 'Your focus card is in your downloads.' });
+  else if (result === 'failed') toast({ icon: '⚠️', title: "Couldn't make the image" });
+});
+
 $('#btn-stats').addEventListener('click', (e) => {
   renderStats();
   openSheet(el.statsDialog, e.currentTarget);
@@ -2794,6 +2821,23 @@ syncWakeLock();
 effects.initSpotlight();
 effects.initTilt($('.timer-card'));
 setView('timer', { scroll: false });
+
+// App shortcuts (long-press the installed app icon): ?action=focus|break|zen
+{
+  const action = new URLSearchParams(window.location.search).get('action');
+  if (action) {
+    window.history.replaceState(null, '', window.location.pathname);
+    if (action === 'focus' || action === 'break') {
+      const mode = action === 'focus' ? 'focus' : 'short';
+      if (!timer.running || timer.mode !== mode) {
+        if (timer.mode !== mode) switchTo(mode);
+        start();
+      }
+    } else if (action === 'zen') {
+      setZen(true);
+    }
+  }
+}
 requestAnimationFrame(() => el.body.classList.add('is-ready'));
 selectStatTab(0, { animate: false });
 // Someone who already used an earlier version doesn't need the welcome.
