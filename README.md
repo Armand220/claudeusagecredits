@@ -28,9 +28,10 @@ installed as an app on your phone or computer.
 **3D sound** (best with headphones)
 - **Mixer**: layer as many sounds as you like, each with its own volume —
   Rain, Waves, Fireplace, Wind, Stream, Wind chimes, Cat purring, Night,
-  Clock, **Lo-fi beats**, Binaural, Brown noise, Fan
+  Clock, **Train ride**, **Lo-fi beats**, **Study hall**, Binaural, Brown noise, Fan
 - **Ready-made mixes** (Cozy cabin, Seaside, Campfire night, Rainy café,
-  Forest stream, Cat nap, Breezy porch, Stormy study…) and your own saved mixes
+  Forest stream, Cat nap, Breezy porch, Stormy study, Library, Night train…)
+  and your own saved mixes
 - **Sleep timer** that fades the sounds out after 15–90 minutes
 - **3D room**: you're in the middle; drag each sound around your head, or
   press orbit to make it circle you
@@ -41,8 +42,14 @@ installed as an app on your phone or computer.
 - Everything is synthesised in the browser (no audio files)
 - Clicks, pops and typing sounds come from where they happen on screen
 - Option to play ambient sound only while the timer runs
+- **Train ride**: wheels clack over the rail joints in front of you and then
+  behind, other trains rush past on your left, and the horn sounds far ahead
+- **Study hall**: people typing, turning pages and writing at desks all
+  around you, and someone walking past now and then
 - Animated backgrounds match the sound: rain streaks, rising embers, fireflies
-  and stars, rolling waves, drifting leaves, glinting water, floating music notes
+  and stars, rolling waves, drifting leaves, glinting water, floating music
+  notes, hills and telegraph poles rolling past, dust in a reading lamp's light
+- Ambient sound dips while the end-of-session chime plays
 - Five chime styles: Bells, Kalimba, Gong, Birds (all around you) and Digital
 
 **Tasks**

@@ -7,7 +7,7 @@
 const AC = window.AudioContext || window.webkitAudioContext;
 
 let ctx = null;
-let master, sfxBus, chimeBus, ambientBus;
+let master, sfxBus, chimeBus, ambientBus, duckBus;
 const buffers = {};
 let sfxOn = true;
 let ambientLevel = 0.5;
@@ -36,7 +36,9 @@ function ensure() {
     master.connect(comp).connect(ctx.destination);
     sfxBus = gain(0.5, master);
     chimeBus = gain(chimeGain(), master);
-    ambientBus = gain(curve(ambientLevel) * ambientGate, master);
+    // Ambient sound dips under the chime (see duck), so it's easy to hear.
+    duckBus = gain(1, master);
+    ambientBus = gain(curve(ambientLevel) * ambientGate, duckBus);
     analyser = ctx.createAnalyser();
     analyser.fftSize = 512;
     meterBuf = new Float32Array(analyser.fftSize);
@@ -574,10 +576,20 @@ const CHIMES = {
 
 export const chimeStyles = Object.keys(CHIMES);
 
+/** Dip the ambient sound to `level` for `hold` seconds, then let it swell back. */
+function duck(level, hold) {
+  const t = ctx.currentTime;
+  duckBus.gain.cancelScheduledValues(t);
+  duckBus.gain.setValueAtTime(duckBus.gain.value, t);
+  duckBus.gain.setTargetAtTime(level, t, 0.08);
+  duckBus.gain.setTargetAtTime(1, t + hold, 0.7);
+}
+
 /** kind: 'break' (a focus session ended) or 'focus' (a break ended). */
 export function chime(kind, style = 'bells') {
   const c = ensure();
   if (!c) return;
+  if (chimeLevel > 0) duck(0.3, style === 'gong' ? 3.5 : 2.2);
   (CHIMES[style] || CHIMES.bells)(c.currentTime + 0.06, kind === 'break');
 }
 
@@ -587,6 +599,7 @@ export function fanfare() {
   const c = ensure();
   if (!c) return;
   const t = c.currentTime + 0.05;
+  duck(0.5, 1.2);
   const notes = [783.99, 987.77, 1174.66, 1567.98, 1975.53, 2349.32];
   notes.forEach((f, i) => {
     const a = (i / notes.length) * Math.PI * 2;
@@ -1205,6 +1218,257 @@ const SCENES = {
     };
   },
 
+  study(S) {
+    // A quiet study hall: people typing, turning pages and writing at desks
+    // dotted around you, under the hush of a big room. Now and then someone
+    // walks past.
+    noiseSource('brown').connect(filter('lowpass', 220)).connect(gain(0.11, S.out));
+    noiseSource('pink').connect(filter('bandpass', 420, 0.5)).connect(gain(0.04, S.out));
+    // Small sounds: lift them so the room sits level with the other scenes.
+    const lift = gain(2.6, S.out);
+    const desks = [
+      { x: -1.8, z: -1.2, kind: 'typist' },
+      { x: 2.1, z: -2.2, kind: 'reader' },
+      { x: 2.4, z: 1.2, kind: 'typist' },
+      { x: -2.6, z: 1.9, kind: 'writer' },
+      { x: 0.4, z: -3.6, kind: 'reader' },
+      { x: -0.6, z: 3.2, kind: 'writer' },
+    ].map((d) => {
+      const p = S.P(d.x, -0.3, d.z, 0.8, lift);
+      send(p, 0.3);
+      return { ...d, p, next: ctx.currentTime + rand(0.2, 4) };
+    });
+    let walkAt = ctx.currentTime + rand(12, 30);
+
+    function key(p, t, space) {
+      const g = gain(0.0001, p);
+      envelope(g, t, 0.0006, space ? 0.3 : rand(0.16, 0.34), space ? 0.04 : rand(0.012, 0.026));
+      noiseSource('white', t, 0.06).connect(filter('bandpass', space ? rand(900, 1300) : rand(2200, 4200), 2.2)).connect(g);
+      // The soft thock of the key bottoming out.
+      const o = osc('sine', space ? 150 : rand(260, 420));
+      const g2 = gain(0.0001, p);
+      envelope(g2, t + 0.004, 0.001, 0.06, 0.03);
+      o.connect(g2);
+      o.start(t);
+      o.stop(t + 0.07);
+    }
+
+    function typing(p, t) {
+      const words = 2 + Math.floor(Math.random() * 7);
+      for (let w = 0; w < words; w++) {
+        const letters = 2 + Math.floor(Math.random() * 7);
+        for (let i = 0; i < letters; i++) {
+          key(p, t, false);
+          t += rand(0.07, 0.17);
+        }
+        key(p, t, true);
+        t += rand(0.12, 0.32);
+      }
+      return t;
+    }
+
+    function page(p, t) {
+      const dur = rand(0.35, 0.6);
+      const bp = filter('bandpass', 900, 0.9);
+      bp.frequency.setValueAtTime(rand(600, 900), t);
+      bp.frequency.exponentialRampToValueAtTime(rand(2500, 4200), t + dur * 0.6);
+      bp.frequency.exponentialRampToValueAtTime(1200, t + dur);
+      const g = gain(0, p);
+      g.gain.setValueAtTime(0, t);
+      g.gain.linearRampToValueAtTime(rand(0.35, 0.55), t + dur * 0.35);
+      g.gain.linearRampToValueAtTime(0, t + dur);
+      noiseSource('pink', t, dur).connect(bp).connect(g);
+      // ...and the page settling.
+      const at = t + dur * 0.9;
+      const g2 = gain(0.0001, p);
+      envelope(g2, at, 0.004, 0.25, 0.06);
+      noiseSource('white', at, 0.1).connect(filter('bandpass', 1800, 1.5)).connect(g2);
+      return t + dur;
+    }
+
+    function pencil(p, t) {
+      const strokes = 6 + Math.floor(Math.random() * 14);
+      for (let i = 0; i < strokes; i++) {
+        const dur = rand(0.05, 0.22);
+        const peak = rand(0.07, 0.16);
+        const g = gain(0, p);
+        g.gain.setValueAtTime(0, t);
+        g.gain.linearRampToValueAtTime(peak, t + dur * 0.3);
+        g.gain.linearRampToValueAtTime(peak * 0.6, t + dur * 0.7);
+        g.gain.linearRampToValueAtTime(0, t + dur);
+        noiseSource('white', t, dur).connect(filter('bandpass', rand(3500, 6000), 3)).connect(g);
+        t += dur + (Math.random() < 0.2 ? rand(0.3, 0.7) : rand(0.03, 0.12));
+      }
+      return t;
+    }
+
+    function book(p, t) {
+      const g = gain(0.0001, p);
+      envelope(g, t, 0.002, 0.7, 0.12);
+      noiseSource('brown', t, 0.2).connect(filter('lowpass', 380)).connect(g);
+      return t + 0.2;
+    }
+
+    function footsteps(t) {
+      const steps = 10 + Math.floor(Math.random() * 6);
+      const dir = Math.random() < 0.5 ? -1 : 1;
+      const z = rand(-4, 3);
+      const pace = rand(0.5, 0.6);
+      for (let i = 0; i < steps; i++) {
+        const at = t + i * pace;
+        const p = S.E(dir * (-5 + (10 * i) / (steps - 1)), -1.4, z, 0.8, lift);
+        send(p, 0.4);
+        const g = gain(0.0001, p);
+        envelope(g, at, 0.002, rand(0.35, 0.5), 0.09);
+        noiseSource('brown', at, 0.15).connect(filter('lowpass', 500)).connect(g);
+        const g2 = gain(0.0001, p);
+        envelope(g2, at + 0.03, 0.001, 0.06, 0.03);
+        noiseSource('white', at + 0.03, 0.06).connect(filter('bandpass', 2500, 1.2)).connect(g2);
+      }
+    }
+
+    function act(d, t) {
+      const r = Math.random();
+      if (d.kind === 'typist') {
+        if (r < 0.8) return typing(d.p, t) + (Math.random() < 0.3 ? rand(4, 12) : rand(0.4, 2.5));
+        if (r < 0.95) return page(d.p, t) + rand(1, 4);
+        return book(d.p, t) + rand(2, 6);
+      }
+      if (d.kind === 'reader') {
+        if (r < 0.85) return page(d.p, t) + rand(5, 18);
+        return pencil(d.p, t) + rand(2, 8);
+      }
+      if (r < 0.8) return pencil(d.p, t) + rand(0.8, 5);
+      return page(d.p, t) + rand(2, 6);
+    }
+
+    return (until, now = 0) => {
+      for (const d of desks) {
+        if (d.next < now) d.next = now + rand(0, 1);
+        while (d.next < until) d.next = act(d, d.next);
+      }
+      if (walkAt < now) walkAt = now + rand(10, 30);
+      if (walkAt < until) {
+        footsteps(walkAt);
+        walkAt += rand(45, 110);
+      }
+    };
+  },
+
+  train(S) {
+    // Riding a train: the carriage rumbling under you, the wheels clacking
+    // over rail joints (the front of the carriage, then the back), the odd
+    // train rushing past on the left, and the horn far up ahead.
+    const floor = S.P(0, -1.2, 0, 0.4);
+    const rumble = gain(0.6, floor);
+    noiseSource('brown').connect(filter('lowpass', 140, 0.9)).connect(rumble);
+    const sway = track(osc('sine', rand(0.13, 0.2)));
+    sway.connect(gain(0.15)).connect(rumble.gain);
+    sway.start();
+    for (const x of [-1.4, 1.4]) {
+      noiseSource('pink').connect(filter('bandpass', 380, 0.6)).connect(filter('lowpass', 1200)).connect(gain(0.16, S.P(x, 0.2, 0, 0.5)));
+    }
+    const motor = track(osc('sawtooth', 52));
+    motor.connect(filter('lowpass', 160)).connect(gain(0.012, floor));
+    motor.start();
+
+    let period = rand(0.95, 1.15);
+    let next = ctx.currentTime + 0.3;
+    let hornAt = ctx.currentTime + rand(25, 60);
+    let passAt = ctx.currentTime + rand(70, 150);
+
+    function clack(t, z, vel) {
+      const p = S.E(rand(-0.3, 0.3), -1.3, z, 0.7);
+      const g = gain(0.0001, p);
+      envelope(g, t, 0.001, vel, 0.07);
+      noiseSource('white', t, 0.1).connect(filter('bandpass', rand(500, 900), 1.1)).connect(g);
+      const o = osc('sine', rand(70, 95));
+      const g2 = gain(0.0001, p);
+      envelope(g2, t, 0.002, vel * 0.9, 0.12);
+      o.connect(g2);
+      o.start(t);
+      o.stop(t + 0.16);
+      const ring = osc('triangle', rand(1800, 2600));
+      const g3 = gain(0.0001, p);
+      envelope(g3, t, 0.001, vel * 0.04, 0.05);
+      ring.connect(g3);
+      ring.start(t);
+      ring.stop(t + 0.08);
+    }
+
+    function horn(t) {
+      const p = S.E(-6, 2, -30, 0.2);
+      send(p, 0.6);
+      for (const [off, len] of [[0, 1.4], [1.75, 0.7]]) {
+        for (const f of [311.13, 369.99, 466.16]) {
+          const at = t + off;
+          const o = osc('sawtooth', f);
+          o.frequency.setValueAtTime(f, at);
+          o.frequency.linearRampToValueAtTime(f * 0.985, at + len);
+          const g = gain(0, p);
+          g.gain.setValueAtTime(0, at);
+          g.gain.linearRampToValueAtTime(0.07, at + 0.12);
+          g.gain.setValueAtTime(0.07, at + len - 0.15);
+          g.gain.linearRampToValueAtTime(0, at + len);
+          o.connect(filter('lowpass', 1400)).connect(g);
+          o.start(at);
+          o.stop(at + len + 0.05);
+        }
+      }
+    }
+
+    function passing(t) {
+      // Another train rushing by on the left, front to back.
+      const dur = rand(4.5, 6.5);
+      const ax = S.ax();
+      const az = S.az();
+      const p = S.E(-2.6, 0, -40, 0.5);
+      place(p, ax - 2.6, 0, az - 40, t);
+      glide(p, ax - 2.6, 0, az - 1, t + dur * 0.45);
+      glide(p, ax - 2.6, 0, az + 40, t + dur);
+      const bp = filter('bandpass', 500, 0.7);
+      bp.frequency.setValueAtTime(500, t);
+      bp.frequency.linearRampToValueAtTime(1500, t + dur * 0.45);
+      bp.frequency.linearRampToValueAtTime(400, t + dur);
+      const g = gain(0, p);
+      g.gain.setValueAtTime(0, t);
+      g.gain.linearRampToValueAtTime(1.4, t + dur * 0.4);
+      g.gain.linearRampToValueAtTime(1.1, t + dur * 0.6);
+      g.gain.linearRampToValueAtTime(0, t + dur);
+      // The gaps between its carriages flutter past.
+      const flutter = gain(0.75, g);
+      const lfo = osc('square', rand(5, 7));
+      lfo.connect(gain(0.25)).connect(flutter.gain);
+      lfo.start(t);
+      lfo.stop(t + dur + 0.1);
+      noiseSource('pink', t, dur + 0.1).connect(bp).connect(flutter);
+    }
+
+    return (until, now = 0) => {
+      if (next < now) next = now;
+      if (hornAt < now) hornAt = now + rand(20, 60);
+      if (passAt < now) passAt = now + rand(40, 120);
+      while (next < until) {
+        const s = period / 1.05;
+        const v = rand(0.5, 0.65);
+        clack(next, -3, v);
+        clack(next + 0.11 * s, -2.6, v * 0.9);
+        clack(next + 0.48 * s, 2.6, v * 0.8);
+        clack(next + 0.59 * s, 3, v * 0.75);
+        next += period;
+        period = Math.min(1.25, Math.max(0.85, period + rand(-0.02, 0.02)));
+      }
+      if (hornAt < until) {
+        horn(hornAt);
+        hornAt += rand(80, 200);
+      }
+      if (passAt < until) {
+        passing(passAt);
+        passAt += rand(120, 300);
+      }
+    };
+  },
+
   brown(S) {
     for (const x of [-1.6, 1.6]) {
       noiseSource('brown').connect(filter('lowpass', 900)).connect(gain(0.6, S.P(x, 0, -0.3)));
@@ -1255,6 +1519,8 @@ const DEFAULT_ANCHORS = {
   stream: [-1.4, -3.2],
   chimes: [-2.8, -2.6],
   cat: [0.8, -1.4],
+  study: [-1.2, -1],
+  train: [0, 1.5],
 };
 export const defaultAnchor = (kind) => DEFAULT_ANCHORS[kind] || [0, 0];
 // Sounds keep their full volume up to this distance, then fade gently.

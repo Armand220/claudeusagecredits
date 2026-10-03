@@ -1,11 +1,11 @@
-import * as audio from './audio.js?v=43';
-import * as fx from './fx.js?v=43';
-import { toast } from './toast.js?v=43';
-import * as effects from './effects.js?v=43';
-import * as scenery from './scenery.js?v=43';
-import * as pip from './pip.js?v=43';
-import { shareCard, makeCardFile } from './share.js?v=43';
-import * as photo from './photo.js?v=43';
+import * as audio from './audio.js?v=44';
+import * as fx from './fx.js?v=44';
+import { toast } from './toast.js?v=44';
+import * as effects from './effects.js?v=44';
+import * as scenery from './scenery.js?v=44';
+import * as pip from './pip.js?v=44';
+import { shareCard, makeCardFile } from './share.js?v=44';
+import * as photo from './photo.js?v=44';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -2061,6 +2061,8 @@ const SOUND_INFO = {
   stream: { icon: '💧', name: 'Stream' },
   chimes: { icon: '🎐', name: 'Wind chimes' },
   cat: { icon: '🐈', name: 'Cat purring' },
+  study: { icon: '📚', name: 'Study hall' },
+  train: { icon: '🚆', name: 'Train ride' },
 };
 const ROOM_R = 4; // metres from you to the edge of the room
 const ROOM_SPAN = 44; // % of the pad from its centre to that edge
@@ -2284,6 +2286,8 @@ const BUILT_IN_MIXES = [
   { id: 'catnap', icon: '🐈', name: 'Cat nap', mix: { cat: { vol: 0.75, x: 0.8, z: -1.4 }, rain: { vol: 0.5, x: -2.2, z: -1.6 }, fire: { vol: 0.55, x: 2, z: -1.4 } } },
   { id: 'porch', icon: '🎐', name: 'Breezy porch', mix: { chimes: { vol: 0.7, x: -2.8, z: -2.6 }, wind: { vol: 0.45, x: 2.4, z: 2.2 }, night: { vol: 0.35, x: 0, z: 2.4 } } },
   { id: 'storm', icon: '⛈️', name: 'Stormy study', mix: { rain: { vol: 0.9, x: 0, z: -1 }, wind: { vol: 0.6, x: -2.4, z: 1.6 }, lofi: { vol: 0.45, x: 0, z: -2 } } },
+  { id: 'library', icon: '📚', name: 'Library', mix: { study: { vol: 0.8, x: -1.2, z: -1 }, rain: { vol: 0.35, x: 2.6, z: -1.8 }, clock: { vol: 0.3, x: -3.2, z: 0.4 } } },
+  { id: 'nighttrain', icon: '🚆', name: 'Night train', mix: { train: { vol: 0.85, x: 0, z: 1.5 }, rain: { vol: 0.45, x: -2.4, z: -0.4 } } },
 ];
 sound.presets = (Array.isArray(sound.presets) ? sound.presets : [])
   .filter((p) => p && typeof p.name === 'string' && p.mix && typeof p.mix === 'object')
@@ -2937,6 +2941,7 @@ statTabs.forEach((t, i) => {
 
 // What's new: the newest first. Bump `id` when adding an entry.
 const CHANGES = [
+  { id: 8, icon: '🚆', text: 'Two new 3D sounds: a Study hall full of quiet typing and page turns, and a Train ride with hills rolling past. Ambient sound now dips while the chime plays.' },
   { id: 7, icon: '🌊', text: 'Flowtime: tap the length under the timer and pick ∞ to count up, then take a break you\'ve earned when you\'re ready.' },
   { id: 6, icon: '🖼️', text: 'Set your own background photo in Settings > Appearance.' },
   { id: 5, icon: '🐈', text: 'New sounds: Wind, Stream, Wind chimes and a purring cat, plus new mixes like Cat nap and Forest stream.' },

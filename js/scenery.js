@@ -1,9 +1,10 @@
 // Animated backgrounds that match the ambient sound: rain streaks, rolling
-// waves, rising embers, fireflies under the stars, drifting dust in a breeze.
+// waves, rising embers, fireflies under the stars, drifting dust in a breeze,
+// hills rolling past a train window, motes in a reading lamp's light.
 // One canvas behind the page; it only animates while a scene is showing.
 
-import * as audio from './audio.js?v=43';
-import { motionOK } from './fx.js?v=43';
+import * as audio from './audio.js?v=44';
+import { motionOK } from './fx.js?v=44';
 
 const canvas = document.createElement('canvas');
 canvas.className = 'scenery';
@@ -44,6 +45,8 @@ function readColors() {
     waves: dark ? ['#1d6fa8', '#2a9df4', '#5ec8ff'] : ['#7cc4ff', '#4cc3ff', '#2a9df4'],
     star: dark ? '#fff8e8' : '#8c7d75',
     dust: dark ? '#f2e8e0' : '#7a6a62',
+    hills: dark ? ['#3a4f66', '#2c3d50', '#1f2c3a'] : ['#b9cfdc', '#93b39c', '#6f9479'],
+    pole: dark ? '#0f1720' : '#4c5a52',
   };
 }
 
@@ -346,6 +349,102 @@ const FACTORIES = {
           g.ellipse(0, 0, l.size, l.size * 0.5, 0, 0, Math.PI * 2);
           g.fill();
           g.restore();
+        }
+      },
+    };
+  },
+
+  train() {
+    // Hills rolling past the window: three layers of parallax, and telegraph
+    // poles whipping by with their wires dipping between them.
+    const ridge = (x, seed, k) =>
+      Math.sin(x * k + seed) * 0.55 + Math.sin(x * k * 2.3 + seed * 1.7) * 0.3 + Math.sin(x * k * 5.1 + seed * 2.9) * 0.15;
+    const bands = [
+      { speed: 14, base: 0.74, amp: 46, k: 0.004, seed: 1.3, alpha: 0.5 },
+      { speed: 46, base: 0.84, amp: 30, k: 0.007, seed: 4.1, alpha: 0.55 },
+      { speed: 150, base: 0.93, amp: 14, k: 0.013, seed: 7.7, alpha: 0.6 },
+    ];
+    let offset = 0;
+    const POLE_GAP = 340;
+    const POLE_SPEED = 520;
+    return {
+      draw(dt, a, t) {
+        offset += dt;
+        bands.forEach((b, i) => {
+          const shift = offset * b.speed;
+          g.globalAlpha = a * b.alpha * (colors.dark ? 0.9 : 0.75);
+          g.fillStyle = colors.hills[i];
+          g.beginPath();
+          g.moveTo(0, H);
+          for (let x = 0; x <= W + 12; x += 12) g.lineTo(x, H * b.base - b.amp * ridge(x + shift, b.seed, b.k) - b.amp);
+          g.lineTo(W, H);
+          g.closePath();
+          g.fill();
+        });
+        // Telegraph poles and the wires between them.
+        const shift = (offset * POLE_SPEED) % POLE_GAP;
+        const top = H * 0.6;
+        g.globalAlpha = a * (colors.dark ? 0.55 : 0.4);
+        g.strokeStyle = colors.pole;
+        g.lineWidth = 5;
+        const xs = [];
+        for (let x = W + POLE_GAP - shift; x > -POLE_GAP; x -= POLE_GAP) xs.push(x);
+        for (const x of xs) {
+          g.beginPath();
+          g.moveTo(x, top);
+          g.lineTo(x, H);
+          g.stroke();
+        }
+        g.lineWidth = 1.2;
+        for (let w = 0; w < 2; w++) {
+          g.beginPath();
+          for (let i = 0; i < xs.length - 1; i++) {
+            const y = top + 10 + w * 12;
+            g.moveTo(xs[i], y);
+            g.quadraticCurveTo((xs[i] + xs[i + 1]) / 2, y + 26 + Math.sin(t * 9 + w) * 1.5, xs[i + 1], y);
+          }
+          g.stroke();
+        }
+      },
+    };
+  },
+
+  study() {
+    // A warm reading lamp, and dust motes drifting slowly through its light.
+    let motes = [];
+    return {
+      init() {
+        motes = Array.from({ length: Math.round((W * H) / 26000) + 10 }, () => ({
+          x: Math.random() * W,
+          y: Math.random() * H,
+          vx: rand(-6, 6),
+          vy: rand(-8, 3),
+          r: rand(0.7, 1.9),
+          phase: Math.random() * 6.28,
+        }));
+      },
+      draw(dt, a, t) {
+        const cx = W * 0.5;
+        const glow = g.createRadialGradient(cx, -H * 0.1, 0, cx, -H * 0.1, Math.max(W, H) * 0.75);
+        glow.addColorStop(0, colors.dark ? 'rgba(255,196,120,0.22)' : 'rgba(255,190,110,0.24)');
+        glow.addColorStop(1, 'rgba(255,190,110,0)');
+        g.globalAlpha = a * (0.85 + 0.15 * Math.sin(t * 0.7));
+        g.fillStyle = glow;
+        g.fillRect(0, 0, W, H);
+        g.fillStyle = colors.dark ? '#ffe2b8' : '#a07a52';
+        for (const m of motes) {
+          m.x += (m.vx + Math.sin(t * 0.4 + m.phase) * 5) * dt;
+          m.y += (m.vy + Math.cos(t * 0.3 + m.phase) * 4) * dt;
+          if (m.x < -10) m.x = W + 10;
+          if (m.x > W + 10) m.x = -10;
+          if (m.y < -10) m.y = H + 10;
+          if (m.y > H + 10) m.y = -10;
+          // Brighter nearer the lamp.
+          const near = Math.max(0, 1 - Math.hypot(m.x - cx, m.y) / Math.max(W, H));
+          g.globalAlpha = a * (0.1 + 0.5 * near) * (0.6 + 0.4 * Math.sin(t * 1.7 + m.phase));
+          g.beginPath();
+          g.arc(m.x, m.y, m.r, 0, Math.PI * 2);
+          g.fill();
         }
       },
     };
