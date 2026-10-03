@@ -12,7 +12,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..700&family=Outfit:wght@200..700&display=swap">
-  <link rel="stylesheet" href="styles.css?v=19">
+  <link rel="stylesheet" href="styles.css?v=20">
 </head>
 <body data-mode="focus">
   <div class="aurora" aria-hidden="true"><span></span><span></span><span></span></div>
@@ -199,46 +199,58 @@
           <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
         </button>
       </header>
-      <div class="tiles">
-        <div class="tile"><span class="tile-label">Today</span><span class="tile-value" id="stat-today">0m</span></div>
-        <div class="tile"><span class="tile-label">Sessions today</span><span class="tile-value" id="stat-sessions">0</span></div>
-        <div class="tile"><span class="tile-label">Day streak</span><span class="tile-value" id="stat-streak">0 days</span></div>
-        <div class="tile"><span class="tile-label">Last 7 days</span><span class="tile-value" id="stat-week">0m</span></div>
+      <div class="tabs" role="tablist" aria-label="Stats sections">
+        <span class="tab-indicator" aria-hidden="true"></span>
+        <button type="button" role="tab" class="tab" id="tab-overview" aria-controls="panel-overview" aria-selected="true">Overview</button>
+        <button type="button" role="tab" class="tab" id="tab-history" aria-controls="panel-history" aria-selected="false" tabindex="-1">History</button>
+        <button type="button" role="tab" class="tab" id="tab-awards" aria-controls="panel-awards" aria-selected="false" tabindex="-1">Achievements <span class="badge-count" id="badge-count"></span></button>
       </div>
-      <figure class="chart">
-        <figcaption>Focus minutes per day, last 7 days</figcaption>
-        <div class="chart-plot" id="chart"></div>
-        <div class="chart-days" id="chart-days" aria-hidden="true"></div>
-        <div class="chart-tooltip" id="chart-tooltip" hidden></div>
-      </figure>
-      <table class="sr-only" id="chart-table">
-        <caption>Focus minutes per day</caption>
-        <thead><tr><th scope="col">Day</th><th scope="col">Minutes</th></tr></thead>
-        <tbody></tbody>
-      </table>
-      <p class="sheet-note" id="stat-total"></p>
-      <section class="heat-section" aria-labelledby="hours-title">
-        <h3 id="hours-title">Best focus hours</h3>
-        <p class="sheet-note hours-note" id="hours-note"></p>
-        <div class="hours" id="hours"></div>
-        <div class="hours-axis" aria-hidden="true"><span>12 am</span><span>6 am</span><span>12 pm</span><span>6 pm</span><span>12 am</span></div>
-      </section>
-      <section class="heat-section" aria-labelledby="log-title">
-        <h3 id="log-title">Recent sessions</h3>
-        <ol class="session-log" id="session-log"></ol>
-      </section>
-      <section class="heat-section" aria-labelledby="heat-title">
-        <h3 id="heat-title">Last 12 weeks <span class="badge-count" id="heat-summary"></span></h3>
-        <div class="heat-wrap">
-          <div class="heat-days" aria-hidden="true"><span>Mon</span><span></span><span>Wed</span><span></span><span>Fri</span><span></span><span>Sun</span></div>
-          <div class="heatmap" id="heatmap"></div>
+
+      <div class="tab-panel" role="tabpanel" id="panel-overview" aria-labelledby="tab-overview">
+        <div class="tiles">
+          <div class="tile"><span class="tile-label">Today</span><span class="tile-value" id="stat-today">0m</span></div>
+          <div class="tile"><span class="tile-label">Sessions today</span><span class="tile-value" id="stat-sessions">0</span></div>
+          <div class="tile"><span class="tile-label">Day streak</span><span class="tile-value" id="stat-streak">0 days</span></div>
+          <div class="tile"><span class="tile-label">Last 7 days</span><span class="tile-value" id="stat-week">0m</span></div>
         </div>
-        <div class="heat-legend" aria-hidden="true">Less <span class="heat l0"></span><span class="heat l1"></span><span class="heat l2"></span><span class="heat l3"></span><span class="heat l4"></span> More</div>
-      </section>
-      <section class="badges" aria-labelledby="badges-title">
-        <h3 id="badges-title">Achievements <span class="badge-count" id="badge-count"></span></h3>
+        <figure class="chart">
+          <figcaption>Focus minutes per day, last 7 days</figcaption>
+          <div class="chart-plot" id="chart"></div>
+          <div class="chart-days" id="chart-days" aria-hidden="true"></div>
+          <div class="chart-tooltip" id="chart-tooltip" hidden></div>
+        </figure>
+        <table class="sr-only" id="chart-table">
+          <caption>Focus minutes per day</caption>
+          <thead><tr><th scope="col">Day</th><th scope="col">Minutes</th></tr></thead>
+          <tbody></tbody>
+        </table>
+        <p class="sheet-note" id="stat-total"></p>
+        <section class="heat-section" aria-labelledby="heat-title">
+          <h3 id="heat-title">Last 12 weeks <span class="badge-count" id="heat-summary"></span></h3>
+          <div class="heat-wrap">
+            <div class="heat-days" aria-hidden="true"><span>Mon</span><span></span><span>Wed</span><span></span><span>Fri</span><span></span><span>Sun</span></div>
+            <div class="heatmap" id="heatmap"></div>
+          </div>
+          <div class="heat-legend" aria-hidden="true">Less <span class="heat l0"></span><span class="heat l1"></span><span class="heat l2"></span><span class="heat l3"></span><span class="heat l4"></span> More</div>
+        </section>
+      </div>
+
+      <div class="tab-panel" role="tabpanel" id="panel-history" aria-labelledby="tab-history" hidden>
+        <section aria-labelledby="hours-title">
+          <h3 id="hours-title">Best focus hours</h3>
+          <p class="sheet-note hours-note" id="hours-note"></p>
+          <div class="hours" id="hours"></div>
+          <div class="hours-axis" aria-hidden="true"><span>12 am</span><span>6 am</span><span>12 pm</span><span>6 pm</span><span>12 am</span></div>
+        </section>
+        <section class="heat-section" aria-labelledby="log-title">
+          <h3 id="log-title">Recent sessions</h3>
+          <ol class="session-log" id="session-log"></ol>
+        </section>
+      </div>
+
+      <div class="tab-panel" role="tabpanel" id="panel-awards" aria-labelledby="tab-awards" hidden>
         <ul class="badge-grid" id="badge-grid"></ul>
-      </section>
+      </div>
     </div>
   </dialog>
 
@@ -324,6 +336,23 @@
     </form>
   </dialog>
 
+  <dialog class="sheet welcome" id="welcome-dialog" aria-labelledby="welcome-title">
+    <div class="sheet-inner">
+      <img class="welcome-icon" src="icons/icon.svg" width="72" height="72" alt="">
+      <h2 id="welcome-title">Welcome to Tempo</h2>
+      <p class="welcome-lead">A calm place to focus, one session at a time.</p>
+      <ul class="tips welcome-tips">
+        <li><span aria-hidden="true">⏱️</span><span><strong>Focus for 25 minutes</strong>, then take a short break. Every fourth break is a long one.</span></li>
+        <li><span aria-hidden="true">🎧</span><span><strong>Mix 3D sounds</strong> like rain, a fireplace or lo-fi beats, and drag them around you. Headphones make it magic.</span></li>
+        <li><span aria-hidden="true">✅</span><span><strong>Add tasks</strong> and tap one to count sessions towards it.</span></li>
+      </ul>
+      <div class="welcome-actions">
+        <button type="button" class="primary-btn pressable welcome-go" data-close>Let's focus</button>
+        <button type="button" class="text-btn pressable" id="welcome-tips">Tips &amp; shortcuts</button>
+      </div>
+    </div>
+  </dialog>
+
   <dialog class="sheet" id="help-dialog" aria-labelledby="help-title">
     <div class="sheet-inner">
       <header class="sheet-head">
@@ -360,6 +389,6 @@
     </div>
   </dialog>
 
-  <script type="module" src="js/app.js?v=19"></script>
+  <script type="module" src="js/app.js?v=20"></script>
 </body>
 </html>

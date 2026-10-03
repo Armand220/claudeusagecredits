@@ -1,9 +1,9 @@
-import * as audio from './audio.js?v=19';
-import * as fx from './fx.js?v=19';
-import { toast } from './toast.js?v=19';
-import * as effects from './effects.js?v=19';
-import * as scenery from './scenery.js?v=19';
-import * as pip from './pip.js?v=19';
+import * as audio from './audio.js?v=20';
+import * as fx from './fx.js?v=20';
+import { toast } from './toast.js?v=20';
+import * as effects from './effects.js?v=20';
+import * as scenery from './scenery.js?v=20';
+import * as pip from './pip.js?v=20';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -1967,6 +1967,55 @@ $('#btn-open-help').addEventListener('click', (e) => {
   setTimeout(() => openSheet(el.helpDialog, e.target), 220);
 });
 
+// Stats tabs
+const statTabs = $$('#stats-dialog [role="tab"]');
+let statTab = 0;
+
+function selectStatTab(i, { focus = false, animate = true } = {}) {
+  statTab = (i + statTabs.length) % statTabs.length;
+  statTabs.forEach((t, n) => {
+    const on = n === statTab;
+    t.setAttribute('aria-selected', String(on));
+    t.tabIndex = on ? 0 : -1;
+    const panel = $(`#${t.getAttribute('aria-controls')}`);
+    panel.hidden = !on;
+    if (on && animate) fx.enter(panel);
+  });
+  $('#stats-dialog .tabs').style.setProperty('--i', String(statTab));
+  if (focus) statTabs[statTab].focus();
+}
+
+statTabs.forEach((t, i) => {
+  t.addEventListener('click', () => {
+    if (i === statTab) return;
+    audio.sfx('tap', t);
+    selectStatTab(i);
+  });
+  t.addEventListener('keydown', (e) => {
+    const step = { ArrowRight: 1, ArrowLeft: -1 }[e.key];
+    if (step) {
+      e.preventDefault();
+      audio.sfx('tick', t);
+      selectStatTab(statTab + step, { focus: true });
+    } else if (e.key === 'Home' || e.key === 'End') {
+      e.preventDefault();
+      selectStatTab(e.key === 'Home' ? 0 : statTabs.length - 1, { focus: true });
+    }
+  });
+});
+
+// First visit: a short welcome.
+function maybeWelcome() {
+  if (settings.welcomed) return;
+  settings.welcomed = true;
+  save();
+  setTimeout(() => openSheet($('#welcome-dialog'), el.toggle), 700);
+}
+$('#welcome-tips').addEventListener('click', (e) => {
+  closeSheet($('#welcome-dialog'));
+  setTimeout(() => openSheet(el.helpDialog, e.target), 220);
+});
+
 $('#btn-stats').addEventListener('click', (e) => {
   renderStats();
   openSheet(el.statsDialog, e.currentTarget);
@@ -2135,3 +2184,7 @@ syncWakeLock();
 effects.initSpotlight();
 effects.initTilt($('.timer-card'));
 requestAnimationFrame(() => el.body.classList.add('is-ready'));
+selectStatTab(0, { animate: false });
+// Someone who already used an earlier version doesn't need the welcome.
+if (!settings.welcomed && (tasks.length || history.length)) settings.welcomed = true;
+maybeWelcome();
