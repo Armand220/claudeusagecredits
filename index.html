@@ -23,7 +23,7 @@
   <!-- Fonts load without blocking the first paint. -->
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..700&family=Outfit:wght@200..700&display=swap" media="print" onload="this.media='all'">
   <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..700&family=Outfit:wght@200..700&display=swap"></noscript>
-  <link rel="stylesheet" href="styles.css?v=51">
+  <link rel="stylesheet" href="styles.css?v=52">
 </head>
 <body data-mode="focus">
   <div class="photo-bg" aria-hidden="true"></div>
@@ -152,9 +152,19 @@
           <span class="current-task-title" id="current-task-title"></span>
         </p>
 
+        <p class="break-idea" id="break-idea" hidden>
+          <span class="break-idea-text" id="break-idea-text" aria-live="polite"></span>
+          <button type="button" class="break-idea-next pressable" id="btn-next-idea" aria-label="Another break idea" title="Another idea">
+            <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.3-5.6"/><path d="M20 4v4h-4"/></svg>
+          </button>
+        </p>
+
         <form class="intention" id="intention-form" autocomplete="off" novalidate>
           <span class="intention-icon" aria-hidden="true">🌱</span>
           <input id="intention-input" type="text" maxlength="100" placeholder="Today, I want to…" aria-label="Today's intention" enterkeyhint="done">
+          <button type="button" class="intention-done pressable" id="btn-intention-done" aria-pressed="false" aria-label="Mark today's intention as done" title="Done!" hidden>
+            <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>
+          </button>
         </form>
       </section>
 
@@ -218,7 +228,10 @@
                 <input id="save-mix-name" type="text" maxlength="24" placeholder="Name this mix" autocomplete="off">
                 <button type="submit" class="text-btn pressable">Save</button>
               </form>
-              <button type="button" class="text-btn pressable" id="btn-save-mix">⭐ Save this mix</button>
+              <span class="mix-actions">
+                <button type="button" class="text-btn pressable" id="btn-save-mix">⭐ Save this mix</button>
+                <button type="button" class="text-btn pressable" id="btn-share-mix" title="Share this mix as a link">🔗 Share</button>
+              </span>
               <label class="sleep" title="Fade the sounds out after a while">
                 <span aria-hidden="true">🌙</span>
                 <span class="sleep-label" id="sleep-label">Sleep timer</span>
@@ -599,6 +612,6 @@
     </div>
   </dialog>
 
-  <script type="module" src="js/app.js?v=51"></script>
+  <script type="module" src="js/app.js?v=52"></script>
 </body>
 </html>

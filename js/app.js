@@ -1,11 +1,11 @@
-import * as audio from './audio.js?v=51';
-import * as fx from './fx.js?v=51';
-import { toast } from './toast.js?v=51';
-import * as effects from './effects.js?v=51';
-import * as scenery from './scenery.js?v=51';
-import * as pip from './pip.js?v=51';
-import { shareCard, makeCardFile } from './share.js?v=51';
-import * as photo from './photo.js?v=51';
+import * as audio from './audio.js?v=52';
+import * as fx from './fx.js?v=52';
+import { toast } from './toast.js?v=52';
+import * as effects from './effects.js?v=52';
+import * as scenery from './scenery.js?v=52';
+import * as pip from './pip.js?v=52';
+import { shareCard, makeCardFile } from './share.js?v=52';
+import * as photo from './photo.js?v=52';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -124,7 +124,8 @@ const todayKey = () => {
 
 function cleanIntention(raw) {
   const o = obj(raw);
-  return { d: todayKey(), text: o.d === todayKey() && typeof o.text === 'string' ? o.text.slice(0, 100) : '' };
+  const today = o.d === todayKey() && typeof o.text === 'string';
+  return { d: todayKey(), text: today ? o.text.slice(0, 100) : '', done: today && Boolean(o.done) };
 }
 
 function cleanCounters(raw) {
@@ -809,6 +810,64 @@ function sessionNote() {
   return MODES[timer.mode].note(pos, settings.longEvery);
 }
 
+// Something nice to do with a break.
+const BREAK_IDEAS = [
+  ['🙆', 'Stand up and stretch your arms over your head'],
+  ['💧', 'Drink a glass of water'],
+  ['👀', 'Look at something far away for 20 seconds'],
+  ['🌬️', 'Take five slow breaths, out longer than in'],
+  ['🔄', 'Roll your shoulders back ten times'],
+  ['🚶', 'Walk around the room, or over to a window'],
+  ['😌', 'Close your eyes and relax your jaw'],
+  ['✋', 'Shake out your hands and wrists'],
+  ['☀️', 'Get some daylight on your face'],
+  ['🦶', 'Do ten slow calf raises'],
+  ['🪟', 'Open a window for some fresh air'],
+  ['🪴', 'Water a plant, or tidy one small thing'],
+  ['📝', 'Jot down your next step, so you can start fast'],
+  ['🍎', 'Have a piece of fruit or a handful of nuts'],
+  ['🤸', 'Reach down towards your toes, slowly'],
+  ['🧊', 'Splash some cold water on your face'],
+];
+const LONG_IDEAS = [
+  ['🌳', 'Go for a short walk outside'],
+  ['🍵', 'Make a cup of tea or coffee'],
+  ['🍽️', 'Eat something proper, away from the screen'],
+  ['📞', 'Call or message someone you like'],
+];
+let ideaIndex = -1;
+let ideaFor = '';
+
+function renderBreakIdea({ next = false } = {}) {
+  const box = $('#break-idea');
+  if (timer.mode === 'focus') {
+    box.hidden = true;
+    ideaFor = '';
+    return;
+  }
+  const pool = timer.mode === 'long' ? [...LONG_IDEAS, ...BREAK_IDEAS] : BREAK_IDEAS;
+  if (next || ideaFor !== timer.mode || ideaIndex < 0 || ideaIndex >= pool.length) {
+    let i;
+    do i = Math.floor(Math.random() * pool.length);
+    while (pool.length > 1 && i === ideaIndex);
+    ideaIndex = i;
+    ideaFor = timer.mode;
+  }
+  const [icon, text] = pool[ideaIndex];
+  $('#break-idea-text').textContent = `${icon} ${text}`;
+  box.hidden = false;
+}
+
+$('#btn-next-idea').addEventListener('click', (e) => {
+  renderBreakIdea({ next: true });
+  audio.sfx('tap', e.currentTarget);
+  const svg = e.currentTarget.querySelector('svg');
+  svg.classList.remove('spin');
+  void svg.getBoundingClientRect();
+  svg.classList.add('spin');
+  fx.pop($('#break-idea-text'), 1.04);
+});
+
 function applyMode() {
   const mode = timer.mode;
   el.body.dataset.mode = mode;
@@ -818,6 +877,7 @@ function applyMode() {
   delete el.dial.dataset.breath;
   el.sessionLabel.textContent = sessionNote();
   renderDots();
+  renderBreakIdea();
   updateThemeColor();
   renderTimer(true);
 }
@@ -1761,14 +1821,36 @@ function renderIntention() {
   if (intention.d !== todayKey()) intention = cleanIntention(null);
   const input = $('#intention-input');
   if (document.activeElement !== input) input.value = intention.text;
-  $('#intention-form').classList.toggle('is-set', Boolean(intention.text));
+  const form = $('#intention-form');
+  form.classList.toggle('is-set', Boolean(intention.text));
+  form.classList.toggle('is-done', Boolean(intention.text && intention.done));
+  const done = $('#btn-intention-done');
+  done.hidden = !intention.text;
+  done.setAttribute('aria-pressed', String(Boolean(intention.done)));
+  done.setAttribute('aria-label', intention.done ? 'Today\'s intention is done. Undo' : 'Mark today\'s intention as done');
 }
+
+$('#btn-intention-done').addEventListener('click', (e) => {
+  const btn = e.currentTarget;
+  intention.done = !intention.done;
+  save();
+  renderIntention();
+  fx.pop(btn, 1.25);
+  if (intention.done) {
+    const form = $('#intention-form');
+    fx.celebrate(form);
+    audio.fanfare();
+    toast({ icon: '🌱', title: 'Intention done!', body: intention.text, tone: 'gold', duration: 4000 });
+  } else {
+    audio.sfx('uncheck', btn);
+  }
+});
 
 function saveIntention({ celebrate = false } = {}) {
   const input = $('#intention-input');
   const text = input.value.trim().slice(0, 100);
   if (text === intention.text && intention.d === todayKey()) return;
-  intention = { d: todayKey(), text };
+  intention = { d: todayKey(), text, done: text === intention.text ? intention.done : false };
   save();
   renderIntention();
   if (celebrate && text) {
@@ -2657,6 +2739,85 @@ function deleteMix(id, source) {
   });
 }
 
+// ----- Share a mix as a link: #mix=rain.70.-22.-16~fire.85.18.-14.o --------
+
+function mixToHash(mix, name) {
+  const parts = Object.entries(mix).map(([k, m]) => [k, Math.round(m.vol * 100), Math.round(m.x * 10), Math.round(m.z * 10), ...(m.orbit ? ['o'] : [])].join('.'));
+  return `mix=${parts.join('~')}${name ? `&n=${encodeURIComponent(name.slice(0, 24))}` : ''}`;
+}
+
+function mixFromHash(hash) {
+  const params = new URLSearchParams(hash.replace(/^#/, ''));
+  const raw = params.get('mix');
+  if (!raw) return null;
+  const mix = {};
+  for (const part of raw.split('~').slice(0, 20)) {
+    const [k, vol, x, z, o] = part.split('.');
+    if (!audio.ambientKinds.includes(k)) continue;
+    const [dx, dz] = audio.defaultAnchor(k);
+    mix[k] = { vol: clampNum(Number(vol) / 100, 0, 1, 0.8), x: clampNum(Number(x) / 10, -4, 4, dx), z: clampNum(Number(z) / 10, -4, 4, dz), orbit: o === 'o' };
+  }
+  if (!Object.keys(mix).length) return null;
+  const name = (params.get('n') || '').trim().slice(0, 24);
+  return { id: 'shared', icon: '🔗', name: name || 'Shared mix', mix };
+}
+
+$('#btn-share-mix').addEventListener('click', async (e) => {
+  const btn = e.currentTarget;
+  const kinds = activeKinds();
+  if (!kinds.length) {
+    fx.nudge(btn);
+    return;
+  }
+  const current = allMixes().find((m) => mixMatches(m));
+  const mix = Object.fromEntries(kinds.map((k) => [k, sound.mix[k]]));
+  const url = `${window.location.origin}${window.location.pathname}#${mixToHash(mix, current ? current.name : '')}`;
+  const names = kinds.map((k) => SOUND_INFO[k].name).join(' + ');
+  fx.pop(btn, 1.08);
+  if (navigator.share && phoneLayout.matches) {
+    try {
+      await navigator.share({ title: 'A Tempo sound mix', text: `Focus with this mix: ${names}`, url });
+      return;
+    } catch (err) {
+      if (err && err.name === 'AbortError') return;
+    }
+  }
+  try {
+    await navigator.clipboard.writeText(url);
+    audio.sfx('check', btn);
+    toast({ icon: '🔗', title: 'Link copied', body: `Anyone who opens it hears ${names}, placed just like yours.`, duration: 4000 });
+  } catch {
+    window.prompt('Copy this link to share your mix:', url);
+  }
+});
+
+function offerSharedMix() {
+  const m = mixFromHash(window.location.hash);
+  if (!m) return;
+  window.history.replaceState(null, '', window.location.pathname + window.location.search);
+  const names = Object.keys(m.mix).map((k) => SOUND_INFO[k].name).join(' + ');
+  toast({
+    icon: '🎧',
+    title: m.name === 'Shared mix' ? 'Someone shared a sound mix' : `Someone shared “${m.name}”`,
+    body: names,
+    duration: 15000,
+    actions: [
+      { label: 'Save', kind: 'ghost', onClick: () => {
+        sound.presets.push({ id: newId(), name: m.name, mix: m.mix });
+        if (sound.presets.length > 12) sound.presets.shift();
+        save();
+        renderMixes();
+        toast({ icon: '⭐', title: `Saved “${m.name}”`, body: 'Find it with the mixes.', duration: 2500 });
+      } },
+      { label: 'Play it', onClick: () => {
+        setView('sounds');
+        applyMix(m, el.mixes);
+      } },
+    ],
+  });
+}
+window.addEventListener('hashchange', offerSharedMix);
+
 const saveForm = $('#save-mix');
 const saveBtn = $('#btn-save-mix');
 saveBtn.addEventListener('click', () => {
@@ -3239,6 +3400,7 @@ statTabs.forEach((t, i) => {
 
 // What's new: the newest first. Bump `id` when adding an entry.
 const CHANGES = [
+  { id: 13, icon: '🔗', text: 'Share your sound mix as a link, get an idea for each break, and tick off today\'s intention when it\'s done.' },
   { id: 12, icon: '🔎', text: 'Press Ctrl K (⌘K on a Mac) or / to search and run anything: start, sounds, mixes, tasks, themes and more.' },
   { id: 11, icon: '🌱', text: 'Write today\'s intention under the timer, and jot down what you got done after each session (📝). Notes show in Stats.' },
   { id: 10, icon: '🐦', text: 'New sounds: Birdsong (a morning forest all around you) and Café (chatter, clinking cups and the espresso machine), with new mixes Morning walk and Coffee shop.' },
@@ -3834,6 +3996,7 @@ document.addEventListener('keydown', (e) => {
     }
   }
 }
+offerSharedMix();
 requestAnimationFrame(() => el.body.classList.add('is-ready'));
 selectStatTab(0, { animate: false });
 renderWhatsNew();

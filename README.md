@@ -20,7 +20,8 @@ installed as an app on your phone or computer.
 - Chime, optional notification, optional auto-start; when a session ends the
   toast offers **Start break / Start focus** and a one-tap rating of how it went
 - **Distracted** button (`D`) to tally wandering thoughts during focus
-- Breathing guide during breaks (box breathing)
+- Breathing guide during breaks (box breathing), and an idea for each break
+  (stretch, water, rest your eyes…)
 - **Zen mode**: a fullscreen, distraction-free timer (`F`)
 - **Floating mini timer** that stays on top of other windows (`P`)
 - The browser tab icon becomes a little progress ring
@@ -33,6 +34,8 @@ installed as an app on your phone or computer.
 - **Ready-made mixes** (Cozy cabin, Seaside, Campfire night, Rainy café,
   Forest stream, Cat nap, Breezy porch, Stormy study, Library, Night train,
   Morning walk, Coffee shop…) and your own saved mixes
+- **Share a mix as a link**: whoever opens it hears the same sounds, at the
+  same volumes and places around them, and can save it
 - **Sleep timer** that fades the sounds out after 15–90 minutes
 - **3D room**: you're in the middle; drag each sound around your head, or
   press orbit to make it circle you
@@ -66,7 +69,8 @@ installed as an app on your phone or computer.
   delete), undo deletes
 - "Finish around" estimate for what's left
 - **Today's intention**: a line under the timer for what you want from the
-  day (`I`); it clears itself tomorrow and stays visible in zen mode
+  day (`I`); tick it off when it's done. It clears itself tomorrow and stays
+  visible in zen mode
 - **Session notes**: tap 📝 when a session ends (or the pencil next to any
   session in Stats) to note what you got done
 
