@@ -2,8 +2,8 @@
 // waves, rising embers, fireflies under the stars, drifting dust in a breeze.
 // One canvas behind the page; it only animates while a scene is showing.
 
-import * as audio from './audio.js?v=14';
-import { motionOK } from './fx.js?v=14';
+import * as audio from './audio.js?v=15';
+import { motionOK } from './fx.js?v=15';
 
 const canvas = document.createElement('canvas');
 canvas.className = 'scenery';
@@ -226,6 +226,48 @@ const FACTORIES = {
           const blink = Math.pow(0.5 + 0.5 * Math.sin(t * 1.4 + f.phase), 3);
           g.globalAlpha = a * blink * (colors.dark ? 1 : 0.7);
           g.drawImage(FIREFLY, f.x - f.size / 2, f.y - f.size / 2, f.size, f.size);
+        }
+      },
+    };
+  },
+
+  lofi() {
+    const notes = [];
+    const glyphs = ['♪', '♫', '♩', '♬'];
+    let spawn = 0;
+    return {
+      draw(dt, a, t) {
+        const level = Math.min(1, audio.meter() * 5);
+        spawn += dt * Math.max(0.6, W / 900);
+        while (spawn > 1) {
+          spawn -= 1;
+          notes.push({
+            x: rand(0.04, 0.96) * W,
+            y: H + 24,
+            vy: rand(-30, -14),
+            size: rand(16, 30),
+            glyph: glyphs[Math.floor(Math.random() * glyphs.length)],
+            life: 0,
+            max: rand(9, 16),
+            seed: Math.random() * 10,
+          });
+        }
+        g.fillStyle = colors.accent;
+        g.textAlign = 'center';
+        g.textBaseline = 'middle';
+        for (let i = notes.length - 1; i >= 0; i--) {
+          const n = notes[i];
+          n.life += dt;
+          if (n.life > n.max) {
+            notes.splice(i, 1);
+            continue;
+          }
+          n.y += n.vy * dt;
+          const x = n.x + Math.sin(t * 0.8 + n.seed) * 18;
+          const fade = Math.sin((n.life / n.max) * Math.PI);
+          g.globalAlpha = a * fade * (colors.dark ? 0.38 : 0.32) * (0.75 + level * 0.8);
+          g.font = `${(n.size * (1 + level * 0.18)).toFixed(1)}px Georgia, serif`;
+          g.fillText(n.glyph, x, n.y);
         }
       },
     };

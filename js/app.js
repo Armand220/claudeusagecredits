@@ -1,8 +1,8 @@
-import * as audio from './audio.js?v=14';
-import * as fx from './fx.js?v=14';
-import { toast } from './toast.js?v=14';
-import * as effects from './effects.js?v=14';
-import * as scenery from './scenery.js?v=14';
+import * as audio from './audio.js?v=15';
+import * as fx from './fx.js?v=15';
+import { toast } from './toast.js?v=15';
+import * as effects from './effects.js?v=15';
+import * as scenery from './scenery.js?v=15';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];

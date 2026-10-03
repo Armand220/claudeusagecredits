@@ -720,6 +720,161 @@ const SCENES = {
     };
   },
 
+  lofi(S) {
+    // An endless lo-fi beat, written live. The band sits around you:
+    // keys on the left, bells on the right, drums and bass in front.
+    const bpm = rand(70, 78);
+    const beat = 60 / bpm;
+    const six = beat / 4;
+
+    // Tape wobble: a gently modulated delay, then a warm low-pass.
+    const bus = gain(0.24);
+    const wow = ctx.createDelay(0.05);
+    wow.delayTime.value = 0.012;
+    const lfo = track(osc('sine', 0.45));
+    lfo.connect(gain(0.0012)).connect(wow.delayTime);
+    lfo.start();
+    const flutter = track(osc('sine', 6.2));
+    flutter.connect(gain(0.00008)).connect(wow.delayTime);
+    flutter.start();
+    bus.connect(wow).connect(filter('lowpass', 5200, 0.5)).connect(S.out);
+
+    const keysP = S.P(-1.2, 0, 0.2, 0.6, bus);
+    const bassP = S.P(0, -0.5, 0, 0.3, bus);
+    const kitP = S.P(0, -0.3, -0.3, 0.5, bus);
+    const hatP = S.P(0.7, 0.4, -0.2, 0.6, bus);
+    const bellP = S.P(1.2, 0.6, 0.1, 0.6, bus);
+    send(keysP, 0.15);
+    send(bellP, 0.3);
+    noiseSource('pink').connect(filter('highpass', 2800)).connect(gain(0.018, S.out));
+
+    const mtof = (m) => 440 * 2 ** ((m - 69) / 12);
+    const C = (root, notes) => ({ root, notes });
+    const PROGS = [
+      [C(41, [57, 60, 64, 67]), C(40, [55, 59, 62, 64]), C(38, [53, 57, 60, 64]), C(36, [52, 55, 59, 62])],
+      [C(38, [53, 57, 60, 64]), C(43, [53, 59, 64, 69]), C(36, [52, 55, 59, 62]), C(45, [55, 59, 60, 64])],
+      [C(45, [55, 59, 60, 64]), C(41, [57, 60, 64, 67]), C(36, [52, 55, 59, 62]), C(43, [55, 59, 62, 64])],
+    ];
+    const PENTA = [72, 74, 76, 79, 81, 84, 86];
+    const pick = (a) => a[Math.floor(Math.random() * a.length)];
+
+    function rhodes(t, m, vel, dur) {
+      const f = mtof(m);
+      const g = gain(0, keysP);
+      g.gain.setValueAtTime(0, t);
+      g.gain.linearRampToValueAtTime(vel, t + 0.012);
+      g.gain.setTargetAtTime(vel * 0.45, t + 0.012, 0.3);
+      g.gain.setTargetAtTime(0, t + dur, 0.25);
+      const o1 = osc('sine', f);
+      const o2 = osc('triangle', f * 1.003);
+      o1.connect(g);
+      o2.connect(gain(0.3, g));
+      const tine = osc('sine', f * 7);
+      const gt = gain(0.0001, keysP);
+      envelope(gt, t, 0.002, vel * 0.12, 0.2);
+      tine.connect(gt);
+      [o1, o2, tine].forEach((o) => { o.start(t); o.stop(t + dur + 1.4); });
+    }
+
+    function bassNote(t, m, dur) {
+      const f = mtof(m);
+      const g = gain(0, bassP);
+      g.gain.setValueAtTime(0, t);
+      g.gain.linearRampToValueAtTime(0.42, t + 0.015);
+      g.gain.setTargetAtTime(0.25, t + 0.015, 0.2);
+      g.gain.setTargetAtTime(0, t + dur, 0.06);
+      const lp = filter('lowpass', 520, 0.9);
+      lp.connect(g);
+      const o1 = osc('triangle', f);
+      const o2 = osc('sine', f);
+      o1.connect(lp);
+      o2.connect(lp);
+      [o1, o2].forEach((o) => { o.start(t); o.stop(t + dur + 0.5); });
+    }
+
+    function kick(t) {
+      const o = osc('sine', 0);
+      sweep(o.frequency, 130, 46, t, 0.12);
+      const g = gain(0.0001, kitP);
+      envelope(g, t, 0.003, 0.95, 0.32);
+      o.connect(g);
+      o.start(t);
+      o.stop(t + 0.4);
+    }
+
+    function snare(t) {
+      const g = gain(0.0001, kitP);
+      envelope(g, t, 0.002, 0.32, 0.17);
+      noiseSource('white', t, 0.25).connect(filter('bandpass', 1800, 0.8)).connect(g);
+      const body = osc('triangle', 190);
+      const gb = gain(0.0001, kitP);
+      envelope(gb, t, 0.002, 0.18, 0.08);
+      body.connect(gb);
+      body.start(t);
+      body.stop(t + 0.12);
+    }
+
+    function hat(t, vel, open) {
+      const g = gain(0.0001, hatP);
+      envelope(g, t, 0.001, vel, open ? 0.26 : 0.035);
+      noiseSource('white', t, open ? 0.35 : 0.06).connect(filter('highpass', 7200)).connect(g);
+    }
+
+    function bell(t, m) {
+      const f = mtof(m);
+      const g = gain(0.0001, bellP);
+      envelope(g, t, 0.004, 0.07, 1.3);
+      const o = osc('sine', f);
+      const o2 = osc('sine', f * 2.01);
+      o.connect(g);
+      o2.connect(gain(0.25, g));
+      [o, o2].forEach((x) => { x.start(t); x.stop(t + 1.5); });
+    }
+
+    function crackle(t) {
+      const g = gain(0.0001, S.E(rand(-0.6, 0.6), 0, rand(-0.6, 0.6), 0.5, bus));
+      envelope(g, t, 0.0005, rand(0.03, 0.14), rand(0.002, 0.008));
+      noiseSource('white', t, 0.02).connect(filter('highpass', rand(2000, 5000))).connect(g);
+    }
+
+    let step = 0;
+    let bar = 0;
+    let next = ctx.currentTime + 0.15;
+    let prog = pick(PROGS);
+    let melody = false;
+
+    return (until) => {
+      while (next < until) {
+        const s = step % 16;
+        const t = next + (s % 2 ? six * 0.18 : 0); // swing
+        if (s === 0) {
+          if (bar % 8 === 0 && bar > 0 && Math.random() < 0.5) prog = pick(PROGS);
+          if (bar % 4 === 0) melody = Math.random() < 0.6;
+        }
+        const chord = prog[bar % 4];
+
+        if (s === 0) chord.notes.forEach((m, i) => rhodes(t + i * 0.018, m, 0.055, beat * 3.6));
+        else if (s === 10 && Math.random() < 0.3) chord.notes.forEach((m, i) => rhodes(t + i * 0.014, m, 0.035, beat * 1.3));
+
+        if (s === 0) bassNote(t, chord.root, beat * 1.6);
+        else if (s === 8 && Math.random() < 0.7) bassNote(t, chord.root + (Math.random() < 0.5 ? 7 : 12), beat * 0.9);
+        else if (s === 14 && Math.random() < 0.3) bassNote(t, chord.root + 10, beat * 0.4);
+
+        if (s === 0 || (s === 10 && Math.random() < 0.6) || (s === 7 && Math.random() < 0.15)) kick(t);
+        if (s === 4 || s === 12) snare(t);
+        if (s % 2 === 0) hat(t, (s % 4 === 0 ? 0.11 : 0.06) * rand(0.75, 1.15), false);
+        if (s === 14 && Math.random() < 0.15) hat(t, 0.08, true);
+
+        if (melody && s % 2 === 0 && Math.random() < 0.26) bell(t, pick([...PENTA, ...chord.notes.map((n) => n + 12)]));
+        if (Math.random() < 0.3) crackle(t + rand(0, six));
+
+        step += 1;
+        next += six;
+        if (s === 15) bar += 1;
+      }
+    };
+  },
+
   brown(S) {
     for (const x of [-1.6, 1.6]) {
       noiseSource('brown').connect(filter('lowpass', 900)).connect(gain(0.6, S.P(x, 0, -0.3)));
@@ -747,16 +902,18 @@ export const ambientKinds = Object.keys(SCENES);
 
 // Where each sound sits by default, as [x, z] in metres (-z is in front of you).
 const DEFAULT_ANCHORS = {
-  rain: [-1.2, -1.2],
-  waves: [0, -2.6],
-  fire: [1.3, -1.3],
-  night: [-1.6, 1.4],
-  clock: [-2.6, 0],
-  brown: [0, 1.6],
-  fan: [2.6, 0],
-  lofi: [1.5, 1.5],
+  rain: [-2.2, -1.6],
+  waves: [0, -3.5],
+  fire: [2.2, -1.6],
+  night: [-2.2, 2],
+  clock: [-3.2, 0.2],
+  brown: [0, 2.4],
+  fan: [3.2, 0.2],
+  lofi: [0, -2],
 };
 export const defaultAnchor = (kind) => DEFAULT_ANCHORS[kind] || [0, 0];
+// Sounds keep their full volume up to this distance, then fade gently.
+const NEAR = 2.5;
 
 const layers = new Map();
 let layerTimer = 0;
@@ -792,15 +949,17 @@ export function setLayer(kind, on, opts = {}) {
     out: layer.out,
     ax: () => layer.ax,
     az: () => layer.az,
-    P(x, y, z, rolloff = 0.6) {
+    P(x, y, z, rolloff = 0.6, dest = layer.out) {
       const p = panner(layer.ax + x, y, layer.az + z, rolloff);
-      p.connect(layer.out);
+      p.refDistance = NEAR;
+      p.connect(dest);
       layer.panners.push({ p, x, y, z });
       return p;
     },
-    E(x, y, z, rolloff = 0.6) {
+    E(x, y, z, rolloff = 0.6, dest = layer.out) {
       const p = panner(layer.ax + x, y, layer.az + z, rolloff);
-      p.connect(layer.out);
+      p.refDistance = NEAR;
+      p.connect(dest);
       return p;
     },
   };
