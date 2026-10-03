@@ -372,6 +372,21 @@ export function chime(kind) {
   });
 }
 
+/** Achievement fanfare: a sparkling arpeggio whose notes circle your head. */
+export function fanfare() {
+  if (!sfxOn) return;
+  const c = ensure();
+  if (!c) return;
+  const t = c.currentTime + 0.05;
+  const notes = [783.99, 987.77, 1174.66, 1567.98, 1975.53, 2349.32];
+  notes.forEach((f, i) => {
+    const a = (i / notes.length) * Math.PI * 2;
+    const p = panner(Math.sin(a) * 1.6, 0.2 + i * 0.12, -Math.cos(a) * 1.6, 0);
+    p.connect(chimeBus);
+    bell(t + i * 0.085, f, p, 0.16);
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Ambient scenes. Each builds a graph into `out` and may return a tick()
 // that schedules one-off events (rain drops, waves, crackles) ahead of time.

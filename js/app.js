@@ -1,5 +1,6 @@
-import * as audio from './audio.js?v=3';
-import * as fx from './fx.js?v=3';
+import * as audio from './audio.js?v=4';
+import * as fx from './fx.js?v=4';
+import { toast } from './toast.js?v=4';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -17,6 +18,7 @@ const DEFAULTS = {
   short: 5,
   long: 15,
   longEvery: 4,
+  goal: 4,
   autoBreaks: false,
   autoFocus: false,
   chime: true,
@@ -25,7 +27,7 @@ const DEFAULTS = {
   wakeLock: false,
   theme: 'auto',
 };
-const LIMITS = { focus: [1, 180], short: [1, 60], long: [1, 90], longEvery: [2, 12] };
+const LIMITS = { focus: [1, 180], short: [1, 60], long: [1, 90], longEvery: [2, 12], goal: [1, 24] };
 const RING_C = 2 * Math.PI * 100;
 
 // ---------------------------------------------------------------------------
@@ -70,13 +72,17 @@ let history = (Array.isArray(stored.history) ? stored.history : []).filter(
   (h) => h && Number.isFinite(h.t) && Number.isFinite(h.m) && h.t > Date.now() - 400 * DAY,
 );
 
+const achievements = { ...obj(stored.achievements) };
+const counters = { tasksDone: 0, soundsTried: [], ...obj(stored.counters) };
+if (!Array.isArray(counters.soundsTried)) counters.soundsTried = [];
+
 const sound = { kind: 'off', volume: 50, ...obj(stored.sound) };
 if (!['off', ...audio.ambientKinds].includes(sound.kind)) sound.kind = 'off';
 sound.volume = clampInt(sound.volume, 0, 100, 50);
 
 function save() {
   try {
-    localStorage.setItem(STORE_KEY, JSON.stringify({ settings, timer, tasks, activeTaskId, history, sound }));
+    localStorage.setItem(STORE_KEY, JSON.stringify({ settings, timer, tasks, activeTaskId, history, sound, achievements, counters }));
   } catch {
     /* storage full or blocked: the app still works for this visit */
   }
@@ -114,6 +120,10 @@ const el = {
   settingsDialog: $('#settings-dialog'),
   settingsForm: $('#settings-form'),
   install: $('#btn-install'),
+  goal: $('#goal-pill'),
+  goalFill: $('#goal-fill'),
+  goalCount: $('#goal-count'),
+  goalTarget: $('#goal-target'),
 };
 
 el.ring.style.strokeDasharray = `${RING_C}`;
@@ -213,9 +223,13 @@ function complete({ late = 0 } = {}) {
   }
   const next = nextAfter(ended);
   switchTo(next);
+  renderGoal();
 
   // Stay quiet about a session that ended long ago while the page was closed.
-  if (late > 60000) return;
+  if (late > 60000) {
+    if (ended === 'focus') checkFocusAchievements(endedAt, next, { quiet: true });
+    return;
+  }
 
   if (settings.chime) audio.chime(next === 'focus' ? 'focus' : 'break');
   notify(ended, next);
@@ -229,6 +243,19 @@ function complete({ late = 0 } = {}) {
   );
   const auto = next === 'focus' ? settings.autoFocus : settings.autoBreaks;
   if (auto) start();
+  if (ended === 'focus') {
+    const today = dayTotals(new Date());
+    const hitGoal = today.s === settings.goal;
+    if (hitGoal) {
+      setTimeout(() => {
+        toast({ icon: '🎯', title: 'Daily goal reached!', body: `${today.s} focus sessions today. Brilliant work.`, tone: 'gold' });
+        fx.celebrate(el.goal);
+        fx.pop(el.goal, 1.2);
+        audio.fanfare();
+      }, 1400);
+    }
+    checkFocusAchievements(endedAt, next, { delay: hitGoal ? 3000 : 1400 });
+  }
 }
 
 function skip() {
@@ -417,8 +444,8 @@ function taskRow(task) {
 
 function renderTasks({ entering } = {}) {
   el.taskList.replaceChildren(...tasks.map(taskRow));
-  if (entering) {
-    const li = el.taskList.querySelector(`[data-id="${CSS.escape(entering)}"]`);
+  for (const id of [].concat(entering || [])) {
+    const li = el.taskList.querySelector(`[data-id="${CSS.escape(id)}"]`);
     if (li) fx.enter(li);
   }
 
@@ -486,10 +513,158 @@ async function removeTasks(ids, source) {
     .filter(Boolean);
   audio.sfx('remove', source);
   await Promise.all(rows.map((r, i) => new Promise((res) => setTimeout(() => fx.exit(r).then(res), i * 50))));
+  const removed = tasks.map((t, i) => ({ t, i })).filter(({ t }) => ids.includes(t.id));
+  const prevActive = activeTaskId;
   tasks = tasks.filter((t) => !ids.includes(t.id));
   if (ids.includes(activeTaskId)) activeTaskId = null;
   save();
   renderTasks();
+  if (!removed.length) return;
+
+  toast({
+    icon: '🗑️',
+    title: removed.length === 1 ? 'Task deleted' : `${removed.length} tasks cleared`,
+    body: removed.length === 1 ? removed[0].t.title : '',
+    duration: 5500,
+    action: {
+      label: 'Undo',
+      onClick: (btn) => {
+        removed.forEach(({ t, i }) => {
+          if (!tasks.some((x) => x.id === t.id)) tasks.splice(Math.min(i, tasks.length), 0, t);
+        });
+        if (removed.some(({ t }) => t.id === prevActive)) activeTaskId = prevActive;
+        save();
+        renderTasks({ entering: removed.map(({ t }) => t.id) });
+        audio.sfx('pop', btn);
+      },
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Daily goal & achievements
+
+const ACHIEVEMENTS = [
+  { id: 'first', icon: '🌱', name: 'First focus', desc: 'Finish your first focus session' },
+  { id: 'hattrick', icon: '🎩', name: 'Hat trick', desc: 'Three focus sessions in one day' },
+  { id: 'goal', icon: '🎯', name: 'Goal getter', desc: 'Hit your daily goal' },
+  { id: 'deep', icon: '🧠', name: 'Deep work', desc: 'Earn a long break' },
+  { id: 'streak3', icon: '🔥', name: 'On a roll', desc: 'Focus three days in a row' },
+  { id: 'streak7', icon: '⚡', name: 'Unstoppable', desc: 'Focus seven days in a row' },
+  { id: 'ten', icon: '🔟', name: 'Ten down', desc: 'Ten focus sessions in total' },
+  { id: 'fifty', icon: '🏅', name: 'Half century', desc: 'Fifty focus sessions in total' },
+  { id: 'early', icon: '🌅', name: 'Early bird', desc: 'Finish a session before 8 am' },
+  { id: 'night', icon: '🦉', name: 'Night owl', desc: 'Finish a session after 10 pm' },
+  { id: 'finisher', icon: '✅', name: 'Finisher', desc: 'Complete five tasks' },
+  { id: 'explorer', icon: '🎧', name: 'Sound explorer', desc: 'Try every ambient sound' },
+];
+const GOAL_C = 2 * Math.PI * 15;
+
+function dayTotals(date) {
+  const k = dayKey(date);
+  let m = 0;
+  let s = 0;
+  for (const h of history) {
+    if (dayKey(new Date(h.t)) !== k) continue;
+    m += h.m;
+    if (h.s) s += 1;
+  }
+  return { m, s };
+}
+
+function streakDays() {
+  const active = new Set(history.filter((h) => h.m > 0).map((h) => dayKey(new Date(h.t))));
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  if (!active.has(dayKey(d))) d.setDate(d.getDate() - 1);
+  let n = 0;
+  while (active.has(dayKey(d))) {
+    n += 1;
+    d.setDate(d.getDate() - 1);
+  }
+  return n;
+}
+
+function renderGoal() {
+  const { s } = dayTotals(new Date());
+  const goal = settings.goal;
+  const f = Math.min(1, s / goal);
+  el.goalFill.style.strokeDasharray = `${GOAL_C}`;
+  el.goalFill.style.strokeDashoffset = `${GOAL_C * (1 - f)}`;
+  el.goalCount.textContent = String(s);
+  el.goalTarget.textContent = String(goal);
+  el.goal.classList.toggle('is-done', s >= goal);
+  el.goal.setAttribute('aria-label', `Daily goal: ${s} of ${goal} focus sessions. Open stats.`);
+  el.goal.title = s >= goal ? 'Daily goal reached!' : `Daily goal: ${goal} focus sessions`;
+}
+
+let celebrationAt = 0;
+
+function unlock(id, { quiet = false, delay = 0 } = {}) {
+  if (achievements[id]) return;
+  const a = ACHIEVEMENTS.find((x) => x.id === id);
+  if (!a) return;
+  achievements[id] = Date.now();
+  save();
+  if (quiet) return;
+  // Space out several unlocks so each one gets its own moment.
+  const at = Math.max(Date.now() + delay, celebrationAt);
+  celebrationAt = at + 1700;
+  setTimeout(() => {
+    toast({ icon: a.icon, title: `Achievement: ${a.name}`, body: a.desc, tone: 'gold', duration: 5000 });
+    audio.fanfare();
+    fx.burst({ x: window.innerWidth / 2, y: window.innerHeight - 90 }, {
+      count: 26,
+      spread: 140,
+      gravity: 80,
+      size: 8,
+      confetti: true,
+      colors: ['#ffc94d', '#ffb02e', '#fff1b8', getComputedStyle(document.body).getPropertyValue('--accent').trim()],
+    });
+  }, at - Date.now());
+}
+
+function checkFocusAchievements(endedAt, next, opts = {}) {
+  const total = history.filter((h) => h.s).length;
+  const today = dayTotals(new Date(endedAt));
+  const hour = new Date(endedAt).getHours();
+  const streak = streakDays();
+  if (total >= 1) unlock('first', opts);
+  if (today.s >= 3) unlock('hattrick', opts);
+  if (today.s >= settings.goal) unlock('goal', opts);
+  if (next === 'long') unlock('deep', opts);
+  if (streak >= 3) unlock('streak3', opts);
+  if (streak >= 7) unlock('streak7', opts);
+  if (total >= 10) unlock('ten', opts);
+  if (total >= 50) unlock('fifty', opts);
+  if (hour >= 4 && hour < 8) unlock('early', opts);
+  if (hour >= 22 || hour < 4) unlock('night', opts);
+}
+
+function renderBadges() {
+  const grid = $('#badge-grid');
+  const count = ACHIEVEMENTS.filter((a) => achievements[a.id]).length;
+  $('#badge-count').textContent = `${count}/${ACHIEVEMENTS.length}`;
+  grid.replaceChildren(
+    ...ACHIEVEMENTS.map((a, i) => {
+      const li = document.createElement('li');
+      const on = Boolean(achievements[a.id]);
+      li.className = `badge${on ? ' is-unlocked' : ''}`;
+      li.style.setProperty('--delay', `${i * 30}ms`);
+      li.tabIndex = 0;
+      li.title = a.desc;
+      li.setAttribute('aria-label', `${a.name}: ${a.desc}. ${on ? 'Unlocked' : 'Locked'}.`);
+      const icon = document.createElement('span');
+      icon.className = 'badge-icon';
+      icon.textContent = a.icon;
+      icon.setAttribute('aria-hidden', 'true');
+      const name = document.createElement('span');
+      name.className = 'badge-name';
+      name.textContent = a.name;
+      li.append(icon, name);
+      return li;
+    }),
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -551,6 +726,7 @@ function renderStats() {
     : 'Finish a focus session to start filling this in.';
 
   renderChart(days);
+  renderBadges();
 }
 
 function renderChart(days) {
@@ -701,6 +877,7 @@ el.settingsForm.addEventListener('change', async (e) => {
     audio.sfx('tick', input);
     applyMode();
     renderSummary();
+    renderGoal();
   } else if (name === 'theme') {
     settings.theme = input.value;
     applyTheme();
@@ -772,6 +949,10 @@ el.chips.forEach((chip) => {
     fx.pop(chip, 1.08);
     if (kind === sound.kind && ambientStarted) return;
     sound.kind = kind;
+    if (kind !== 'off' && !counters.soundsTried.includes(kind)) {
+      counters.soundsTried.push(kind);
+      if (audio.ambientKinds.every((k) => counters.soundsTried.includes(k))) unlock('explorer', { delay: 600 });
+    }
     ambientStarted = kind !== 'off';
     audio.setAmbient(kind);
     renderChips();
@@ -870,6 +1051,8 @@ el.taskList.addEventListener('change', (e) => {
   if (!task) return;
   task.done = e.target.checked;
   if (task.done) {
+    counters.tasksDone += 1;
+    if (counters.tasksDone >= 5) unlock('finisher', { delay: 500 });
     audio.sfx('check', e.target);
     fx.burst(e.target, { count: 12, spread: 34, size: 5 });
     if (activeTaskId === task.id) activeTaskId = tasks.find((t) => !t.done)?.id ?? null;
@@ -909,6 +1092,11 @@ el.taskList.addEventListener('click', (e) => {
 
 el.clearDone.addEventListener('click', () => {
   removeTasks(tasks.filter((t) => t.done).map((t) => t.id), el.clearDone);
+});
+
+el.goal.addEventListener('click', (e) => {
+  renderStats();
+  openSheet(el.statsDialog, e.currentTarget);
 });
 
 $('#btn-stats').addEventListener('click', (e) => {
@@ -1005,6 +1193,8 @@ applyTheme();
 applyMode();
 renderTasks();
 renderChips();
+renderGoal();
+setInterval(renderGoal, 60000);
 if (timer.running) schedule();
 syncWakeLock();
 requestAnimationFrame(() => el.body.classList.add('is-ready'));

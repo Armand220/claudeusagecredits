@@ -12,7 +12,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..700&family=Outfit:wght@200..700&display=swap">
-  <link rel="stylesheet" href="styles.css?v=3">
+  <link rel="stylesheet" href="styles.css?v=4">
 </head>
 <body data-mode="focus">
   <div class="aurora" aria-hidden="true"><span></span><span></span><span></span></div>
@@ -27,6 +27,13 @@
         </svg>
         <span>Tempo</span>
       </a>
+      <button class="goal-pill pressable" id="goal-pill" type="button" aria-label="Daily goal">
+        <svg class="goal-ring" width="26" height="26" viewBox="0 0 36 36" aria-hidden="true">
+          <circle class="goal-track" cx="18" cy="18" r="15"/>
+          <circle class="goal-fill" id="goal-fill" cx="18" cy="18" r="15"/>
+        </svg>
+        <span class="goal-text"><strong id="goal-count">0</strong><span class="goal-sep">/</span><span id="goal-target">4</span><span class="goal-label"> today</span></span>
+      </button>
       <nav class="topbar-actions">
         <button class="icon-btn pressable" id="btn-install" type="button" hidden aria-label="Install app" data-sfx="tap">
           <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0-4.5-4.5M12 15l4.5-4.5M5 19h14"/></svg>
@@ -178,6 +185,10 @@
         <tbody></tbody>
       </table>
       <p class="sheet-note" id="stat-total"></p>
+      <section class="badges" aria-labelledby="badges-title">
+        <h3 id="badges-title">Achievements <span class="badge-count" id="badge-count"></span></h3>
+        <ul class="badge-grid" id="badge-grid"></ul>
+      </section>
     </div>
   </dialog>
 
@@ -199,6 +210,9 @@
         </div>
         <label class="field row"><span>Long break after every</span>
           <span class="inline"><input type="number" name="longEvery" min="2" max="12" inputmode="numeric"> focus sessions</span>
+        </label>
+        <label class="field row"><span>Daily goal</span>
+          <span class="inline"><input type="number" name="goal" min="1" max="24" inputmode="numeric"> focus sessions a day</span>
         </label>
       </fieldset>
 
@@ -232,6 +246,6 @@
     </form>
   </dialog>
 
-  <script type="module" src="js/app.js?v=3"></script>
+  <script type="module" src="js/app.js?v=4"></script>
 </body>
 </html>
