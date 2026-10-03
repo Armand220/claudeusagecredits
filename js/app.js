@@ -1,10 +1,10 @@
-import * as audio from './audio.js?v=35';
-import * as fx from './fx.js?v=35';
-import { toast } from './toast.js?v=35';
-import * as effects from './effects.js?v=35';
-import * as scenery from './scenery.js?v=35';
-import * as pip from './pip.js?v=35';
-import { shareCard } from './share.js?v=35';
+import * as audio from './audio.js?v=36';
+import * as fx from './fx.js?v=36';
+import { toast } from './toast.js?v=36';
+import * as effects from './effects.js?v=36';
+import * as scenery from './scenery.js?v=36';
+import * as pip from './pip.js?v=36';
+import { shareCard, makeCardFile } from './share.js?v=36';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -1497,7 +1497,7 @@ function renderTimeline() {
   $('#timeline-section').hidden = today.length === 0;
   if (!today.length) return;
   const hourOf = (ts) => (ts - start.getTime()) / 3600e3;
-  let from = Math.floor(Math.min(...today.map((h) => hourOf(h.t - h.m * 60000))));
+  let from = Math.floor(Math.max(0, Math.min(...today.map((h) => hourOf(h.t - h.m * 60000)))));
   let to = Math.ceil(Math.max(...today.map((h) => hourOf(h.t))));
   from = Math.max(0, Math.min(from, 8));
   to = Math.min(24, Math.max(to, from + 6));
@@ -1507,9 +1507,10 @@ function renderTimeline() {
     ...today.map((h) => {
       const b = document.createElement('span');
       b.className = `tl-block${h.s ? '' : ' is-partial'}`;
-      const s0 = hourOf(h.t - h.m * 60000);
+      const s0 = Math.max(0, hourOf(h.t - h.m * 60000));
+      const s1 = hourOf(h.t);
       b.style.left = `${((s0 - from) / span) * 100}%`;
-      b.style.width = `${Math.max(0.6, ((h.m / 60) / span) * 100)}%`;
+      b.style.width = `${Math.max(0.6, ((s1 - s0) / span) * 100)}%`;
       const label = `${new Date(h.t - h.m * 60000).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}: ${fmtMinutes(h.m)}${h.task ? ` · ${h.task}` : ''}`;
       b.title = label;
       b.setAttribute('role', 'img');
@@ -2705,6 +2706,7 @@ el.clearDone.addEventListener('click', () => {
 
 el.goal.addEventListener('click', (e) => {
   renderStats();
+  prepareShareCard();
   openSheet(el.statsDialog, e.currentTarget);
 });
 
@@ -2763,9 +2765,7 @@ $('#welcome-tips').addEventListener('click', (e) => {
   setTimeout(() => openSheet(el.helpDialog, e.target), 220);
 });
 
-$('#btn-share').addEventListener('click', async (e) => {
-  const btn = e.currentTarget;
-  audio.sfx('pop', btn);
+function shareData() {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const week = [];
@@ -2777,20 +2777,34 @@ $('#btn-share').addEventListener('click', async (e) => {
   const cs = getComputedStyle(el.body);
   const v = (n) => cs.getPropertyValue(`--${n}`).trim();
   const t = dayTotals(today);
-  const result = await shareCard({
+  return {
     today: fmtMinutes(t.m),
     sessions: t.s,
     streak: streakDays(),
     week,
     date: today.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' }),
     colors: { accent: v('accent'), accent2: v('accent-2'), bg: v('bg'), ink: v('ink'), ink2: v('ink-2'), track: v('track'), card: v('surface') },
-  }).catch(() => 'failed');
+  };
+}
+
+// The image is made when Stats opens, so sharing can start right from the tap.
+let readyCard = null;
+function prepareShareCard() {
+  readyCard = null;
+  makeCardFile(shareData()).then((f) => { readyCard = f; }).catch(() => {});
+}
+
+$('#btn-share').addEventListener('click', async (e) => {
+  const btn = e.currentTarget;
+  audio.sfx('pop', btn);
+  const result = await shareCard(shareData(), readyCard).catch(() => 'failed');
   if (result === 'downloaded') toast({ icon: '🖼️', title: 'Image saved', body: 'Your focus card is in your downloads.' });
   else if (result === 'failed') toast({ icon: '⚠️', title: "Couldn't make the image" });
 });
 
 $('#btn-stats').addEventListener('click', (e) => {
   renderStats();
+  prepareShareCard();
   openSheet(el.statsDialog, e.currentTarget);
 });
 
@@ -3003,9 +3017,20 @@ setView('timer', { scroll: false });
     window.history.replaceState(null, '', window.location.pathname);
     if (action === 'focus' || action === 'break') {
       const mode = action === 'focus' ? 'focus' : 'short';
-      if (!timer.running || timer.mode !== mode) {
-        if (timer.mode !== mode) switchTo(mode);
+      if (timer.mode === mode) {
+        if (!timer.running) start();
+      } else if (isFresh()) {
+        switchTo(mode);
         start();
+      } else {
+        // Don't throw away a session that's in progress without asking.
+        toast({
+          icon: '⏸️',
+          title: `Your ${MODES[timer.mode].label.toLowerCase()} session is still on`,
+          body: 'Carry on with it, or switch and start fresh.',
+          duration: 10000,
+          action: { label: `Start ${MODES[mode].label.toLowerCase()}`, onClick: () => { switchTo(mode); start(); } },
+        });
       }
     } else if (action === 'zen') {
       setZen(true);

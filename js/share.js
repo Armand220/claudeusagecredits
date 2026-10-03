@@ -124,11 +124,21 @@ export async function drawCard(data) {
   return canvas;
 }
 
-/** Share the card (or download it when sharing files isn't supported). */
-export async function shareCard(data) {
+/** Draw the card and wrap it in a File, ready to share. */
+export async function makeCardFile(data) {
   const canvas = await drawCard(data);
   const blob = await new Promise((res) => canvas.toBlob(res, 'image/png'));
-  const file = new File([blob], `tempo-${new Date().toISOString().slice(0, 10)}.png`, { type: 'image/png' });
+  return new File([blob], `tempo-${new Date().toISOString().slice(0, 10)}.png`, { type: 'image/png' });
+}
+
+/**
+ * Share a card (or download it when sharing files isn't supported).
+ * Pass a ready-made File where possible: Safari only opens the share sheet
+ * straight from a tap, before any other waiting.
+ */
+export async function shareCard(data, ready = null) {
+  const file = ready || (await makeCardFile(data));
+  const blob = file;
   if (navigator.canShare && navigator.canShare({ files: [file] })) {
     try {
       await navigator.share({ files: [file], title: 'My focus today', text: `I focused for ${data.today} today with Tempo.` });

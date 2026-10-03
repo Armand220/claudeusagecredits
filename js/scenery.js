@@ -2,8 +2,8 @@
 // waves, rising embers, fireflies under the stars, drifting dust in a breeze.
 // One canvas behind the page; it only animates while a scene is showing.
 
-import * as audio from './audio.js?v=35';
-import { motionOK } from './fx.js?v=35';
+import * as audio from './audio.js?v=36';
+import { motionOK } from './fx.js?v=36';
 
 const canvas = document.createElement('canvas');
 canvas.className = 'scenery';
