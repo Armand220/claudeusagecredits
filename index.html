@@ -12,7 +12,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..700&family=Outfit:wght@200..700&display=swap">
-  <link rel="stylesheet" href="styles.css?v=13">
+  <link rel="stylesheet" href="styles.css?v=14">
 </head>
 <body data-mode="focus">
   <div class="aurora" aria-hidden="true"><span></span><span></span><span></span></div>
@@ -123,19 +123,30 @@
               <input type="range" id="volume" min="0" max="100" value="50">
             </label>
           </div>
-          <div class="chips" role="radiogroup" aria-label="Ambient sound">
-            <button type="button" class="chip pressable" role="radio" data-sound="off" aria-checked="true">Off</button>
-            <button type="button" class="chip pressable" role="radio" data-sound="rain" aria-checked="false"><span class="eq" aria-hidden="true"><i></i><i></i><i></i></span>Rain</button>
-            <button type="button" class="chip pressable" role="radio" data-sound="waves" aria-checked="false"><span class="eq" aria-hidden="true"><i></i><i></i><i></i></span>Waves</button>
-            <button type="button" class="chip pressable" role="radio" data-sound="fire" aria-checked="false"><span class="eq" aria-hidden="true"><i></i><i></i><i></i></span>Fireplace</button>
-            <button type="button" class="chip pressable" role="radio" data-sound="night" aria-checked="false"><span class="eq" aria-hidden="true"><i></i><i></i><i></i></span>Night</button>
-            <button type="button" class="chip pressable" role="radio" data-sound="clock" aria-checked="false"><span class="eq" aria-hidden="true"><i></i><i></i><i></i></span>Clock</button>
-            <button type="button" class="chip pressable" role="radio" data-sound="brown" aria-checked="false"><span class="eq" aria-hidden="true"><i></i><i></i><i></i></span>Brown noise</button>
-            <button type="button" class="chip pressable" role="radio" data-sound="fan" aria-checked="false"><span class="eq" aria-hidden="true"><i></i><i></i><i></i></span>Fan</button>
+          <div class="chips" role="group" aria-label="Ambient sounds (pick as many as you like)">
+            <button type="button" class="chip pressable" data-sound="off" aria-pressed="true">Off</button>
+            <button type="button" class="chip pressable" data-sound="rain" aria-pressed="false"><span class="eq" aria-hidden="true"><i></i><i></i><i></i></span>Rain</button>
+            <button type="button" class="chip pressable" data-sound="waves" aria-pressed="false"><span class="eq" aria-hidden="true"><i></i><i></i><i></i></span>Waves</button>
+            <button type="button" class="chip pressable" data-sound="fire" aria-pressed="false"><span class="eq" aria-hidden="true"><i></i><i></i><i></i></span>Fireplace</button>
+            <button type="button" class="chip pressable" data-sound="night" aria-pressed="false"><span class="eq" aria-hidden="true"><i></i><i></i><i></i></span>Night</button>
+            <button type="button" class="chip pressable" data-sound="clock" aria-pressed="false"><span class="eq" aria-hidden="true"><i></i><i></i><i></i></span>Clock</button>
+            <button type="button" class="chip pressable" data-sound="brown" aria-pressed="false"><span class="eq" aria-hidden="true"><i></i><i></i><i></i></span>Brown noise</button>
+            <button type="button" class="chip pressable" data-sound="fan" aria-pressed="false"><span class="eq" aria-hidden="true"><i></i><i></i><i></i></span>Fan</button>
+          </div>
+          <div class="mixer" id="mixer" hidden>
+            <div class="mix-list" id="mix-list"></div>
+            <div class="room" id="room" role="group" aria-label="3D room. You are in the middle; drag sounds around you.">
+              <div class="room-you" aria-hidden="true">
+                <svg width="34" height="34" viewBox="0 0 34 34"><path d="M17 3l4 6h-8z"/><circle cx="17" cy="19" r="10"/><rect x="4.5" y="15" width="4" height="8" rx="2"/><rect x="25.5" y="15" width="4" height="8" rx="2"/></svg>
+                <span>You</span>
+              </div>
+              <span class="room-label room-front" aria-hidden="true">Front</span>
+              <span class="room-label room-back" aria-hidden="true">Behind</span>
+            </div>
           </div>
           <p class="hint">
             <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 15v-3a8 8 0 0 1 16 0v3"/><rect x="3" y="14" width="4.5" height="7" rx="2"/><rect x="16.5" y="14" width="4.5" height="7" rx="2"/></svg>
-            3D spatial audio. Put on headphones and the rain falls all around you.
+            Mix as many sounds as you like and drag them around you. Best with headphones.
           </p>
         </section>
 
@@ -323,6 +334,6 @@
     </div>
   </dialog>
 
-  <script type="module" src="js/app.js?v=13"></script>
+  <script type="module" src="js/app.js?v=14"></script>
 </body>
 </html>

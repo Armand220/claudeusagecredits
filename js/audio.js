@@ -11,8 +11,6 @@ let master, sfxBus, chimeBus, ambientBus;
 const buffers = {};
 let sfxOn = true;
 let ambientLevel = 0.5;
-let scene = null;
-let sceneTimer = 0;
 let tracked = null;
 let analyser = null;
 let meterBuf = null;
@@ -55,11 +53,11 @@ export function unlock() { ensure(); }
 
 export function setSfxEnabled(on) { sfxOn = Boolean(on); }
 
-export const ambientPlaying = () => Boolean(scene);
+export const ambientPlaying = () => layers.size > 0;
 
 /** Current loudness (RMS) of the ambient scene, 0 when nothing is playing. */
 export function meter() {
-  if (!analyser || !scene) return 0;
+  if (!analyser || !layers.size) return 0;
   analyser.getFloatTimeDomainData(meterBuf);
   let sum = 0;
   for (let i = 0; i < meterBuf.length; i++) sum += meterBuf[i] * meterBuf[i];
@@ -466,8 +464,15 @@ export function fanfare() {
 }
 
 // ---------------------------------------------------------------------------
-// Ambient scenes. Each builds a graph into `out` and may return a tick()
-// that schedules one-off events (rain drops, waves, crackles) ahead of time.
+// Ambient layers. Several can play at once, each with its own volume and a
+// position in the room ("anchor") that you can drag around.
+//
+// A scene builds its graph through a small context:
+//   S.P(x, y, z) — a lasting sound source, placed relative to the anchor;
+//                  it follows the anchor when the layer is moved
+//   S.E(x, y, z) — a one-off source (a raindrop, a crackle) at the current anchor
+//   S.out        — the layer's output, for sounds that have no direction
+// and may return tick(until) to schedule events ahead of time.
 
 function aroundListener(minR, maxR) {
   const a = Math.random() * Math.PI * 2;
@@ -476,25 +481,19 @@ function aroundListener(minR, maxR) {
 }
 
 const SCENES = {
-  rain(out) {
+  rain(S) {
     for (const x of [-2.2, 2.2]) {
-      const hp = filter('highpass', 450);
-      const lp = filter('lowpass', 6500);
-      const p = panner(x, 1.2, -0.4);
-      noiseSource('pink').connect(hp).connect(lp).connect(gain(0.45, p));
-      p.connect(out);
+      const p = S.P(x, 1.2, -0.4);
+      noiseSource('pink').connect(filter('highpass', 450)).connect(filter('lowpass', 6500)).connect(gain(0.45, p));
     }
-    const rumble = filter('lowpass', 260);
-    noiseSource('brown').connect(rumble).connect(gain(0.35, out));
+    noiseSource('brown').connect(filter('lowpass', 260)).connect(gain(0.35, S.P(0, -0.6, -0.3, 0)));
 
     let next = ctx.currentTime + 0.05;
     let thunderAt = ctx.currentTime + rand(30, 70);
 
     function drop(t) {
       const [x, z] = aroundListener(1, 6);
-      const p = panner(x, rand(-1.5, 2.5), z, 1);
-      const g = gain(0.0001, p);
-      p.connect(out);
+      const g = gain(0.0001, S.E(x, rand(-1.5, 2.5), z, 1));
       if (Math.random() < 0.3) {
         const f = rand(1600, 3600);
         const o = osc('sine', f);
@@ -511,13 +510,11 @@ const SCENES = {
     }
 
     function thunder(t) {
-      const p = panner(rand(-10, 10), 4, rand(-14, -6), 0.15);
-      p.connect(out);
       const lp = filter('lowpass', 160);
       lp.frequency.setValueAtTime(160, t);
       lp.frequency.linearRampToValueAtTime(420, t + 0.8);
       lp.frequency.linearRampToValueAtTime(140, t + 6);
-      const g = gain(0.0001, p);
+      const g = gain(0.0001, S.E(rand(-10, 10), 4, rand(-14, -6), 0.15));
       g.gain.setValueAtTime(0.0001, t);
       g.gain.exponentialRampToValueAtTime(1.2, t + 0.7);
       g.gain.exponentialRampToValueAtTime(0.0001, t + 7);
@@ -536,19 +533,20 @@ const SCENES = {
     };
   },
 
-  waves(out) {
-    noiseSource('brown').connect(filter('lowpass', 320)).connect(gain(0.22, out));
+  waves(S) {
+    noiseSource('brown').connect(filter('lowpass', 320)).connect(gain(0.22, S.P(0, -0.5, -2, 0.3)));
     let next = ctx.currentTime + 0.1;
 
     function wave(t) {
       const dur = rand(7, 10.5);
       const crash = t + dur * 0.42;
       const side = rand(-1, 1);
-      const p = panner(side * 5, 0, -9);
-      place(p, side * 5, 0, -9, t);
-      glide(p, -side * 1.2, -0.5, -1.4, crash);
-      glide(p, -side * 3.5, -0.9, 2, t + dur);
-      p.connect(out);
+      const ax = S.ax();
+      const az = S.az();
+      const p = S.E(side * 5, 0, -9);
+      place(p, ax + side * 5, 0, az - 9, t);
+      glide(p, ax - side * 1.2, -0.5, az - 1.4, crash);
+      glide(p, ax - side * 3.5, -0.9, az + 2, t + dur);
 
       const lp = filter('lowpass', 260, 0.8);
       lp.frequency.setValueAtTime(260, t);
@@ -560,12 +558,11 @@ const SCENES = {
       g.gain.setTargetAtTime(0, crash, dur * 0.17);
       noiseSource('brown', t, dur + 1).connect(lp).connect(g);
 
-      const hp = filter('highpass', 1300);
       const fg = gain(0, p);
       fg.gain.setValueAtTime(0, crash - dur * 0.08);
       fg.gain.linearRampToValueAtTime(rand(0.3, 0.5), crash + dur * 0.04);
       fg.gain.setTargetAtTime(0, crash + dur * 0.04, dur * 0.14);
-      noiseSource('pink', crash - dur * 0.08, dur * 0.7).connect(hp).connect(fg);
+      noiseSource('pink', crash - dur * 0.08, dur * 0.7).connect(filter('highpass', 1300)).connect(fg);
     }
 
     return (until) => {
@@ -576,19 +573,16 @@ const SCENES = {
     };
   },
 
-  fire(out) {
-    const hearth = panner(0, -0.7, -1.5);
-    hearth.connect(out);
+  fire(S) {
+    const hearth = S.P(0, -0.7, 0);
     noiseSource('brown').connect(filter('lowpass', 520)).connect(gain(0.6, hearth));
     noiseSource('pink').connect(filter('bandpass', 2600, 0.6)).connect(gain(0.035, hearth));
     let next = ctx.currentTime + 0.05;
 
     function crackle(t, big) {
-      const p = panner(rand(-0.8, 0.8), rand(-0.9, -0.3), rand(-1.9, -1.1), 1);
-      p.connect(out);
       const dur = big ? rand(0.02, 0.05) : rand(0.003, 0.014);
       const f = big ? filter('bandpass', rand(500, 1100), 1.2) : filter('highpass', rand(1400, 5000));
-      const g = gain(0.0001, p);
+      const g = gain(0.0001, S.E(rand(-0.8, 0.8), rand(-0.9, -0.3), rand(-0.4, 0.4), 1));
       envelope(g, t, 0.0008, big ? rand(0.4, 0.8) : rand(0.08, 0.5), dur);
       noiseSource('white', t, dur + 0.02).connect(f).connect(g);
     }
@@ -601,14 +595,12 @@ const SCENES = {
     };
   },
 
-  night(out) {
+  night(S) {
     // Crickets dotted around you in the dark, each with its own voice.
     const crickets = Array.from({ length: 6 }, () => {
       const [x, z] = aroundListener(2, 8);
-      const p = panner(x, rand(-1.2, 0.3), z, 0.9);
-      p.connect(out);
       return {
-        p,
+        p: S.P(x, rand(-1.2, 0.3), z, 0.9),
         f: rand(4000, 5400),
         pulses: 2 + Math.floor(Math.random() * 3),
         gap: rand(0.026, 0.04),
@@ -636,9 +628,8 @@ const SCENES = {
 
     // A breeze that wanders around you.
     const now = ctx.currentTime;
-    const windP = panner(-3, 1, -2, 0.3);
-    place(windP, -3, 1, -2, now);
-    windP.connect(out);
+    const windP = S.E(-3, 1, -2, 0.3);
+    place(windP, S.ax() - 3, 1, S.az() - 2, now);
     const bp = filter('bandpass', 380, 0.6);
     bp.frequency.setValueAtTime(380, now);
     const wg = gain(0.2, windP);
@@ -649,8 +640,7 @@ const SCENES = {
     let owlAt = now + rand(15, 40);
     function owl(t) {
       const [x, z] = aroundListener(10, 16);
-      const p = panner(x, 3, z, 0.25);
-      p.connect(out);
+      const p = S.E(x, 3, z, 0.25);
       send(p, 0.5);
       [[0, 0.42], [0.55, 0.22], [0.9, 0.75]].forEach(([d, len]) => {
         const s0 = t + d;
@@ -658,8 +648,7 @@ const SCENES = {
         o.frequency.setValueAtTime(400, s0);
         o.frequency.linearRampToValueAtTime(385, s0 + len);
         const vib = osc('sine', 5.5);
-        const depth = gain(5);
-        vib.connect(depth).connect(o.frequency);
+        vib.connect(gain(5)).connect(o.frequency);
         const g = gain(0, p);
         g.gain.setValueAtTime(0, s0);
         g.gain.linearRampToValueAtTime(0.35, s0 + 0.08);
@@ -685,7 +674,7 @@ const SCENES = {
         const dur = rand(2, 4.5);
         wg.gain.linearRampToValueAtTime(rand(0.06, 0.38), windNext + dur);
         bp.frequency.linearRampToValueAtTime(rand(250, 750), windNext + dur);
-        glide(windP, rand(-4, 4), rand(0, 2), rand(-4, 4), windNext + dur);
+        glide(windP, S.ax() + rand(-4, 4), rand(0, 2), S.az() + rand(-4, 4), windNext + dur);
         windNext += dur;
       }
       if (owlAt < until) {
@@ -695,12 +684,11 @@ const SCENES = {
     };
   },
 
-  clock(out) {
-    // An old clock on the wall to your left, in a quiet room.
-    const wall = panner(-2.4, 0.9, -0.6, 0.5);
-    wall.connect(out);
+  clock(S) {
+    // An old clock on the wall, in a quiet room.
+    const wall = S.P(0, 0.9, 0, 0.5);
     send(wall, 0.6);
-    noiseSource('brown').connect(filter('lowpass', 180)).connect(gain(0.06, out));
+    noiseSource('brown').connect(filter('lowpass', 180)).connect(gain(0.06, S.out));
     let next = Math.ceil(ctx.currentTime + 0.1);
     let tock = false;
 
@@ -732,17 +720,14 @@ const SCENES = {
     };
   },
 
-  brown(out) {
+  brown(S) {
     for (const x of [-1.6, 1.6]) {
-      const p = panner(x, 0, -0.3);
-      noiseSource('brown').connect(filter('lowpass', 900)).connect(gain(0.6, p));
-      p.connect(out);
+      noiseSource('brown').connect(filter('lowpass', 900)).connect(gain(0.6, S.P(x, 0, -0.3)));
     }
   },
 
-  fan(out) {
-    const fan = panner(2, 0.2, -1.1);
-    fan.connect(out);
+  fan(S) {
+    const fan = S.P(0, 0.2, 0);
     const air = gain(0.42, fan);
     noiseSource('white').connect(filter('lowpass', 2100)).connect(filter('highpass', 110)).connect(air);
     const flutter = track(osc('sine', 13.5));
@@ -753,50 +738,126 @@ const SCENES = {
       hum.connect(gain(v, fan));
       hum.start();
     });
-    const wall = panner(-1.8, 0, 0.6);
-    wall.connect(out);
-    noiseSource('pink').connect(filter('lowpass', 800)).connect(gain(0.16, wall));
+    // Its reflection off the opposite wall.
+    noiseSource('pink').connect(filter('lowpass', 800)).connect(gain(0.16, S.P(-3.8, 0, 1.7)));
   },
 };
 
 export const ambientKinds = Object.keys(SCENES);
 
-/** Switch the ambient scene. 'off' (or anything unknown) fades to silence. */
-export function setAmbient(kind) {
+// Where each sound sits by default, as [x, z] in metres (-z is in front of you).
+const DEFAULT_ANCHORS = {
+  rain: [-1.2, -1.2],
+  waves: [0, -2.6],
+  fire: [1.3, -1.3],
+  night: [-1.6, 1.4],
+  clock: [-2.6, 0],
+  brown: [0, 1.6],
+  fan: [2.6, 0],
+  lofi: [1.5, 1.5],
+};
+export const defaultAnchor = (kind) => DEFAULT_ANCHORS[kind] || [0, 0];
+
+const layers = new Map();
+let layerTimer = 0;
+
+function tickLayers() {
+  const until = ctx.currentTime + 1.2;
+  layers.forEach((l) => l.tick && l.tick(until));
+}
+
+/** Turn an ambient layer on or off. opts: { volume (0..1), x, z } */
+export function setLayer(kind, on, opts = {}) {
   const c = ensure();
   if (!c) return;
-  stopScene();
+  if (!on) {
+    stopLayer(kind);
+    return;
+  }
   if (!SCENES[kind]) return;
-
+  if (layers.has(kind)) {
+    if (opts.volume != null) setLayerVolume(kind, opts.volume);
+    if (opts.x != null) moveLayer(kind, opts.x, opts.z);
+    return;
+  }
+  const [dx, dz] = defaultAnchor(kind);
+  const layer = { ax: opts.x ?? dx, az: opts.z ?? dz, vol: opts.volume ?? 0.8, panners: [], nodes: [] };
   const t = c.currentTime;
-  const out = c.createGain();
-  out.gain.setValueAtTime(0.0001, t);
-  out.gain.exponentialRampToValueAtTime(1, t + 1.4);
-  out.connect(ambientBus);
+  layer.out = c.createGain();
+  layer.out.gain.setValueAtTime(0.0001, t);
+  layer.out.gain.exponentialRampToValueAtTime(Math.max(0.0002, layer.vol), t + 1.4);
+  layer.out.connect(ambientBus);
 
-  tracked = [];
-  const tick = SCENES[kind](out);
-  scene = { out, nodes: tracked };
+  const S = {
+    out: layer.out,
+    ax: () => layer.ax,
+    az: () => layer.az,
+    P(x, y, z, rolloff = 0.6) {
+      const p = panner(layer.ax + x, y, layer.az + z, rolloff);
+      p.connect(layer.out);
+      layer.panners.push({ p, x, y, z });
+      return p;
+    },
+    E(x, y, z, rolloff = 0.6) {
+      const p = panner(layer.ax + x, y, layer.az + z, rolloff);
+      p.connect(layer.out);
+      return p;
+    },
+  };
+  tracked = layer.nodes;
+  layer.tick = SCENES[kind](S);
   tracked = null;
+  layers.set(kind, layer);
+  if (layer.tick) layer.tick(c.currentTime + 1.2);
+  if (!layerTimer) layerTimer = setInterval(tickLayers, 250);
+}
 
-  if (tick) {
-    const run = () => tick(c.currentTime + 1.2);
-    run();
-    sceneTimer = setInterval(run, 250);
+export function setLayerVolume(kind, v) {
+  const l = layers.get(kind);
+  if (!l) return;
+  l.vol = Math.max(0, Math.min(1, v));
+  const t = ctx.currentTime;
+  l.out.gain.cancelScheduledValues(t);
+  l.out.gain.setValueAtTime(l.out.gain.value, t);
+  l.out.gain.linearRampToValueAtTime(Math.max(0.0001, l.vol), t + 0.08);
+}
+
+/** Move a layer so its sound comes from (x, z) metres around you. */
+export function moveLayer(kind, x, z) {
+  const l = layers.get(kind);
+  if (!l) return;
+  l.ax = x;
+  l.az = z;
+  const t = ctx.currentTime;
+  for (const { p, x: lx, y, z: lz } of l.panners) {
+    if (p.positionX) {
+      p.positionX.setTargetAtTime(x + lx, t, 0.05);
+      p.positionY.setTargetAtTime(y, t, 0.05);
+      p.positionZ.setTargetAtTime(z + lz, t, 0.05);
+    } else {
+      p.setPosition(x + lx, y, z + lz);
+    }
   }
 }
 
-function stopScene() {
-  clearInterval(sceneTimer);
-  if (!scene) return;
-  const { out, nodes } = scene;
-  scene = null;
+function stopLayer(kind) {
+  const l = layers.get(kind);
+  if (!l) return;
+  layers.delete(kind);
+  if (!layers.size) {
+    clearInterval(layerTimer);
+    layerTimer = 0;
+  }
   const t = ctx.currentTime;
-  out.gain.cancelScheduledValues(t);
-  out.gain.setValueAtTime(out.gain.value, t);
-  out.gain.linearRampToValueAtTime(0, t + 0.6);
+  l.out.gain.cancelScheduledValues(t);
+  l.out.gain.setValueAtTime(l.out.gain.value, t);
+  l.out.gain.linearRampToValueAtTime(0, t + 0.6);
   setTimeout(() => {
-    nodes.forEach((n) => { try { n.stop(); } catch { /* already stopped */ } });
-    out.disconnect();
+    l.nodes.forEach((n) => { try { n.stop(); } catch { /* already stopped */ } });
+    l.out.disconnect();
   }, 750);
+}
+
+export function stopAll() {
+  [...layers.keys()].forEach(stopLayer);
 }
