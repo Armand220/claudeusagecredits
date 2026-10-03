@@ -1,38 +1,37 @@
 // Focus parties: a host and guests sharing one session in real time.
 //
-// Devices connect to each other with WebRTC data channels. To find each other
-// they need a small relay for the opening handshake ("signaling"); we speak
-// the simple WebSocket protocol of the free public PeerJS server.
+// Devices connect to each other with WebRTC. To find each other they pass a
+// short handshake through public MQTT message brokers (several at once, so
+// one being down or blocked doesn't matter), the same kind of free public
+// infrastructure other peer-to-peer web apps use.
 //
 // Privacy, by design:
-// - The party code never leaves your device. The relay only sees a one-way
-//   hash of it as the host's name.
-// - Every handshake message carries a box sealed with AES-GCM under a key
-//   derived from the code with 200,000 rounds of PBKDF2; the other side only
-//   trusts what's inside it, so nobody without the code can join or forge
-//   messages, and guessing codes is slow. (The plain WebRTC fields the public
-//   server insists on travel alongside; they contain no personal addresses.)
-// - "Private" connections (the default) go through a TURN relay only, so
-//   party members never learn each other's IP addresses. The relay forwards
-//   traffic it can't read: WebRTC encrypts it (DTLS) from end to end.
-// - Like any server you connect to, the relays themselves see the address
+// - The party code never leaves your device. Brokers only see a topic name
+//   that is a one-way hash of it.
+// - Every handshake message is sealed with AES-256-GCM under a key derived
+//   from the code (PBKDF2, 200,000 rounds): brokers see only ciphertext, and
+//   nobody without the code can read, join or forge anything. Guessing codes
+//   is deliberately slow.
+// - "Private" connections (the default) only ever use a TURN relay, so your
+//   IP address is never given to anyone in the party, not even encrypted.
+//   The relay forwards traffic it can't read (WebRTC encrypts it end to end).
+// - Like any server you connect to, the brokers and relay see the address
 //   that connects to them, but not who you're talking to or what you say.
 //
 // The host's tab is the source of truth: guests receive its state and send
 // requests, and the host decides what happens.
 
-const DEFAULT_SIGNAL = { url: 'wss://0.peerjs.com/peerjs', key: 'peerjs' };
+const DEFAULT_BROKERS = ['wss://broker.emqx.io:8084/mqtt', 'wss://broker.hivemq.com:8884/mqtt', 'wss://test.mosquitto.org:8081/mqtt'];
 const STUN = { urls: ['stun:stun.l.google.com:19302', 'stun:stun.cloudflare.com:3478'] };
-// PeerJS's public TURN relay (plain UDP/TCP and TLS on 443 for strict networks).
-const TURN = {
-  urls: ['turn:eu-0.turn.peerjs.com:3478', 'turn:us-0.turn.peerjs.com:3478', 'turn:eu-0.turn.peerjs.com:3478?transport=tcp', 'turns:eu-0.turn.peerjs.com:443?transport=tcp'],
-  username: 'peerjs',
-  credential: 'peerjsp',
-};
+// Free public TURN relays, for private connections and strict networks.
+const TURN = [
+  { urls: ['turn:openrelay.metered.ca:80', 'turn:openrelay.metered.ca:443', 'turn:openrelay.metered.ca:443?transport=tcp'], username: 'openrelayproject', credential: 'openrelayproject' },
+  { urls: ['turn:eu-0.turn.peerjs.com:3478', 'turn:us-0.turn.peerjs.com:3478'], username: 'peerjs', credential: 'peerjsp' },
+];
 const ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'; // no 0/O, 1/I/L
 export const CODE_LENGTH = 8;
 export const MAX_GUESTS = 12;
-const PROTOCOL = 1;
+const PROTOCOL = 2;
 const REQUEST_KINDS = ['toggle', 'skip', 'reset', 'mode', 'more', 'sound', 'mix', 'task', 'done', 'message', 'break'];
 
 export const supported =
@@ -42,8 +41,13 @@ const enc = new TextEncoder();
 const dec = new TextDecoder();
 const hex = (buf) => [...new Uint8Array(buf)].map((x) => x.toString(16).padStart(2, '0')).join('');
 const randomId = () => hex(crypto.getRandomValues(new Uint8Array(8)));
-const b64 = (bytes) => btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+const b64 = (bytes) => {
+  let s = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+};
 const unb64 = (s) => Uint8Array.from(atob(s.replace(/-/g, '+').replace(/_/g, '/')), (c) => c.charCodeAt(0));
+const str = (v, max) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
 
 /** A random party code like "K7QX2M9P" (no look-alike characters). */
 export function makeCode() {
@@ -65,9 +69,9 @@ export function normalizeCode(input) {
   return c.length === CODE_LENGTH && [...c].every((ch) => ALPHABET.includes(ch)) ? c : null;
 }
 
-/** The host's public name (a hash of the code) and the shared secret key. */
+/** The party's public meeting place (a hash of the code) and the secret key. */
 async function secretsFor(code) {
-  const id = `tempo-${hex(await crypto.subtle.digest('SHA-256', enc.encode(`tempo-party/id/${code}`))).slice(0, 32)}`;
+  const topic = `tempo/p/${hex(await crypto.subtle.digest('SHA-256', enc.encode(`tempo-party/topic/${code}`))).slice(0, 40)}`;
   const base = await crypto.subtle.importKey('raw', enc.encode(code), 'PBKDF2', false, ['deriveKey']);
   const key = await crypto.subtle.deriveKey(
     { name: 'PBKDF2', salt: enc.encode('tempo-party/key/v1'), iterations: 200000, hash: 'SHA-256' },
@@ -76,7 +80,7 @@ async function secretsFor(code) {
     false,
     ['encrypt', 'decrypt'],
   );
-  return { id, key };
+  return { topic, key };
 }
 
 async function seal(key, obj) {
@@ -100,179 +104,287 @@ async function open(key, text) {
   }
 }
 
-// Tests (and anyone self-hosting) can point at other servers.
+// Tests (and anyone self-hosting) can point at other brokers and relays.
 function config() {
   try {
     const raw = JSON.parse(localStorage.getItem('tempo:signal') || 'null');
-    if (raw && /^wss?:\/\//.test(raw.url) && typeof raw.key === 'string') return { ...DEFAULT_SIGNAL, ...raw };
+    if (raw && typeof raw === 'object') return raw;
   } catch {
     /* use the defaults */
   }
-  return DEFAULT_SIGNAL;
+  return {};
 }
 
 function iceConfig(privately) {
   const custom = config().iceServers;
-  const iceServers = Array.isArray(custom) ? custom : privately ? [TURN] : [STUN, TURN];
+  const iceServers = Array.isArray(custom) ? custom : privately ? TURN : [STUN, ...TURN];
   // Private: only relayed routes, so no device's own address is ever offered.
   return { iceServers, iceTransportPolicy: privately ? 'relay' : 'all' };
 }
 
-/** Connect to the signaling relay under `id`. Resolves once it's ready. */
-function openSignal(id, { onMessage, onClose }) {
+// ---------------------------------------------------------------------------
+// A tiny MQTT 3.1.1 client over WebSocket: connect, subscribe, publish (QoS 0).
+
+const mqttStr = (s) => {
+  const b = enc.encode(s);
+  return [b.length >> 8, b.length & 255, ...b];
+};
+function mqttPacket(first, body) {
+  const len = [];
+  let n = body.length;
+  do {
+    let byte = n % 128;
+    n = Math.floor(n / 128);
+    if (n > 0) byte |= 128;
+    len.push(byte);
+  } while (n > 0);
+  return new Uint8Array([first, ...len, ...body]);
+}
+
+function mqttConnect(url, topics, onPublish) {
   return new Promise((resolve, reject) => {
-    const { url, key } = config();
     let ws;
     try {
-      // Same query as the official PeerJS client, which the public server expects.
-      ws = new WebSocket(`${url}?key=${encodeURIComponent(key)}&id=${encodeURIComponent(id)}&token=${randomId()}&version=1.5.4`);
+      ws = new WebSocket(url, 'mqtt');
     } catch (err) {
-      reject(new Error(`network:blocked (${err && err.name})`));
+      reject(new Error(`blocked (${err && err.name})`));
       return;
     }
-    let opened = false;
-    let openedAt = 0;
-    let closed = false;
-    let note = ''; // anything the server said before hanging up
-    const heartbeat = setInterval(() => {
-      if (ws.readyState === 1) ws.send(JSON.stringify({ type: 'HEARTBEAT' }));
-    }, 5000);
-    const api = {
-      // Messages look exactly like the official PeerJS client's (the public
-      // server rejects anything else). The offer/answer carry no addresses; in
-      // private mode the only candidates are the relay's own, with the one
-      // field that could hold yours blanked. The sealed box proves the sender
-      // knows the party code, and the receiver trusts only what's inside it.
-      send(type, dst, box, connectionId, clear = {}) {
-        const payload = { ...clear, type: 'data', connectionId: connectionId || 'tempo', label: 'party', serialization: 'json', reliable: true, browser: 'chrome', box };
-        if (ws.readyState === 1) ws.send(JSON.stringify({ type, dst, payload }));
+    ws.binaryType = 'arraybuffer';
+    let buf = new Uint8Array(0);
+    let ready = false;
+    let ping = 0;
+    const send = (bytes) => ws.readyState === 1 && ws.send(bytes);
+    const conn = {
+      onclose: null,
+      publish(topic, text) {
+        send(mqttPacket(0x30, [...mqttStr(topic), ...enc.encode(text)]));
       },
       close() {
-        closed = true;
-        clearInterval(heartbeat);
+        conn.onclose = null;
+        clearInterval(ping);
         try {
           ws.close();
         } catch {
-          /* already closed */
+          /* closed */
         }
       },
     };
-    // Slow mobile networks can take a while to say hello.
-    const timeout = setTimeout(() => {
-      if (opened) return;
-      reject(new Error('network:timeout'));
-      api.close();
-    }, 20000);
+    const timer = setTimeout(() => {
+      if (ready) return;
+      reject(new Error('timeout'));
+      conn.close();
+    }, 12000);
+    ws.onopen = () => {
+      // CONNECT: protocol "MQTT" level 4, clean session, keep-alive 60 s.
+      send(mqttPacket(0x10, [...mqttStr('MQTT'), 4, 0x02, 0, 60, ...mqttStr(`tempo${randomId()}`)]));
+    };
     ws.onmessage = (e) => {
-      let m;
-      try {
-        m = JSON.parse(e.data);
-      } catch {
-        return;
-      }
-      if (!m || typeof m !== 'object') return;
-      if (m.type === 'OPEN') {
-        opened = true;
-        openedAt = Date.now();
-        clearTimeout(timeout);
-        resolve(api);
-      } else if (m.type === 'ID-TAKEN' || m.type === 'INVALID-KEY' || m.type === 'ERROR') {
-        note = str(m.payload && m.payload.msg, 80) || m.type;
-        if (!opened) {
-          clearTimeout(timeout);
-          reject(new Error(m.type === 'ID-TAKEN' ? 'taken' : `network:server (${str(m.payload && m.payload.msg, 80) || m.type})`));
-          api.close();
+      const chunk = new Uint8Array(e.data);
+      const all = new Uint8Array(buf.length + chunk.length);
+      all.set(buf);
+      all.set(chunk, buf.length);
+      buf = all;
+      // Read whole packets out of the buffer.
+      for (;;) {
+        if (buf.length < 2) return;
+        let len = 0;
+        let mult = 1;
+        let i = 1;
+        for (; i < 5; i++) {
+          if (i >= buf.length) return;
+          len += (buf[i] & 127) * mult;
+          mult *= 128;
+          if (!(buf[i] & 128)) break;
         }
-      } else {
-        onMessage(m);
+        const start = i + 1;
+        if (buf.length < start + len) return;
+        const type = buf[0] >> 4;
+        const flags = buf[0] & 15;
+        const body = buf.subarray(start, start + len);
+        buf = buf.slice(start + len);
+        if (type === 2) {
+          // CONNACK
+          if (body[1] !== 0) {
+            clearTimeout(timer);
+            reject(new Error(`refused (${body[1]})`));
+            conn.close();
+            return;
+          }
+          const subs = [0, 1];
+          for (const t of topics) subs.push(...mqttStr(t), 0);
+          send(mqttPacket(0x82, subs));
+        } else if (type === 9) {
+          // SUBACK: listening.
+          ready = true;
+          clearTimeout(timer);
+          ping = setInterval(() => send(new Uint8Array([0xc0, 0])), 30000);
+          resolve(conn);
+        } else if (type === 3) {
+          // PUBLISH
+          const tlen = (body[0] << 8) | body[1];
+          const topic = dec.decode(body.subarray(2, 2 + tlen));
+          const skip = flags & 6 ? 2 : 0; // a packet id comes with QoS 1 and 2
+          onPublish(topic, dec.decode(body.subarray(2 + tlen + skip)));
+        }
       }
     };
     ws.onerror = () => {
-      if (!opened) {
-        clearTimeout(timeout);
-        reject(new Error('network:error'));
+      if (!ready) {
+        clearTimeout(timer);
+        reject(new Error('error'));
       }
     };
     ws.onclose = (e) => {
-      clearInterval(heartbeat);
-      if (!opened) {
-        clearTimeout(timeout);
-        reject(new Error(`network:closed (${e.code})`));
-      } else if (!closed) {
-        onClose({ code: e.code, reason: str(e.reason, 60) || note, after: Math.round((Date.now() - openedAt) / 100) / 10 });
+      clearInterval(ping);
+      if (!ready) {
+        clearTimeout(timer);
+        reject(new Error(`closed ${e.code}`));
+      } else if (conn.onclose) {
+        conn.onclose();
       }
     };
   });
 }
 
-/** openSignal, trying again a couple of times if the network hiccups. */
-async function openSignalRetry(id, handlers, tries = 3) {
-  let last;
-  for (let i = 0; i < tries; i++) {
+/**
+ * Listen on `topics` through every broker we can reach (at least one), and
+ * publish through all of them. Duplicates are dropped by the caller.
+ */
+async function openSignal(topics, onMessage) {
+  const urls = Array.isArray(config().brokers) ? config().brokers : DEFAULT_BROKERS;
+  const conns = new Set();
+  const problems = [];
+  let closed = false;
+  const connectOne = async (url, attempt) => {
     try {
-      return await openSignal(id, handlers);
+      const c = await mqttConnect(url, topics, onMessage);
+      if (closed) {
+        c.close();
+        return false;
+      }
+      conns.add(c);
+      // A broker that drops us is reconnected quietly.
+      c.onclose = () => {
+        conns.delete(c);
+        if (!closed) setTimeout(() => !closed && connectOne(url, 0), 3000);
+      };
+      return true;
     } catch (err) {
-      last = err;
-      if (err.message === 'taken') throw err;
-      await new Promise((r) => setTimeout(r, 1500 * (i + 1)));
+      let host = url;
+      try {
+        host = new URL(url).hostname;
+      } catch {
+        /* keep the url */
+      }
+      problems.push(`${host} ${err.message}`);
+      if (!closed && attempt < 5) setTimeout(() => !closed && connectOne(url, attempt + 1), 4000 * (attempt + 1));
+      return false;
     }
-  }
-  throw last;
-}
-
-/** An RTCPeerConnection that trickles its (sealed) candidates through the relay. */
-function peerLink(privately, sendSealed, onState) {
-  const pc = new RTCPeerConnection(iceConfig(privately));
-  const early = []; // candidates that arrive before the remote description
-  pc.onicecandidate = (e) => {
-    if (!e.candidate) return;
-    // Belt and braces: in private mode never pass on anything but relays.
-    if (privately && e.candidate.type && e.candidate.type !== 'relay') return;
-    const c = e.candidate.toJSON();
-    // A relay candidate notes where the relay saw you come from; blank that.
-    if (privately) c.candidate = String(c.candidate).replace(/ raddr \S+ rport \d+/, ' raddr 0.0.0.0 rport 0');
-    sendSealed('CANDIDATE', { candidate: c });
   };
-  pc.onconnectionstatechange = () => onState(pc.connectionState);
+  await new Promise((resolve, reject) => {
+    let left = urls.length;
+    let done = false;
+    if (!left) reject(new Error('network:no brokers'));
+    urls.forEach((u) => connectOne(u, 0).then((ok) => {
+      if (done) return;
+      if (ok) {
+        done = true;
+        resolve();
+      } else if (--left === 0) {
+        done = true;
+        closed = true;
+        reject(new Error(`network:${problems.join('; ')}`));
+      }
+    }));
+  });
   return {
-    pc,
-    async addCandidate(c) {
-      if (!c || typeof c !== 'object') return;
-      if (pc.remoteDescription) await pc.addIceCandidate(c).catch(() => {});
-      else early.push(c);
-    },
-    async flush() {
-      for (const c of early.splice(0)) await pc.addIceCandidate(c).catch(() => {});
+    send(topic, text) {
+      conns.forEach((c) => c.publish(topic, text));
     },
     close() {
-      try {
-        pc.close();
-      } catch {
-        /* already closed */
-      }
+      closed = true;
+      conns.forEach((c) => c.close());
+      conns.clear();
     },
   };
 }
 
-// The fields the public PeerJS server expects to see on each message.
-const clearFields = (body) => (body.sdp ? { sdp: body.sdp } : body.candidate ? { candidate: body.candidate } : {});
+// ---------------------------------------------------------------------------
+// WebRTC: one complete offer and one complete answer (all routes included),
+// so a lost message is simply sent again.
 
-const str = (v, max) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
+// Wait until there's a usable route (a relay one in private mode), plus a
+// moment for more to arrive, rather than for every server to answer.
+async function gathered(pc, privately) {
+  if (pc.iceGatheringState === 'complete') return;
+  await new Promise((resolve) => {
+    let finished = false;
+    let grace = 0;
+    const finish = () => {
+      if (finished) return;
+      finished = true;
+      clearTimeout(cap);
+      clearTimeout(grace);
+      pc.removeEventListener('icegatheringstatechange', onState);
+      pc.removeEventListener('icecandidate', onCandidate);
+      resolve();
+    };
+    const onState = () => pc.iceGatheringState === 'complete' && finish();
+    const onCandidate = (e) => {
+      if (!e.candidate) return finish();
+      if (grace || (privately && e.candidate.type && e.candidate.type !== 'relay')) return;
+      grace = setTimeout(finish, privately ? 400 : 900);
+    };
+    const cap = setTimeout(finish, 5000);
+    pc.addEventListener('icegatheringstatechange', onState);
+    pc.addEventListener('icecandidate', onCandidate);
+  });
+}
+
+/** The local description, ready to send; in private mode only relay routes. */
+function shareable(pc, privately) {
+  let { sdp } = pc.localDescription;
+  if (privately) {
+    sdp = sdp
+      .split('\r\n')
+      .filter((line) => !line.startsWith('a=candidate') || / typ relay /.test(line))
+      // A relay route notes where the relay saw you come from; blank that.
+      .map((line) => line.replace(/ raddr \S+ rport \d+/, ' raddr 0.0.0.0 rport 0'))
+      .join('\r\n');
+  }
+  return { type: pc.localDescription.type, sdp };
+}
+
+function newPeer(privately, onState) {
+  const pc = new RTCPeerConnection(iceConfig(privately));
+  pc.onconnectionstatechange = () => onState(pc.connectionState);
+  return pc;
+}
+
+const closePc = (pc) => {
+  try {
+    pc.close();
+  } catch {
+    /* already closed */
+  }
+};
 
 /**
  * Start hosting. Resolves with { code, broadcast(state), answer(guestId, reqId, ok, text),
  * members(), end() } once the party can be joined.
  *
  * hooks: getState() → the state to share; onJoin(guest), onLeave(guest),
- * onRequest(guest, request), onSignal(online) when the relay drops or returns.
+ * onRequest(guest, request), onSignal(online).
  * opts: { private: true } to keep everyone's IP address hidden (the default).
  */
 export async function host(name, hooks, { private: privately = true } = {}) {
+  const code = makeCode();
+  const secrets = await secretsFor(code);
   const guests = new Map(); // connection id → guest
-  let signal = null;
+  const seen = new Set();
   let ended = false;
-  let code = '';
-  let secrets = null;
+  let signal = null;
 
   const send = (g, msg) => {
     if (g.ch && g.ch.readyState === 'open') {
@@ -291,12 +403,12 @@ export async function host(name, hooks, { private: privately = true } = {}) {
     const members = memberList();
     guests.forEach((g) => g.ready && send(g, { t: 'members', members }));
   };
-  const relay = async (type, dst, body) => signal?.send(type, dst, await seal(secrets.key, body), body.cid, clearFields(body));
+  const say = async (topic, body) => signal && signal.send(topic, await seal(secrets.key, { ...body, mid: randomId() }));
 
   function drop(g) {
     if (guests.get(g.id) !== g) return;
     guests.delete(g.id);
-    g.link.close();
+    closePc(g.pc);
     if (g.ready && !ended) {
       hooks.onLeave(g);
       sendMembers();
@@ -330,86 +442,49 @@ export async function host(name, hooks, { private: privately = true } = {}) {
     ch.onclose = () => drop(g);
   }
 
-  async function onMessage(m) {
-    if (ended || !m.src || !m.payload) return;
-    const body = await open(secrets.key, m.payload.box);
-    if (!body) return; // not someone with the code
+  async function onMessage(topic, text) {
+    if (ended || topic !== secrets.topic) return;
+    const body = await open(secrets.key, text);
+    if (!body || body.t !== 'offer' || seen.has(body.mid)) return; // not someone with the code
+    seen.add(body.mid);
+    if (seen.size > 500) seen.clear();
     const cid = str(body.cid, 64);
-    if (!cid) return;
+    const reply = str(body.reply, 120);
+    if (!cid || !reply.startsWith(`${secrets.topic}/`) || !body.sdp) return;
+    const known = guests.get(cid);
+    if (known) {
+      // They knocked again: our answer must have got lost, so resend it.
+      if (!known.ready && known.answer) say(reply, known.answer);
+      return;
+    }
+    if (guests.size >= MAX_GUESTS) {
+      say(reply, { t: 'full', cid });
+      return;
+    }
+    const g = { id: cid, name: 'Guest', ready: false, answer: null };
+    g.pc = newPeer(privately, (s) => {
+      if (s === 'failed' || s === 'closed') drop(g);
+    });
+    g.pc.ondatachannel = (e) => attach(g, e.channel);
+    guests.set(cid, g);
     try {
-      if (m.type === 'OFFER') {
-        if (guests.has(cid)) return;
-        if (guests.size >= MAX_GUESTS) {
-          await relay('ANSWER', m.src, { cid, full: true });
-          return;
-        }
-        const g = { id: cid, peer: m.src, name: 'Guest', ready: false };
-        g.link = peerLink(privately, (type, extra) => relay(type, m.src, { cid, ...extra }), (s) => {
-          if (s === 'failed' || s === 'closed') drop(g);
-        });
-        guests.set(cid, g);
-        g.link.pc.ondatachannel = (e) => attach(g, e.channel);
-        await g.link.pc.setRemoteDescription(body.sdp);
-        await g.link.flush();
-        await g.link.pc.setLocalDescription(await g.link.pc.createAnswer());
-        await relay('ANSWER', m.src, { cid, sdp: g.link.pc.localDescription.toJSON() });
-        // Someone who knocks but never finishes joining is let go.
-        setTimeout(() => {
-          if (!g.ready) drop(g);
-        }, 30000);
-      } else if (m.type === 'CANDIDATE') {
-        await guests.get(cid)?.link.addCandidate(body.candidate);
-      }
+      await g.pc.setRemoteDescription(body.sdp);
+      await g.pc.setLocalDescription(await g.pc.createAnswer());
+      await gathered(g.pc, privately);
+      g.answer = { t: 'answer', cid, sdp: shareable(g.pc, privately) };
+      await say(reply, g.answer);
     } catch {
-      const g = guests.get(cid);
-      if (g) drop(g);
+      drop(g);
+      return;
     }
+    // Someone who knocks but never finishes joining is let go.
+    setTimeout(() => {
+      if (!g.ready) drop(g);
+    }, 45000);
   }
 
-  // Keep the relay connection open so new guests can find us; if it drops,
-  // guests already here stay connected while we quietly reconnect.
-  const connect = async () => {
-    signal = await openSignalRetry(secrets.id, { onMessage, onClose: reconnect });
-  };
-  let retry = 0;
-  let reconnecting = false;
-  function reconnect(delay = 1500) {
-    signal = null;
-    if (ended || reconnecting) return;
-    reconnecting = true;
-    hooks.onSignal(false);
-    clearTimeout(retry);
-    retry = setTimeout(async () => {
-      try {
-        await connect();
-        reconnecting = false;
-        hooks.onSignal(true);
-      } catch {
-        reconnecting = false;
-        reconnect(4000);
-      }
-    }, delay);
-  }
-  // Phones pause pages in the background, which drops the relay connection;
-  // reconnect the moment the host comes back so guests can find the party.
-  const onVisible = () => {
-    if (!document.hidden && !signal && !ended) {
-      reconnecting = false;
-      reconnect(0);
-    }
-  };
-  document.addEventListener('visibilitychange', onVisible);
-
-  for (let tries = 0; tries < 4 && !signal; tries++) {
-    code = makeCode();
-    secrets = await secretsFor(code);
-    try {
-      await connect();
-    } catch (err) {
-      if (err.message !== 'taken') throw err;
-    }
-  }
-  if (!signal) throw new Error('network');
+  signal = await openSignal([secrets.topic], (topic, text) => onMessage(topic, text));
+  hooks.onSignal(true);
 
   // Guests get the full state now and then anyway, to correct any drift.
   const heartbeat = setInterval(() => controller.broadcast(hooks.getState()), 15000);
@@ -430,15 +505,13 @@ export async function host(name, hooks, { private: privately = true } = {}) {
       if (ended) return;
       ended = true;
       clearInterval(heartbeat);
-      clearTimeout(retry);
-      document.removeEventListener('visibilitychange', onVisible);
       guests.forEach((g) => {
         send(g, { t: 'end' });
         // Give the goodbye a moment to arrive before hanging up.
-        setTimeout(() => g.link.close(), 400);
+        setTimeout(() => closePc(g.pc), 400);
       });
       guests.clear();
-      signal?.close();
+      signal.close();
     },
   };
   return controller;
@@ -448,30 +521,16 @@ export async function host(name, hooks, { private: privately = true } = {}) {
  * Join the party with this code. Resolves with { request(kind, data, label),
  * offset(), leave() } once the host has welcomed us.
  *
- * hooks: onWelcome(msg), onState(state), onMembers(list), onAnswer(answer),
- * onEnd(reason) where reason is 'ended' (the host closed it) or 'lost'.
- * Rejects with Error('not-found' | 'full' | 'unreachable' | 'network').
+ * hooks: onWelcome(msg, controller), onState(state), onMembers(list),
+ * onAnswer(answer), onEnd(reason) where reason is 'ended' or 'lost'.
+ * Rejects with Error('not-found' | 'full' | 'unreachable' | 'network:…' | 'setup:…').
  */
 export async function join(code, name, hooks, { private: privately = true } = {}) {
   const secrets = await secretsFor(code);
-  // If the relay connection drops mid-handshake, start over (a few times).
-  let last;
-  for (let attempt = 0; attempt < 3; attempt++) {
-    try {
-      return await joinOnce(secrets, name, hooks, privately);
-    } catch (err) {
-      last = err;
-      if (!/^network/.test(err.message)) throw err;
-      await new Promise((r) => setTimeout(r, 1500 * (attempt + 1)));
-    }
-  }
-  throw last;
-}
-
-function joinOnce(secrets, name, hooks, privately) {
   const cid = `c${randomId()}`;
+  const reply = `${secrets.topic}/${randomId()}`;
   let signal = null;
-  let link = null;
+  let pc = null;
   let ch = null;
   let welcomed = false;
   let left = false;
@@ -479,6 +538,7 @@ function joinOnce(secrets, name, hooks, privately) {
   let nextId = 1;
   let best = { rtt: Infinity, offset: 0 };
   let pinger = 0;
+  let knocker = 0;
 
   const send = (msg) => {
     if (ch && ch.readyState === 'open') {
@@ -489,16 +549,18 @@ function joinOnce(secrets, name, hooks, privately) {
       }
     }
   };
-  const relay = async (type, body) => signal?.send(type, secrets.id, await seal(secrets.key, { cid, ...body }), cid, clearFields(body));
   const cleanup = () => {
     clearInterval(pinger);
+    clearInterval(knocker);
     signal?.close();
     signal = null;
-    link?.close();
+    if (pc) closePc(pc);
   };
 
   return new Promise((resolve, reject) => {
     let settled = false;
+    let answered = false;
+    let timer = 0;
     const fail = (why) => {
       if (settled) return;
       settled = true;
@@ -515,7 +577,7 @@ function joinOnce(secrets, name, hooks, privately) {
       cleanup();
       hooks.onEnd('lost');
     };
-    const timer = setTimeout(() => fail('unreachable'), 45000);
+    timer = setTimeout(() => fail(answered ? 'unreachable' : 'not-found'), 25000);
 
     const controller = {
       private: privately,
@@ -534,96 +596,80 @@ function joinOnce(secrets, name, hooks, privately) {
       },
     };
 
-    // If the host is briefly away (a phone switching apps), knock again.
-    let offerBody = null;
-    let knocks = 0;
-    const knock = () => relay('OFFER', offerBody);
-    const onMessage = async (m) => {
-      if (m.type === 'EXPIRE') {
-        if (knocks < 4 && offerBody) {
-          knocks += 1;
-          setTimeout(() => !settled && knock(), 2500);
-        } else {
-          fail('not-found');
+    const onMessage = async (topic, text) => {
+      if (topic !== reply || answered) return;
+      const body = await open(secrets.key, text);
+      if (!body || body.cid !== cid || answered) return;
+      if (body.t === 'full') {
+        fail('full');
+      } else if (body.t === 'answer' && body.sdp) {
+        answered = true;
+        clearInterval(knocker);
+        try {
+          await pc.setRemoteDescription(body.sdp);
+        } catch {
+          fail('unreachable');
         }
-        return;
-      }
-      if (!m.payload) return;
-      const body = await open(secrets.key, m.payload.box);
-      if (!body || body.cid !== cid) return;
-      try {
-        if (m.type === 'ANSWER') {
-          if (body.full) {
-            fail('full');
-            return;
-          }
-          await link.pc.setRemoteDescription(body.sdp);
-          await link.flush();
-        } else if (m.type === 'CANDIDATE') {
-          await link.addCandidate(body.candidate);
-        }
-      } catch {
-        fail('unreachable');
       }
     };
 
-    openSignalRetry(`tempo-guest-${randomId()}`, {
-      onMessage,
-      onClose: (e) => {
-        if (!settled) fail(`network:closed (code ${e.code}${e.reason ? ` ${e.reason}` : ''}, after ${e.after}s)`);
-      },
-    })
-      .then(async (s) => {
-        signal = s;
-        link = peerLink(privately, (type, extra) => relay(type, extra), (state) => {
-          if (state === 'failed' || state === 'closed') lost();
-        });
-        ch = link.pc.createDataChannel('party', { ordered: true });
-        ch.onopen = () => send({ t: 'hello', v: PROTOCOL, name });
-        ch.onclose = lost;
-        ch.onmessage = (e) => {
-          let msg;
-          try {
-            msg = JSON.parse(e.data);
-          } catch {
-            return;
-          }
-          if (!msg || typeof msg !== 'object') return;
-          if (msg.t === 'welcome' && !welcomed) {
-            welcomed = true;
-            settled = true;
-            clearTimeout(timer);
-            // The relay is only needed to meet; let it go.
-            signal?.close();
-            signal = null;
-            const ping = () => send({ t: 'ping', c: Date.now() });
-            ping();
-            pinger = setInterval(ping, 30000);
-            if (Number.isFinite(msg.now)) best = { rtt: 5000, offset: msg.now - Date.now() };
-            resolve(controller);
-            hooks.onWelcome(msg, controller);
-          } else if (!welcomed) {
-            /* nothing counts before the welcome */
-          } else if (msg.t === 'pong' && Number.isFinite(msg.c) && Number.isFinite(msg.h)) {
-            const rtt = Date.now() - msg.c;
-            // The quickest round trip involves the least guesswork, so trust it most.
-            if (rtt >= 0 && rtt <= best.rtt * 1.5) best = { rtt: Math.min(rtt, best.rtt), offset: msg.h - (msg.c + rtt / 2) };
-          } else if (msg.t === 'state' && msg.state && typeof msg.state === 'object') {
-            hooks.onState(msg.state);
-          } else if (msg.t === 'members' && Array.isArray(msg.members)) {
-            hooks.onMembers(msg.members.slice(0, MAX_GUESTS + 1).map((x) => ({ id: str(x && x.id, 64), name: str(x && x.name, 24) || 'Guest', host: Boolean(x && x.host) })));
-          } else if (msg.t === 'ans') {
-            hooks.onAnswer({ id: Number(msg.id) || 0, ok: Boolean(msg.ok), text: str(msg.text, 140) });
-          } else if (msg.t === 'end') {
-            ended = true;
-            cleanup();
-            hooks.onEnd('ended');
-          }
-        };
-        await link.pc.setLocalDescription(await link.pc.createOffer());
-        offerBody = { sdp: link.pc.localDescription.toJSON() };
-        await knock();
-      })
-      .catch((err) => fail(err && /^network/.test(err.message) ? err.message : `setup:${err && (err.name || err.message)}`));
+    (async () => {
+      signal = await openSignal([reply], onMessage);
+      pc = newPeer(privately, (state) => {
+        if (state === 'failed' || state === 'closed') lost();
+      });
+      ch = pc.createDataChannel('party', { ordered: true });
+      ch.onopen = () => send({ t: 'hello', v: PROTOCOL, name });
+      ch.onclose = lost;
+      ch.onmessage = (e) => {
+        let msg;
+        try {
+          msg = JSON.parse(e.data);
+        } catch {
+          return;
+        }
+        if (!msg || typeof msg !== 'object') return;
+        if (msg.t === 'welcome' && !welcomed) {
+          welcomed = true;
+          settled = true;
+          clearTimeout(timer);
+          // The brokers are only needed to meet; let them go.
+          signal?.close();
+          signal = null;
+          const ping = () => send({ t: 'ping', c: Date.now() });
+          ping();
+          pinger = setInterval(ping, 30000);
+          if (Number.isFinite(msg.now)) best = { rtt: 5000, offset: msg.now - Date.now() };
+          resolve(controller);
+          hooks.onWelcome(msg, controller);
+        } else if (!welcomed) {
+          /* nothing counts before the welcome */
+        } else if (msg.t === 'pong' && Number.isFinite(msg.c) && Number.isFinite(msg.h)) {
+          const rtt = Date.now() - msg.c;
+          // The quickest round trip involves the least guesswork, so trust it most.
+          if (rtt >= 0 && rtt <= best.rtt * 1.5) best = { rtt: Math.min(rtt, best.rtt), offset: msg.h - (msg.c + rtt / 2) };
+        } else if (msg.t === 'state' && msg.state && typeof msg.state === 'object') {
+          hooks.onState(msg.state);
+        } else if (msg.t === 'members' && Array.isArray(msg.members)) {
+          hooks.onMembers(msg.members.slice(0, MAX_GUESTS + 1).map((x) => ({ id: str(x && x.id, 64), name: str(x && x.name, 24) || 'Guest', host: Boolean(x && x.host) })));
+        } else if (msg.t === 'ans') {
+          hooks.onAnswer({ id: Number(msg.id) || 0, ok: Boolean(msg.ok), text: str(msg.text, 140) });
+        } else if (msg.t === 'end') {
+          ended = true;
+          cleanup();
+          hooks.onEnd('ended');
+        }
+      };
+      await pc.setLocalDescription(await pc.createOffer());
+      await gathered(pc, privately);
+      const offer = { t: 'offer', cid, reply, sdp: shareable(pc, privately) };
+      // Knock until the host answers (a message can get lost, or the host's
+      // phone may be waking up from the background).
+      const knock = async () => {
+        if (!answered && signal) signal.send(secrets.topic, await seal(secrets.key, { ...offer, mid: randomId() }));
+      };
+      await knock();
+      knocker = setInterval(knock, 3000);
+    })().catch((err) => fail(err && /^network/.test(err.message) ? err.message : `setup:${(err && (err.name || err.message)) || 'error'}`));
   });
 }

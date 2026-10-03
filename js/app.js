@@ -1,12 +1,12 @@
-import * as audio from './audio.js?v=68';
-import * as fx from './fx.js?v=68';
-import { toast } from './toast.js?v=68';
-import * as effects from './effects.js?v=68';
-import * as scenery from './scenery.js?v=68';
-import * as pip from './pip.js?v=68';
-import { shareCard, makeCardFile } from './share.js?v=68';
-import * as party from './party.js?v=68';
-import * as photo from './photo.js?v=68';
+import * as audio from './audio.js?v=69';
+import * as fx from './fx.js?v=69';
+import { toast } from './toast.js?v=69';
+import * as effects from './effects.js?v=69';
+import * as scenery from './scenery.js?v=69';
+import * as pip from './pip.js?v=69';
+import { shareCard, makeCardFile } from './share.js?v=69';
+import * as party from './party.js?v=69';
+import * as photo from './photo.js?v=69';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -272,7 +272,7 @@ const PARTY_ERRORS = {
   'not-found': "Couldn't find that party. Check the code, and ask the host to keep Tempo open on screen (phones pause it in the background).",
   full: 'That party is full (12 guests).',
   unreachable: "Found the party but couldn't connect. Try turning off 'Private connection' on both phones, or switch between Wi-Fi and mobile data.",
-  network: "Couldn't reach the party service (0.peerjs.com). Check your internet, and turn off any ad or tracker blocker or VPN for this site.",
+  network: "Couldn't reach any of the party relays. Check your internet, and turn off any ad or tracker blocker or VPN for this site.",
   setup: "This browser couldn't set up the connection. Try Chrome or Safari, and not inside another app's built-in browser.",
 };
 // The friendly message, plus the technical reason so problems can be reported.

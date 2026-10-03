@@ -42,14 +42,15 @@ installed as an app on your phone or computer.
   notification if Tempo is in the background). Guests can also send messages
 - Guests' focus sessions still count in their own stats, and their own timer,
   tasks and sounds come back when they leave
-- **Private by design**: devices connect peer to peer (WebRTC). The PeerJS
-  relay that introduces them only sees a one-way hash of the party code, and
-  every handshake message is sealed with a key derived from the code
-  (AES-GCM, PBKDF2 with 200,000 rounds), so nobody without the code can join.
-  With "Private connection" on (the default) all traffic goes through a TURN
-  relay: the only addresses ever exchanged are the relay's (the field that
-  could reveal yours is blanked), so party members never see each other's IP
-  addresses, and WebRTC encrypts the data end to end
+- **Private by design**: devices connect peer to peer (WebRTC). They meet
+  through three public MQTT brokers at once (EMQX, HiveMQ, Mosquitto), so one
+  being down doesn't matter. Brokers only see a topic that is a one-way hash
+  of the party code and messages sealed with AES-256-GCM under a key derived
+  from the code (PBKDF2, 200,000 rounds): they can't read them, and nobody
+  without the code can join or forge anything. With "Private connection" on
+  (the default) all traffic goes through a TURN relay, so your IP address is
+  never given to anyone in the party at all, and WebRTC encrypts the data end
+  to end
 
 **3D sound** (best with headphones)
 - **Mixer**: layer as many sounds as you like, each with its own volume —
@@ -164,7 +165,8 @@ Plain HTML, CSS and JavaScript modules, with no build step and no dependencies.
 - `js/effects.js`, `js/fx.js`, `js/toast.js`: visual effects and notifications
 - `js/pip.js`: the floating mini timer
 - `js/share.js`: the shareable image of your day
-- `js/party.js`: focus parties (WebRTC, encrypted signaling, relay-only privacy)
+- `js/party.js`: focus parties (WebRTC, a tiny MQTT client for encrypted
+  signaling over public brokers, relay-only privacy)
 - `js/photo.js`: your background photo (stored in IndexedDB)
 - `sw.js`, `manifest.webmanifest`: offline support and app install
 
