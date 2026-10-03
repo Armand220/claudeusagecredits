@@ -1,9 +1,9 @@
-import * as audio from './audio.js?v=16';
-import * as fx from './fx.js?v=16';
-import { toast } from './toast.js?v=16';
-import * as effects from './effects.js?v=16';
-import * as scenery from './scenery.js?v=16';
-import * as pip from './pip.js?v=16';
+import * as audio from './audio.js?v=17';
+import * as fx from './fx.js?v=17';
+import { toast } from './toast.js?v=17';
+import * as effects from './effects.js?v=17';
+import * as scenery from './scenery.js?v=17';
+import * as pip from './pip.js?v=17';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -76,9 +76,9 @@ let tasks = (Array.isArray(stored.tasks) ? stored.tasks : [])
   }));
 let activeTaskId = tasks.some((t) => t.id === stored.activeTaskId) ? stored.activeTaskId : null;
 
-let history = (Array.isArray(stored.history) ? stored.history : []).filter(
-  (h) => h && Number.isFinite(h.t) && Number.isFinite(h.m) && h.t > Date.now() - 400 * DAY,
-);
+let history = (Array.isArray(stored.history) ? stored.history : [])
+  .filter((h) => h && Number.isFinite(h.t) && Number.isFinite(h.m) && h.t > Date.now() - 400 * DAY)
+  .map((h) => ({ t: h.t, m: h.m, s: h.s ? 1 : 0, ...(typeof h.task === 'string' ? { task: h.task.slice(0, 120) } : {}) }));
 
 const achievements = { ...obj(stored.achievements) };
 const counters = { tasksDone: 0, soundsTried: [], ...obj(stored.counters) };
@@ -247,8 +247,8 @@ function complete({ late = 0 } = {}) {
   const ended = timer.mode;
   const endedAt = timer.running ? timer.endAt : Date.now();
   if (ended === 'focus') {
-    history.push({ t: endedAt, m: Math.round(totalMs() / 60000), s: 1 });
     const task = tasks.find((t) => t.id === activeTaskId);
+    history.push({ t: endedAt, m: Math.round(totalMs() / 60000), s: 1, ...(task ? { task: task.title } : {}) });
     if (task && !task.done) task.pomos += 1;
     timer.cycle += 1;
   } else if (ended === 'long') {
@@ -295,7 +295,10 @@ function skip() {
   const ended = timer.mode;
   if (ended === 'focus') {
     const elapsed = totalMs() - remainingMs();
-    if (!isFresh() && elapsed >= 60000) history.push({ t: Date.now(), m: Math.floor(elapsed / 60000), s: 0 });
+    const task = tasks.find((t) => t.id === activeTaskId);
+    if (!isFresh() && elapsed >= 60000) {
+      history.push({ t: Date.now(), m: Math.floor(elapsed / 60000), s: 0, ...(task ? { task: task.title } : {}) });
+    }
     timer.cycle += 1;
   } else if (ended === 'long') {
     timer.cycle = 0;
@@ -1088,7 +1091,74 @@ function renderStats() {
 
   renderChart(days);
   renderHeatmap(byDay);
+  renderHours();
+  renderLog();
   renderBadges();
+}
+
+// Minutes of focus by hour of day, to show when you focus best.
+function renderHours() {
+  const mins = new Array(24).fill(0);
+  for (const h of history) mins[new Date(h.t).getHours()] += h.m;
+  const max = Math.max(...mins);
+  const peak = mins.indexOf(max);
+  const hourName = (h) => new Date(2000, 0, 1, h).toLocaleTimeString([], { hour: 'numeric' });
+  $('#hours-note').textContent = max > 0 ? `You focus most around ${hourName(peak)}` : 'Finish a few sessions to see your best hours';
+  $('#hours').replaceChildren(
+    ...mins.map((m, h) => {
+      const bar = document.createElement('span');
+      bar.className = `hour${h === peak && max > 0 ? ' is-peak' : ''}${m === 0 ? ' is-zero' : ''}`;
+      bar.style.setProperty('--h', `${max ? Math.max(4, (m / max) * 100) : 4}%`);
+      bar.style.setProperty('--delay', `${h * 15}ms`);
+      const label = `${hourName(h)}: ${fmtMinutes(m)}`;
+      bar.title = label;
+      bar.setAttribute('role', 'img');
+      bar.setAttribute('aria-label', label);
+      return bar;
+    }),
+  );
+}
+
+function fmtWhen(ts) {
+  const d = new Date(ts);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const day = new Date(d);
+  day.setHours(0, 0, 0, 0);
+  const diff = Math.round((today - day) / DAY);
+  const time = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  if (diff === 0) return `Today ${time}`;
+  if (diff === 1) return `Yesterday ${time}`;
+  return `${d.toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short' })} ${time}`;
+}
+
+function renderLog() {
+  const list = $('#session-log');
+  const recent = history.slice(-12).reverse();
+  if (!recent.length) {
+    const li = document.createElement('li');
+    li.className = 'log-empty';
+    li.textContent = 'Your finished sessions will appear here.';
+    list.replaceChildren(li);
+    return;
+  }
+  list.replaceChildren(
+    ...recent.map((h) => {
+      const li = document.createElement('li');
+      li.className = `log-item${h.s ? '' : ' is-partial'}`;
+      const when = document.createElement('span');
+      when.className = 'log-when';
+      when.textContent = fmtWhen(h.t);
+      const what = document.createElement('span');
+      what.className = 'log-what';
+      what.textContent = h.task || (h.s ? 'Focus session' : 'Focus (ended early)');
+      const dur = document.createElement('span');
+      dur.className = 'log-dur';
+      dur.textContent = fmtMinutes(h.m);
+      li.append(when, what, dur);
+      return li;
+    }),
+  );
 }
 
 function heatLevel(m) {
@@ -1268,10 +1338,10 @@ function fillSettings() {
 
 function markPreset() {
   const current = `${settings.focus},${settings.short},${settings.long}`;
-  $$('.preset').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.preset === current)));
+  $$('.preset[data-preset]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.preset === current)));
 }
 
-$$('.preset').forEach((btn) => {
+$$('.preset[data-preset]').forEach((btn) => {
   btn.addEventListener('click', () => {
     const [focus, short, long] = btn.dataset.preset.split(',').map(Number);
     Object.assign(settings, { focus, short, long });
@@ -1353,6 +1423,42 @@ if (!('wakeLock' in navigator)) $('#wake-row').hidden = true;
 if (!('Notification' in window)) $('#notify-row').hidden = true;
 
 $('#btn-test-chime').addEventListener('click', () => audio.chime('break'));
+
+$('#btn-export').addEventListener('click', (e) => {
+  save();
+  let data = {};
+  try { data = JSON.parse(localStorage.getItem(STORE_KEY) || '{}'); } catch { /* empty */ }
+  const blob = new Blob([JSON.stringify({ app: 'tempo', version: 1, exportedAt: new Date().toISOString(), data }, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `tempo-backup-${new Date().toISOString().slice(0, 10)}.json`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  audio.sfx('pop', e.currentTarget);
+  toast({ icon: '💾', title: 'Backup saved', body: a.download });
+});
+
+$('#import-file').addEventListener('change', async (e) => {
+  const input = e.currentTarget;
+  const file = input.files && input.files[0];
+  input.value = '';
+  if (!file) return;
+  try {
+    const parsed = JSON.parse(await file.text());
+    const data = parsed && parsed.app === 'tempo' ? parsed.data : parsed;
+    if (!data || typeof data !== 'object' || Array.isArray(data) || !('settings' in data || 'tasks' in data || 'history' in data)) {
+      throw new Error('not a Tempo backup');
+    }
+    if (!window.confirm('Replace your current tasks, stats and settings with this backup?')) return;
+    localStorage.setItem(STORE_KEY, JSON.stringify(data));
+    window.location.reload();
+  } catch {
+    fx.nudge($('#import-label'));
+    toast({ icon: '⚠️', title: "That file isn't a Tempo backup", body: 'Choose a .json file saved with Export backup.' });
+  }
+});
 
 $('#btn-reset-data').addEventListener('click', () => {
   if (!window.confirm('Erase all tasks, stats and settings? This cannot be undone.')) return;

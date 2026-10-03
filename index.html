@@ -12,7 +12,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..700&family=Outfit:wght@200..700&display=swap">
-  <link rel="stylesheet" href="styles.css?v=16">
+  <link rel="stylesheet" href="styles.css?v=17">
 </head>
 <body data-mode="focus">
   <div class="aurora" aria-hidden="true"><span></span><span></span><span></span></div>
@@ -215,6 +215,16 @@
         <tbody></tbody>
       </table>
       <p class="sheet-note" id="stat-total"></p>
+      <section class="heat-section" aria-labelledby="hours-title">
+        <h3 id="hours-title">Best focus hours</h3>
+        <p class="sheet-note hours-note" id="hours-note"></p>
+        <div class="hours" id="hours"></div>
+        <div class="hours-axis" aria-hidden="true"><span>12 am</span><span>6 am</span><span>12 pm</span><span>6 pm</span><span>12 am</span></div>
+      </section>
+      <section class="heat-section" aria-labelledby="log-title">
+        <h3 id="log-title">Recent sessions</h3>
+        <ol class="session-log" id="session-log"></ol>
+      </section>
       <section class="heat-section" aria-labelledby="heat-title">
         <h3 id="heat-title">Last 12 weeks <span class="badge-count" id="heat-summary"></span></h3>
         <div class="heat-wrap">
@@ -293,6 +303,15 @@
         </div>
       </fieldset>
 
+      <fieldset>
+        <legend>Your data</legend>
+        <p class="field-note">Everything is stored only in this browser. Save a backup to move it to another device.</p>
+        <div class="data-actions">
+          <button type="button" class="preset pressable" id="btn-export"><strong>Export backup</strong><span>Save a .json file</span></button>
+          <label class="preset pressable" id="import-label"><strong>Import backup</strong><span>Restore from a file</span><input type="file" id="import-file" accept="application/json,.json" class="sr-only"></label>
+        </div>
+      </fieldset>
+
       <div class="sheet-foot">
         <button type="button" class="text-btn danger pressable" id="btn-reset-data">Erase all data</button>
         <span class="foot-right">
@@ -339,6 +358,6 @@
     </div>
   </dialog>
 
-  <script type="module" src="js/app.js?v=16"></script>
+  <script type="module" src="js/app.js?v=17"></script>
 </body>
 </html>

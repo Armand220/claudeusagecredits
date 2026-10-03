@@ -1493,6 +1493,55 @@ body.is-zen .aurora span { --blob-opacity: .75; }
 }
 .heat-legend .heat { width: 11px; height: 11px; aspect-ratio: auto; }
 
+/* --------------------------------------------------------- Hours & log */
+
+.hours-note { margin: -4px 0 10px; }
+.hours {
+  display: grid;
+  grid-template-columns: repeat(24, 1fr);
+  align-items: end;
+  gap: 3px;
+  height: 70px;
+  border-bottom: 1px solid var(--line);
+}
+.hour {
+  height: var(--h);
+  border-radius: 3px 3px 0 0;
+  background: var(--accent);
+  opacity: .45;
+  transform-origin: bottom;
+  transition: opacity .2s;
+}
+.hour.is-zero { background: var(--track); opacity: 1; }
+.hour.is-peak { opacity: 1; }
+.hour:hover { opacity: 1; }
+.sheet[open] .hour { animation: grow .7s var(--spring) backwards; animation-delay: var(--delay, 0ms); }
+.hours-axis { display: flex; justify-content: space-between; margin-top: 6px; font-size: 10.5px; color: var(--ink-3); }
+
+.session-log { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; max-height: 260px; overflow-y: auto; }
+.log-item {
+  display: grid;
+  grid-template-columns: 9.5em minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  font-size: 13px;
+}
+.log-when { color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.log-what { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.log-dur { font-weight: 700; color: var(--accent-strong); font-variant-numeric: tabular-nums; }
+.log-item.is-partial .log-what { color: var(--ink-2); font-weight: 500; }
+.log-item.is-partial .log-dur { color: var(--ink-3); }
+.log-empty { padding: 14px; text-align: center; font-size: 13px; color: var(--ink-3); border: 1.5px dashed var(--line); border-radius: 12px; }
+@media (max-width: 420px) { .log-item { grid-template-columns: minmax(0, 1fr) auto; } .log-when { grid-column: 1 / -1; font-size: 12px; } }
+
+.field-note { margin: -2px 0 10px; font-size: 13px; color: var(--ink-3); }
+.data-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.data-actions .preset { cursor: pointer; }
+
 /* --------------------------------------------------------------- Badges */
 
 .badges { margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--line); }
