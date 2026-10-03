@@ -1270,6 +1270,11 @@ legend {
 .zen-btn .i-exit { opacity: 0; transform: scale(.4); }
 body.is-zen .zen-btn .i-enter { opacity: 0; transform: scale(.4); }
 body.is-zen .zen-btn .i-exit { opacity: 1; transform: none; }
+.pip-btn { right: auto; left: 16px; }
+.pip-btn svg { opacity: 1 !important; transform: none !important; }
+.pip-btn .pip-inner { fill: currentColor; stroke: none; }
+.pip-btn[aria-pressed="true"] { color: var(--accent-strong); box-shadow: 0 0 0 2px var(--accent); }
+body.is-zen .pip-btn { display: none; }
 
 .zen-hint { display: none; }
 .dial { view-transition-name: dial; }

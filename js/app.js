@@ -1,8 +1,9 @@
-import * as audio from './audio.js?v=15';
-import * as fx from './fx.js?v=15';
-import { toast } from './toast.js?v=15';
-import * as effects from './effects.js?v=15';
-import * as scenery from './scenery.js?v=15';
+import * as audio from './audio.js?v=16';
+import * as fx from './fx.js?v=16';
+import { toast } from './toast.js?v=16';
+import * as effects from './effects.js?v=16';
+import * as scenery from './scenery.js?v=16';
+import * as pip from './pip.js?v=16';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -143,6 +144,7 @@ const el = {
   settingsForm: $('#settings-form'),
   install: $('#btn-install'),
   zen: $('#btn-zen'),
+  pip: $('#btn-pip'),
   mixer: $('#mixer'),
   mixList: $('#mix-list'),
   room: $('#room'),
@@ -308,6 +310,7 @@ const pad = (n) => String(n).padStart(2, '0');
 const fmtClock = (secs) => `${pad(Math.floor(secs / 60))}:${pad(secs % 60)}`;
 
 let lastClock = '';
+let lastFraction = 1;
 
 function renderDigits(text, animate) {
   const spans = el.time.children;
@@ -349,10 +352,12 @@ function renderTimer(force = false) {
   }
 
   const f = Math.max(0, Math.min(1, rem / totalMs()));
+  lastFraction = f;
   el.ring.style.strokeDashoffset = `${RING_C * (1 - f)}`;
   updateTicks(f);
   renderBreath(rem);
   renderFavicon(f);
+  pip.update(force);
   const a = f * Math.PI * 2;
   el.head.setAttribute('cx', `${110 + 100 * Math.cos(a)}`);
   el.head.setAttribute('cy', `${110 + 100 * Math.sin(a)}`);
@@ -484,6 +489,37 @@ function applyTheme() {
 function announce(msg) {
   el.announcer.textContent = '';
   setTimeout(() => { el.announcer.textContent = msg; }, 50);
+}
+
+// ---------------------------------------------------------------------------
+// Floating mini timer (picture-in-picture)
+
+pip.init({
+  getState() {
+    const cs = getComputedStyle(el.body);
+    const v = (n) => cs.getPropertyValue(`--${n}`).trim();
+    const paused = !timer.running && !isFresh();
+    return {
+      clock: lastClock,
+      mode: `${MODES[timer.mode].label}${paused ? ' · paused' : ''}`,
+      fraction: lastFraction,
+      running: timer.running,
+      colors: Object.fromEntries(['accent', 'accent-soft', 'bg', 'ink', 'ink-2', 'track', 'on-accent'].map((n) => [n, v(n)])),
+    };
+  },
+  onToggle: () => toggleTimer(el.toggle),
+  onSkip: () => el.skip.click(),
+  onClose: () => el.pip.setAttribute('aria-pressed', 'false'),
+});
+
+async function togglePip() {
+  try {
+    await pip.toggle();
+    el.pip.setAttribute('aria-pressed', String(pip.isOpen()));
+    audio.sfx(pip.isOpen() ? 'open' : 'close', el.pip);
+  } catch {
+    toast({ icon: '🪟', title: "Couldn't open the mini timer", body: 'Your browser blocked the floating window.' });
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -1614,6 +1650,8 @@ el.reset.addEventListener('click', () => {
 });
 
 el.zen.addEventListener('click', () => setZen(!isZen()));
+el.pip.hidden = !pip.supported();
+el.pip.addEventListener('click', togglePip);
 
 el.skip.addEventListener('click', () => {
   skip();
@@ -1780,6 +1818,8 @@ document.addEventListener('keydown', (e) => {
     openSheet(el.helpDialog, $('#btn-help'));
   } else if (key === 'm') {
     toggleMute();
+  } else if (key === 'p' && pip.supported()) {
+    togglePip();
   } else if (key === 'f') {
     setZen(!isZen());
   } else if (key === 'escape' && isZen()) {
