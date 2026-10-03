@@ -4,8 +4,8 @@
 // sunbeams and birds in a forest, warm café lights and rising steam.
 // One canvas behind the page; it only animates while a scene is showing.
 
-import * as audio from './audio.js?v=58';
-import { motionOK } from './fx.js?v=58';
+import * as audio from './audio.js?v=59';
+import { motionOK } from './fx.js?v=59';
 
 const canvas = document.createElement('canvas');
 canvas.className = 'scenery';

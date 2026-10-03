@@ -1,11 +1,11 @@
-import * as audio from './audio.js?v=58';
-import * as fx from './fx.js?v=58';
-import { toast } from './toast.js?v=58';
-import * as effects from './effects.js?v=58';
-import * as scenery from './scenery.js?v=58';
-import * as pip from './pip.js?v=58';
-import { shareCard, makeCardFile } from './share.js?v=58';
-import * as photo from './photo.js?v=58';
+import * as audio from './audio.js?v=59';
+import * as fx from './fx.js?v=59';
+import { toast } from './toast.js?v=59';
+import * as effects from './effects.js?v=59';
+import * as scenery from './scenery.js?v=59';
+import * as pip from './pip.js?v=59';
+import { shareCard, makeCardFile } from './share.js?v=59';
+import * as photo from './photo.js?v=59';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -537,6 +537,24 @@ function afterTimerChange() {
   renderTimer(true);
   syncWakeLock();
   syncSoundGate();
+  schedulePauseNudge();
+}
+
+// A session left paused for a while gets one gentle reminder.
+let pauseNudge = 0;
+function schedulePauseNudge() {
+  clearTimeout(pauseNudge);
+  if (timer.running || isFresh()) return;
+  pauseNudge = setTimeout(() => {
+    if (timer.running || isFresh()) return;
+    const label = timer.flow ? 'Flowtime' : MODES[timer.mode].label.toLowerCase();
+    if (document.visibilityState === 'visible') {
+      audio.sfx('on', el.toggle);
+      toast({ icon: '⏸️', title: `Your ${label} is still paused`, body: `${lastClock} to go. Pick up where you left off?`, duration: 12000, action: { label: 'Resume', onClick: () => { if (!timer.running) toggleTimer(el.toggle); } } });
+    } else {
+      showNotice(`Your ${label} is still paused`, 'Pick up where you left off?');
+    }
+  }, 10 * 60000);
 }
 
 // With "only while the timer runs", ambient sound fades with the timer.
@@ -3017,9 +3035,49 @@ function mixMatches(m) {
   return want === activeKinds().sort().join();
 }
 
+// A random mix that goes together: one bed of sound and one or two details
+// that belong with it (no birds in the café, no fan by the stream).
+const PAIRINGS = {
+  rain: ['chimes', 'clock', 'cat', 'lofi', 'fire', 'night'],
+  storm: ['fire', 'clock', 'lofi', 'cat'],
+  waves: ['birds', 'chimes', 'night', 'fire'],
+  stream: ['birds', 'chimes', 'wind', 'fire'],
+  wind: ['chimes', 'birds', 'fire', 'stream'],
+  fire: ['rain', 'night', 'cat', 'clock', 'lofi'],
+  cafe: ['rain', 'clock'],
+  train: ['rain', 'lofi', 'night'],
+  study: ['rain', 'clock', 'fire', 'lofi'],
+  brown: ['lofi', 'rain', 'clock'],
+  fan: ['lofi', 'clock', 'rain', 'cat'],
+};
+function surpriseMix() {
+  const pick = (list) => list[Math.floor(Math.random() * list.length)];
+  const bed = pick(Object.keys(PAIRINGS));
+  const kinds = [bed];
+  const want = Math.random() < 0.5 ? 1 : 2;
+  for (let guard = 0; kinds.length < want + 1 && guard < 20; guard++) {
+    const k = pick(PAIRINGS[bed]);
+    if (!kinds.includes(k)) kinds.push(k);
+  }
+  const mix = {};
+  kinds.forEach((k, i) => {
+    const a = Math.random() * Math.PI * 2;
+    const r = i === 0 ? 0.8 + Math.random() * 1.2 : 1.6 + Math.random() * 1.8;
+    mix[k] = { vol: i === 0 ? 0.75 : 0.4 + Math.random() * 0.3, x: Math.round(Math.sin(a) * r * 10) / 10, z: Math.round(-Math.cos(a) * r * 10) / 10, orbit: i > 0 && Math.random() < 0.2 };
+  });
+  return { id: 'surprise', icon: '🎲', name: 'Surprise mix', mix };
+}
+
 function renderMixes() {
   requestAnimationFrame(syncMixArrows);
+  const surprise = document.createElement('button');
+  surprise.type = 'button';
+  surprise.className = 'mix-card mix-surprise pressable';
+  surprise.dataset.mix = 'surprise';
+  surprise.title = 'A random mix that goes together';
+  surprise.innerHTML = '<span class="mix-icon" aria-hidden="true">🎲</span><span>Surprise me</span>';
   el.mixes.replaceChildren(
+    surprise,
     ...allMixes().map((m) => {
       const b = document.createElement('button');
       b.type = 'button';
@@ -3076,6 +3134,16 @@ el.mixes.addEventListener('click', (e) => {
   }
   const card = e.target.closest('.mix-card');
   if (!card) return;
+  if (card.dataset.mix === 'surprise') {
+    const m = surpriseMix();
+    applyMix(m, card);
+    const icon = card.querySelector('.mix-icon');
+    icon.classList.remove('roll');
+    void icon.getBoundingClientRect();
+    icon.classList.add('roll');
+    toast({ icon: '🎲', title: 'Surprise mix', body: Object.keys(m.mix).map((k) => SOUND_INFO[k].name).join(' + '), duration: 3000 });
+    return;
+  }
   const m = allMixes().find((x) => x.id === card.dataset.mix);
   if (m) applyMix(m, card);
 });
@@ -3779,6 +3847,7 @@ statTabs.forEach((t, i) => {
 
 // What's new: the newest first. Bump `id` when adding an entry.
 const CHANGES = [
+  { id: 20, icon: '🎲', text: 'Tap Surprise me in the mixes for a random mix that goes together. A session left paused for ten minutes now gets a gentle reminder.' },
   { id: 19, icon: '⛈️', text: 'New sound: Thunderstorm. Each lightning flash lights the side of the screen its thunder then rolls in from.' },
   { id: 18, icon: '🔁', text: 'Tasks can repeat every day: edit a task and tap 🔁, and it comes back unticked each morning.' },
   { id: 17, icon: '🌅', text: 'The background now follows the time of day, Stats shows your personal bests, and the shared image includes today\'s intention.' },
@@ -4166,6 +4235,7 @@ function paletteCommands(query) {
     const on = playing.includes(k);
     add({ cat: 'Sound', icon: SOUND_INFO[k].icon, title: `${on ? 'Stop' : 'Play'} ${SOUND_INFO[k].name.toLowerCase()}`, words: 'sound ambient noise', run: () => $(`.chip[data-sound="${k}"]`).click() });
   }
+  add({ cat: 'Mix', icon: '🎲', title: 'Surprise me with a mix', words: 'random shuffle', run: () => $('.mix-surprise').click() });
   for (const m of allMixes()) add({ cat: 'Mix', icon: m.icon, title: m.name, words: `mix soundscape ${Object.keys(m.mix).map((k) => SOUND_INFO[k]?.name || k).join(' ')}`, run: () => applyMix(m, el.mixes) });
   if (playing.length) add({ cat: 'Sound', top: true, icon: '🔇', title: 'Turn all sounds off', keys: 'M', run: () => $('.chip[data-sound="off"]').click() });
   else add({ cat: 'Sound', top: true, icon: '🔊', title: 'Bring sounds back', keys: 'M', run: toggleMute });

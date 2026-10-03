@@ -35,6 +35,7 @@ installed as an app on your phone or computer.
   Rain, **Thunderstorm**, Waves, Fireplace, Wind, Stream, Night, **Birdsong**, Wind chimes,
   Cat purring, Clock, **Train ride**, **Café**, **Lo-fi beats**, **Study hall**,
   Binaural, Brown noise, Fan
+- **Surprise me**: a random mix that goes together, placed around you
 - **Ready-made mixes** (Cozy cabin, Seaside, Campfire night, Rainy café,
   Forest stream, Cat nap, Breezy porch, Stormy study, Library, Night train,
   Morning walk, Coffee shop…) and your own saved mixes

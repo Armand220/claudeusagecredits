@@ -755,6 +755,9 @@ body.sounds-gated .mixer { opacity: .6; }
 }
 .mix-card:hover { color: var(--ink); border-color: color-mix(in srgb, var(--accent) 40%, transparent); }
 .mix-card[aria-pressed="true"] { color: var(--ink); border-color: var(--accent); background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent); }
+.mix-surprise { border-style: dashed; }
+.mix-surprise .mix-icon.roll { animation: dice .6s var(--spring-strong); }
+@keyframes dice { 0% { transform: rotate(0) scale(1); } 40% { transform: rotate(200deg) scale(1.3); } 100% { transform: rotate(360deg) scale(1); } }
 .mix-card-wrap { position: relative; flex: none; display: flex; scroll-snap-align: start; }
 .mix-del {
   position: absolute;
