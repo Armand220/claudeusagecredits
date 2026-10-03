@@ -1307,6 +1307,7 @@ legend {
 .tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .tile {
   display: grid;
+  align-content: start;
   gap: 2px;
   padding: 14px 16px;
   border-radius: var(--radius-md);
@@ -1318,6 +1319,21 @@ legend {
 .sheet[open] .tile:nth-child(3) { animation-delay: .08s; }
 .sheet[open] .tile:nth-child(4) { animation-delay: .12s; }
 .tile-label { font-size: 13px; color: var(--ink-2); font-weight: 500; }
+.tile-delta { font-size: 12px; font-weight: 600; color: var(--ink-3); }
+.tile-delta.is-up { color: #237a40; }
+.tile-delta.is-down { color: var(--ink-2); }
+:root[data-theme="dark"] .tile-delta.is-up { color: #6fd39a; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .tile-delta.is-up { color: #6fd39a; } }
+.field.row.chime-row select {
+  height: 40px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 15px;
+}
 .tile-value { font-family: var(--font-display); font-size: 28px; font-weight: 600; letter-spacing: -0.01em; }
 
 .chart { position: relative; margin: 22px 0 0; }

@@ -1,9 +1,9 @@
-import * as audio from './audio.js?v=26';
-import * as fx from './fx.js?v=26';
-import { toast } from './toast.js?v=26';
-import * as effects from './effects.js?v=26';
-import * as scenery from './scenery.js?v=26';
-import * as pip from './pip.js?v=26';
+import * as audio from './audio.js?v=27';
+import * as fx from './fx.js?v=27';
+import { toast } from './toast.js?v=27';
+import * as effects from './effects.js?v=27';
+import * as scenery from './scenery.js?v=27';
+import * as pip from './pip.js?v=27';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -33,6 +33,7 @@ const DEFAULTS = {
   palette: 'sunset',
   scenery: true,
   soundsWithTimer: false,
+  chimeStyle: 'bells',
 };
 const PALETTES = ['sunset', 'ocean', 'forest', 'lavender', 'rose', 'mono'];
 const LIMITS = { focus: [1, 180], short: [1, 60], long: [1, 90], longEvery: [2, 12], goal: [1, 24] };
@@ -64,6 +65,7 @@ function cleanSettings(raw) {
   for (const [k, [min, max]] of Object.entries(LIMITS)) out[k] = clampInt(out[k], min, max, DEFAULTS[k]);
   if (!['auto', 'light', 'dark'].includes(out.theme)) out.theme = 'auto';
   if (!PALETTES.includes(out.palette)) out.palette = 'sunset';
+  if (!audio.chimeStyles.includes(out.chimeStyle)) out.chimeStyle = 'bells';
   return out;
 }
 
@@ -323,7 +325,8 @@ function complete({ late = 0 } = {}) {
     return;
   }
 
-  if (settings.chime) audio.chime(next === 'focus' ? 'focus' : 'break');
+  if (settings.chime) audio.chime(next === 'focus' ? 'focus' : 'break', settings.chimeStyle);
+  if (ended === 'focus' && isZen()) unlock('zen', { delay: 1600 });
   if (settings.sfx) fx.haptic([140, 90, 140, 90, 260]);
   notify(ended, next);
   if (ended === 'focus') fx.celebrate(el.dial);
@@ -415,7 +418,8 @@ function renderTimer(force = false) {
     renderDigits(clock, !force && timer.running);
     lastClock = clock;
     el.time.setAttribute('aria-label', `${Math.floor(secs / 60)} minutes ${secs % 60} seconds remaining`);
-    document.title = isFresh() ? 'Tempo · Focus Timer' : `${clock} · ${MODES[timer.mode].label} · Tempo`;
+    const emoji = { focus: '🎯', short: '☕', long: '🌿' }[timer.mode];
+    document.title = isFresh() ? 'Tempo · Focus Timer' : `${emoji} ${clock} · ${MODES[timer.mode].label} · Tempo`;
 
     if (timer.running && secs > 0 && secs <= 3 && !force && document.visibilityState === 'visible') {
       audio.sfx('tick', el.time);
@@ -1071,6 +1075,11 @@ const ACHIEVEMENTS = [
   { id: 'night', icon: '🦉', name: 'Night owl', desc: 'Finish a session after 10 pm' },
   { id: 'finisher', icon: '✅', name: 'Finisher', desc: 'Complete five tasks' },
   { id: 'explorer', icon: '🎧', name: 'Sound explorer', desc: 'Try every ambient sound' },
+  { id: 'cleanslate', icon: '🧹', name: 'Clean slate', desc: 'Finish every task on a list of three or more' },
+  { id: 'mixologist', icon: '🎛️', name: 'Mixologist', desc: 'Save your own sound mix' },
+  { id: 'orbit', icon: '🪐', name: 'In orbit', desc: 'Send a sound circling around you' },
+  { id: 'zen', icon: '🧘', name: 'Zen master', desc: 'Finish a focus session in zen mode' },
+  { id: 'marathon', icon: '🏃', name: 'Marathon', desc: 'Four hours of focus in one day' },
 ];
 const GOAL_C = 2 * Math.PI * 15;
 
@@ -1153,6 +1162,7 @@ function checkFocusAchievements(endedAt, next, opts = {}) {
   if (total >= 50) unlock('fifty', opts);
   if (hour >= 4 && hour < 8) unlock('early', opts);
   if (hour >= 22 || hour < 4) unlock('night', opts);
+  if (today.m >= 240) unlock('marathon', opts);
 }
 
 function renderBadges() {
@@ -1235,6 +1245,21 @@ function renderStats() {
   fx.countUp($('#stat-sessions'), String(todayStats.s));
   fx.countUp($('#stat-streak'), `${streak} ${streak === 1 ? 'day' : 'days'}`);
   fx.countUp($('#stat-week'), fmtMinutes(week));
+  let prevWeek = 0;
+  for (let i = 7; i < 14; i++) {
+    const d = new Date(today);
+    d.setDate(d.getDate() - i);
+    prevWeek += (byDay.get(dayKey(d)) || { m: 0 }).m;
+  }
+  const delta = $('#stat-week-delta');
+  if (prevWeek > 0 && week > 0) {
+    const pct = Math.round(((week - prevWeek) / prevWeek) * 100);
+    delta.textContent = `${pct >= 0 ? '▲' : '▼'} ${Math.abs(pct)}% vs the week before`;
+    delta.className = `tile-delta ${pct >= 0 ? 'is-up' : 'is-down'}`;
+  } else {
+    delta.textContent = week > 0 ? 'Your first week. Nice start!' : '';
+    delta.className = 'tile-delta';
+  }
   $('#stat-total').textContent = sessions
     ? `All time: ${fmtMinutes(total)} of focus across ${sessions} ${sessions === 1 ? 'session' : 'sessions'}.`
     : 'Finish a focus session to start filling this in.';
@@ -1483,6 +1508,7 @@ function fillSettings() {
   for (const k of ['autoBreaks', 'autoFocus', 'breathing', 'chime', 'sfx', 'notify', 'wakeLock', 'scenery', 'soundsWithTimer']) f.elements[k].checked = settings[k];
   f.elements.theme.value = settings.theme;
   f.elements.palette.value = settings.palette;
+  f.elements.chimeStyle.value = settings.chimeStyle;
   markPreset();
 }
 
@@ -1530,6 +1556,9 @@ el.settingsForm.addEventListener('change', async (e) => {
     settings.theme = input.value;
     applyTheme();
     audio.sfx('pop', input.closest('label'));
+  } else if (name === 'chimeStyle') {
+    settings.chimeStyle = input.value;
+    audio.chime('break', settings.chimeStyle);
   } else if (name === 'palette') {
     settings.palette = input.value;
     applyTheme();
@@ -1573,7 +1602,8 @@ async function askNotificationPermission() {
 if (!('wakeLock' in navigator)) $('#wake-row').hidden = true;
 if (!('Notification' in window)) $('#notify-row').hidden = true;
 
-$('#btn-test-chime').addEventListener('click', () => audio.chime('break'));
+$('#btn-test-chime').addEventListener('click', () => audio.chime('break', settings.chimeStyle));
+$('#btn-test-chime-2').addEventListener('click', () => audio.chime('break', settings.chimeStyle));
 
 $('#btn-export').addEventListener('click', (e) => {
   save();
@@ -1930,6 +1960,7 @@ saveForm.addEventListener('submit', (e) => {
   saveBtn.hidden = false;
   renderMixes();
   audio.sfx('check', saveBtn);
+  unlock('mixologist', { delay: 1200 });
   toast({ icon: '⭐', title: `Saved "${name}"`, body: 'Find it with the mixes above. Double-click a saved mix to delete it.' });
 });
 saveForm.addEventListener('keydown', (e) => {
@@ -2014,6 +2045,7 @@ el.mixList.addEventListener('click', (e) => {
     const m = sound.mix[k];
     m.orbit = !m.orbit;
     if (m.orbit && Math.hypot(m.x, m.z) < 1) moveSound(k, 0, -2);
+    if (m.orbit) unlock('orbit', { delay: 800 });
     orbitBtn.setAttribute('aria-pressed', String(m.orbit));
     el.room.querySelector(`.orb[data-kind="${k}"]`)?.classList.toggle('is-orbiting', m.orbit);
     audio.sfx(m.orbit ? 'on' : 'off', orbitBtn);
@@ -2320,6 +2352,14 @@ el.taskList.addEventListener('change', (e) => {
     audio.sfx('check', e.target);
     fx.burst(e.target, { count: 12, spread: 34, size: 5 });
     if (activeTaskId === task.id) activeTaskId = tasks.find((t) => !t.done)?.id ?? null;
+    if (tasks.length >= 2 && tasks.every((t) => t.done)) {
+      setTimeout(() => {
+        fx.celebrate(el.taskList);
+        audio.fanfare();
+        toast({ icon: '🎉', title: 'All tasks done!', body: 'That whole list is finished. Take a moment to enjoy it.', tone: 'gold' });
+      }, 350);
+      if (tasks.length >= 3) unlock('cleanslate', { delay: 2600 });
+    }
   } else {
     audio.sfx('uncheck', e.target);
   }

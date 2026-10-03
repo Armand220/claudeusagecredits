@@ -475,20 +475,103 @@ function bell(t, f, out, peak) {
   });
 }
 
+function chimeAt(x, y, z, reverbAmount = 0.28) {
+  const p = panner(...headRelative(x, y, z), 0);
+  p.connect(chimeBus);
+  send(p, reverbAmount);
+  return p;
+}
+
+const CHIMES = {
+  // A bell arpeggio that sweeps across the room.
+  bells(t, up) {
+    const notes = up
+      ? [[659.25, -1.6], [830.61, -0.5], [987.77, 0.5], [1318.51, 1.6]]
+      : [[987.77, 1.4], [783.99, 0], [659.25, -1.4]];
+    notes.forEach(([f, x], i) => bell(t + i * 0.16, f, chimeAt(x, 0.4, -1.4), 0.32));
+  },
+  // Soft plucked kalimba tines.
+  kalimba(t, up) {
+    const notes = up ? [523.25, 659.25, 783.99, 1046.5, 1318.51] : [1046.5, 783.99, 659.25];
+    notes.forEach((f, i) => {
+      const at = t + i * 0.13;
+      const p = chimeAt(-1.2 + (i / Math.max(1, notes.length - 1)) * 2.4, 0.2, -1.2, 0.2);
+      [[1, 0.5, 0.9], [3.01, 0.08, 0.25], [5.4, 0.04, 0.12]].forEach(([r, amp, dur]) => {
+        const o = osc('sine', f * r);
+        const g = gain(0.0001, p);
+        envelope(g, at, 0.003, amp, dur);
+        o.connect(g);
+        o.start(at);
+        o.stop(at + dur + 0.05);
+      });
+    });
+  },
+  // One deep, shimmering gong in front of you.
+  gong(t, up) {
+    const f = up ? 98 : 130.81;
+    const p = chimeAt(0, 0, -2.2, 0.55);
+    [[1, 0.5, 6], [1.47, 0.32, 4.5], [2.09, 0.22, 3.5], [2.56, 0.15, 2.6], [3.18, 0.1, 2], [4.3, 0.05, 1.4]].forEach(([r, amp, dur]) => {
+      for (const detune of [1, 1.003]) {
+        const o = osc('sine', f * r * detune);
+        const g = gain(0.0001, p);
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.exponentialRampToValueAtTime(amp * 0.5, t + 0.04);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+        o.connect(g);
+        o.start(t);
+        o.stop(t + dur + 0.1);
+      }
+    });
+  },
+  // A few birds chirping from different directions.
+  birds(t, up) {
+    const count = up ? 6 : 4;
+    for (let i = 0; i < count; i++) {
+      const a = (i / count) * Math.PI * 2 + rand(-0.3, 0.3);
+      const p = chimeAt(Math.sin(a) * 2.2, rand(0.5, 1.8), -Math.cos(a) * 2.2, 0.3);
+      const start = t + i * 0.22 + rand(0, 0.08);
+      const base = rand(2400, 3400);
+      const reps = 2 + Math.floor(Math.random() * 2);
+      for (let k = 0; k < reps; k++) {
+        const at = start + k * 0.11;
+        const o = osc('sine', 0);
+        o.frequency.setValueAtTime(base, at);
+        o.frequency.exponentialRampToValueAtTime(base * rand(1.4, 1.8), at + 0.07);
+        const g = gain(0.0001, p);
+        envelope(g, at, 0.006, 0.16, 0.075);
+        o.connect(g);
+        o.start(at);
+        o.stop(at + 0.1);
+      }
+    }
+  },
+  // Clean, simple beeps.
+  digital(t, up) {
+    const p = chimeAt(0, 0, -1, 0.05);
+    const beeps = up ? 3 : 2;
+    for (let i = 0; i < beeps; i++) {
+      const at = t + i * 0.16;
+      const o = osc('square', up ? 1046.5 : 880);
+      const lp = filter('lowpass', 3000);
+      const g = gain(0.0001, p);
+      g.gain.setValueAtTime(0.0001, at);
+      g.gain.linearRampToValueAtTime(0.08, at + 0.005);
+      g.gain.setValueAtTime(0.08, at + 0.09);
+      g.gain.linearRampToValueAtTime(0.0001, at + 0.1);
+      o.connect(lp).connect(g);
+      o.start(at);
+      o.stop(at + 0.12);
+    }
+  },
+};
+
+export const chimeStyles = Object.keys(CHIMES);
+
 /** kind: 'break' (a focus session ended) or 'focus' (a break ended). */
-export function chime(kind) {
+export function chime(kind, style = 'bells') {
   const c = ensure();
   if (!c) return;
-  const t = c.currentTime + 0.06;
-  const notes = kind === 'break'
-    ? [[659.25, -1.6], [830.61, -0.5], [987.77, 0.5], [1318.51, 1.6]]
-    : [[987.77, 1.4], [783.99, 0], [659.25, -1.4]];
-  notes.forEach(([f, x], i) => {
-    const p = panner(...headRelative(x, 0.4, -1.4), 0);
-    p.connect(chimeBus);
-    send(p, 0.28);
-    bell(t + i * 0.16, f, p, 0.32);
-  });
+  (CHIMES[style] || CHIMES.bells)(c.currentTime + 0.06, kind === 'break');
 }
 
 /** Achievement fanfare: a sparkling arpeggio whose notes circle your head. */

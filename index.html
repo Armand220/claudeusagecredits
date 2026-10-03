@@ -12,7 +12,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..700&family=Outfit:wght@200..700&display=swap">
-  <link rel="stylesheet" href="styles.css?v=26">
+  <link rel="stylesheet" href="styles.css?v=27">
 </head>
 <body data-mode="focus">
   <div class="aurora" aria-hidden="true"><span></span><span></span><span></span></div>
@@ -266,7 +266,7 @@
           <div class="tile"><span class="tile-label">Today</span><span class="tile-value" id="stat-today">0m</span></div>
           <div class="tile"><span class="tile-label">Sessions today</span><span class="tile-value" id="stat-sessions">0</span></div>
           <div class="tile"><span class="tile-label">Day streak</span><span class="tile-value" id="stat-streak">0 days</span></div>
-          <div class="tile"><span class="tile-label">Last 7 days</span><span class="tile-value" id="stat-week">0m</span></div>
+          <div class="tile"><span class="tile-label">Last 7 days</span><span class="tile-value" id="stat-week">0m</span><span class="tile-delta" id="stat-week-delta"></span></div>
         </div>
         <figure class="chart">
           <figcaption>Focus minutes per day, last 7 days</figcaption>
@@ -351,6 +351,18 @@
         <legend>Sound</legend>
         <label class="switch"><input type="checkbox" name="sfx"><span>Interface sounds &amp; haptics</span></label>
         <label class="switch"><input type="checkbox" name="chime"><span>Chime when a session ends</span></label>
+        <label class="field row chime-row"><span>Chime sound</span>
+          <span class="inline">
+            <select name="chimeStyle">
+              <option value="bells">Bells</option>
+              <option value="kalimba">Kalimba</option>
+              <option value="gong">Gong</option>
+              <option value="birds">Birds around you</option>
+              <option value="digital">Digital</option>
+            </select>
+            <button type="button" class="text-btn pressable" id="btn-test-chime-2">▶ Preview</button>
+          </span>
+        </label>
         <label class="switch"><input type="checkbox" name="soundsWithTimer"><span>Ambient sound only while the timer runs</span></label>
         <label class="switch" id="notify-row"><input type="checkbox" name="notify"><span>Notification when a session ends</span></label>
       </fieldset>
@@ -447,6 +459,6 @@
     </div>
   </dialog>
 
-  <script type="module" src="js/app.js?v=26"></script>
+  <script type="module" src="js/app.js?v=27"></script>
 </body>
 </html>
