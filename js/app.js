@@ -1,11 +1,11 @@
-import * as audio from './audio.js?v=48';
-import * as fx from './fx.js?v=48';
-import { toast } from './toast.js?v=48';
-import * as effects from './effects.js?v=48';
-import * as scenery from './scenery.js?v=48';
-import * as pip from './pip.js?v=48';
-import { shareCard, makeCardFile } from './share.js?v=48';
-import * as photo from './photo.js?v=48';
+import * as audio from './audio.js?v=49';
+import * as fx from './fx.js?v=49';
+import { toast } from './toast.js?v=49';
+import * as effects from './effects.js?v=49';
+import * as scenery from './scenery.js?v=49';
+import * as pip from './pip.js?v=49';
+import { shareCard, makeCardFile } from './share.js?v=49';
+import * as photo from './photo.js?v=49';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -315,7 +315,10 @@ function capFlow() {
 function nudgeFlow() {
   timer.nudged = true;
   save();
-  if (document.visibilityState !== 'visible') return;
+  if (document.visibilityState !== 'visible') {
+    showNotice(`${Math.round(flowElapsed() / 60000)} minutes in flow`, 'Brilliant focus. A break soon will help you keep it up.');
+    return;
+  }
   audio.sfx('on', el.time);
   toast({
     icon: '🌊',
@@ -699,7 +702,7 @@ function renderTimer(force = false) {
 
   el.body.classList.toggle('is-running', timer.running);
   el.miniTime.textContent = clock;
-  el.miniMode.textContent = MODES[timer.mode].label;
+  el.miniMode.textContent = flow ? 'Flowtime' : MODES[timer.mode].label;
   el.extend.hidden = isFresh() || flow;
   el.body.classList.toggle('is-flow', flow);
   el.flowBreak.hidden = !flow || isFresh();
@@ -851,7 +854,7 @@ pip.init({
     const paused = !timer.running && !isFresh();
     return {
       clock: lastClock,
-      mode: `${MODES[timer.mode].label}${paused ? ' · paused' : ''}`,
+      mode: `${isFlow() ? 'Flowtime' : MODES[timer.mode].label}${paused ? ' · paused' : ''}`,
       fraction: lastFraction,
       running: timer.running,
       colors: Object.fromEntries(['accent', 'accent-soft', 'bg', 'ink', 'ink-2', 'track', 'on-accent'].map((n) => [n, v(n)])),
@@ -921,12 +924,16 @@ async function syncWakeLock() {
 }
 
 async function notify(ended, next, breakMin) {
-  if (!settings.notify || !('Notification' in window) || Notification.permission !== 'granted') return;
   const title = ended === 'focus' ? 'Focus session done' : 'Break is over';
   const body =
     next === 'focus'
       ? 'Ready for the next focus session?'
       : `Nice work. Take ${breakMin} minutes to recharge.`;
+  await showNotice(title, body);
+}
+
+async function showNotice(title, body) {
+  if (!settings.notify || !('Notification' in window) || Notification.permission !== 'granted') return;
   const opts = { body, icon: 'icons/icon-192.png', badge: 'icons/icon-192.png', tag: 'tempo', renotify: true };
   try {
     const reg = navigator.serviceWorker && (await navigator.serviceWorker.getRegistration());
