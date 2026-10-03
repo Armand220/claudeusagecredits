@@ -194,6 +194,25 @@ svg { display: block; }
 @keyframes drift-2 { to { transform: translate(-16vmax, 20vmax) scale(.9); } }
 @keyframes drift-3 { to { transform: translate(12vmax, -18vmax) scale(1.1); } }
 
+.photo-bg {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background-size: cover;
+  background-position: center;
+  opacity: 0;
+  transition: opacity .9s ease;
+  pointer-events: none;
+}
+/* A wash of the page colour keeps text readable over any photo. */
+.photo-bg::after { content: ""; position: absolute; inset: 0; background: color-mix(in srgb, var(--bg) 38%, transparent); }
+body.has-photo .photo-bg { opacity: 1; }
+body.has-photo .aurora { opacity: 0; transition: opacity .9s ease; }
+
+.photo-row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin: 4px 0 14px; }
+.photo-label { flex: 1; font-size: 15px; }
+.photo-pick { cursor: pointer; color: var(--accent-strong); }
+
 .scenery {
   position: fixed;
   inset: 0;

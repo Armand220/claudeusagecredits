@@ -58,7 +58,7 @@ installed as an app on your phone or computer.
 
 **Look and feel**
 - Light and dark themes, six colour palettes (Sunset, Ocean, Forest, Lavender,
-  Rose, Mono)
+  Rose, Mono), and your own background photo (kept on your device)
 - Glass cards, drifting aurora, springy buttons with ripples and confetti, a
   cursor spotlight and a gentle 3D tilt
 - Respects "reduce motion"; accessibility audit (axe) passes with no issues
@@ -96,6 +96,7 @@ Plain HTML, CSS and JavaScript modules, with no build step and no dependencies.
 - `js/effects.js`, `js/fx.js`, `js/toast.js`: visual effects and notifications
 - `js/pip.js`: the floating mini timer
 - `js/share.js`: the shareable image of your day
+- `js/photo.js`: your background photo (stored in IndexedDB)
 - `sw.js`, `manifest.webmanifest`: offline support and app install
 
 Your data is saved in your browser's local storage and never leaves your device.

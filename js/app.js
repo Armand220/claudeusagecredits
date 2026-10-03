@@ -1,10 +1,11 @@
-import * as audio from './audio.js?v=39';
-import * as fx from './fx.js?v=39';
-import { toast } from './toast.js?v=39';
-import * as effects from './effects.js?v=39';
-import * as scenery from './scenery.js?v=39';
-import * as pip from './pip.js?v=39';
-import { shareCard, makeCardFile } from './share.js?v=39';
+import * as audio from './audio.js?v=40';
+import * as fx from './fx.js?v=40';
+import { toast } from './toast.js?v=40';
+import * as effects from './effects.js?v=40';
+import * as scenery from './scenery.js?v=40';
+import * as pip from './pip.js?v=40';
+import { shareCard, makeCardFile } from './share.js?v=40';
+import * as photo from './photo.js?v=40';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -1843,6 +1844,34 @@ if (!('Notification' in window)) $('#notify-row').hidden = true;
 
 $('#btn-test-chime').addEventListener('click', () => audio.chime('break', settings.chimeStyle));
 $('#btn-test-chime-2').addEventListener('click', () => audio.chime('break', settings.chimeStyle));
+
+// Background photo, stored on this device only.
+const photoRemove = $('#photo-remove');
+photo.load().then((blob) => {
+  photo.apply(blob);
+  photoRemove.hidden = !blob;
+});
+$('#photo-file').addEventListener('change', async (e) => {
+  const file = e.currentTarget.files && e.currentTarget.files[0];
+  e.currentTarget.value = '';
+  if (!file) return;
+  try {
+    const blob = await photo.save(file);
+    photo.apply(blob);
+    photoRemove.hidden = false;
+    audio.sfx('check', $('#photo-pick'));
+    toast({ icon: '🖼️', title: 'Background set', body: 'It stays on this device.' });
+  } catch {
+    fx.nudge($('#photo-pick'));
+    toast({ icon: '⚠️', title: "That picture couldn't be used", body: 'Try a JPEG or PNG photo.' });
+  }
+});
+photoRemove.addEventListener('click', async () => {
+  await photo.remove();
+  photo.apply(null);
+  photoRemove.hidden = true;
+  audio.sfx('remove', photoRemove);
+});
 
 $('#btn-export').addEventListener('click', (e) => {
   save();

@@ -2,7 +2,7 @@
 // Same-origin files are fetched fresh when online (so updates show up right
 // away) and served from the cache when offline. Fonts are cached on first use.
 
-const VERSION = 'tempo-v39';
+const VERSION = 'tempo-v40';
 const SHELL = [
   './',
   'index.html',
@@ -15,6 +15,7 @@ const SHELL = [
   'js/scenery.js',
   'js/pip.js',
   'js/share.js',
+  'js/photo.js',
   'manifest.webmanifest',
   'icons/icon.svg',
   'icons/icon-192.png',

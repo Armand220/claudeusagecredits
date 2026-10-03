@@ -23,9 +23,10 @@
   <!-- Fonts load without blocking the first paint. -->
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..700&family=Outfit:wght@200..700&display=swap" media="print" onload="this.media='all'">
   <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..700&family=Outfit:wght@200..700&display=swap"></noscript>
-  <link rel="stylesheet" href="styles.css?v=39">
+  <link rel="stylesheet" href="styles.css?v=40">
 </head>
 <body data-mode="focus">
+  <div class="photo-bg" aria-hidden="true"></div>
   <div class="aurora" aria-hidden="true"><span></span><span></span><span></span></div>
 
   <div class="app">
@@ -433,6 +434,11 @@
           <label class="swatch-opt pressable" title="Mono"><input type="radio" name="palette" value="mono"><span class="swatch" data-p="mono"></span><span class="sr-only">Mono</span></label>
         </div>
         <label class="switch"><input type="checkbox" name="scenery"><span>Animated backgrounds that match the sound</span></label>
+        <div class="photo-row">
+          <span class="photo-label">Background photo</span>
+          <label class="text-btn pressable photo-pick" id="photo-pick">Choose a photo<input type="file" id="photo-file" accept="image/*" class="sr-only"></label>
+          <button type="button" class="text-btn danger pressable" id="photo-remove" hidden>Remove</button>
+        </div>
         <div class="segmented" role="radiogroup" aria-label="Theme">
           <label class="pressable"><input type="radio" name="theme" value="auto"><span>System</span></label>
           <label class="pressable"><input type="radio" name="theme" value="light"><span>Light</span></label>
@@ -518,6 +524,6 @@
     </div>
   </dialog>
 
-  <script type="module" src="js/app.js?v=39"></script>
+  <script type="module" src="js/app.js?v=40"></script>
 </body>
 </html>
