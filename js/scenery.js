@@ -1,10 +1,11 @@
 // Animated backgrounds that match the ambient sound: rain streaks, rolling
 // waves, rising embers, fireflies under the stars, drifting dust in a breeze,
-// hills rolling past a train window, motes in a reading lamp's light.
+// hills rolling past a train window, motes in a reading lamp's light,
+// sunbeams and birds in a forest, warm café lights and rising steam.
 // One canvas behind the page; it only animates while a scene is showing.
 
-import * as audio from './audio.js?v=46';
-import { motionOK } from './fx.js?v=46';
+import * as audio from './audio.js?v=47';
+import { motionOK } from './fx.js?v=47';
 
 const canvas = document.createElement('canvas');
 canvas.className = 'scenery';
@@ -445,6 +446,149 @@ const FACTORIES = {
           g.beginPath();
           g.arc(m.x, m.y, m.r, 0, Math.PI * 2);
           g.fill();
+        }
+      },
+    };
+  },
+
+  birds() {
+    // Morning sun slanting through the trees, pollen drifting in the beams,
+    // and now and then a bird flying across.
+    let pollen = [];
+    let flock = [];
+    let nextBird = 3;
+    const beams = [0.12, 0.3, 0.52, 0.7].map((x) => ({ x, w: rand(0.05, 0.11), phase: Math.random() * 6.28 }));
+    return {
+      init() {
+        pollen = Array.from({ length: Math.round((W * H) / 30000) + 10 }, () => ({
+          x: Math.random() * W,
+          y: Math.random() * H,
+          vx: rand(-4, 8),
+          vy: rand(-6, 6),
+          r: rand(0.8, 2),
+          phase: Math.random() * 6.28,
+        }));
+      },
+      draw(dt, a, t) {
+        const sun = colors.dark ? 'rgba(255,236,190,' : 'rgba(255,226,150,';
+        for (const b of beams) {
+          const x0 = W * b.x + W * 0.25;
+          const w = W * b.w;
+          g.globalAlpha = a * (0.55 + 0.45 * Math.sin(t * 0.35 + b.phase));
+          const grd = g.createLinearGradient(x0, 0, x0 - H * 0.45, H);
+          grd.addColorStop(0, `${sun}${colors.dark ? 0.1 : 0.22})`);
+          grd.addColorStop(1, `${sun}0)`);
+          g.fillStyle = grd;
+          g.beginPath();
+          g.moveTo(x0, -10);
+          g.lineTo(x0 + w, -10);
+          g.lineTo(x0 + w - H * 0.45, H);
+          g.lineTo(x0 - H * 0.45 - w * 0.5, H);
+          g.closePath();
+          g.fill();
+        }
+        g.fillStyle = colors.dark ? '#fff1c9' : '#b38a2e';
+        for (const m of pollen) {
+          m.x += (m.vx + Math.sin(t * 0.5 + m.phase) * 6) * dt;
+          m.y += (m.vy + Math.cos(t * 0.4 + m.phase) * 5) * dt;
+          if (m.x < -10) m.x = W + 10;
+          if (m.x > W + 10) m.x = -10;
+          if (m.y < -10) m.y = H + 10;
+          if (m.y > H + 10) m.y = -10;
+          g.globalAlpha = a * (colors.dark ? 0.35 : 0.3) * (0.5 + 0.5 * Math.sin(t * 2 + m.phase));
+          g.beginPath();
+          g.arc(m.x, m.y, m.r, 0, Math.PI * 2);
+          g.fill();
+        }
+        // Birds: little flapping "m" shapes gliding across the top.
+        nextBird -= dt;
+        if (nextBird <= 0) {
+          const dir = Math.random() < 0.5 ? 1 : -1;
+          const n = Math.random() < 0.4 ? 3 : 1;
+          const y = H * rand(0.08, 0.3);
+          for (let i = 0; i < n; i++) {
+            flock.push({ x: dir > 0 ? -30 - i * 40 : W + 30 + i * 40, y: y + i * rand(-14, 14), v: dir * rand(90, 140), size: rand(7, 11), phase: Math.random() * 6.28, rise: rand(-12, 6) });
+          }
+          nextBird = rand(9, 20);
+        }
+        flock = flock.filter((b) => b.x > -60 - 200 && b.x < W + 260);
+        g.strokeStyle = colors.dark ? '#d9d4cc' : '#4a4038';
+        g.lineWidth = 1.8;
+        g.lineCap = 'round';
+        for (const b of flock) {
+          b.x += b.v * dt;
+          b.y += b.rise * dt;
+          const flap = Math.sin(t * 9 + b.phase);
+          const s = b.size;
+          g.globalAlpha = a * 0.55;
+          g.beginPath();
+          g.moveTo(b.x - s, b.y - flap * s * 0.6);
+          g.quadraticCurveTo(b.x - s * 0.45, b.y - s * 0.2 - flap * s * 0.3, b.x, b.y);
+          g.quadraticCurveTo(b.x + s * 0.45, b.y - s * 0.2 - flap * s * 0.3, b.x + s, b.y - flap * s * 0.6);
+          g.stroke();
+        }
+      },
+    };
+  },
+
+  cafe() {
+    // Warm out-of-focus lights and wisps of steam rising from cups.
+    let bokeh = [];
+    let wisps = [];
+    const warm = ['255,190,120', '255,160,90', '255,220,160', '240,140,110'];
+    const makeWisp = (anywhere) => ({
+      x: rand(0.05, 0.95) * W,
+      y: anywhere ? rand(0.3, 1) * H : H + 20,
+      v: rand(18, 34),
+      amp: rand(10, 24),
+      len: rand(60, 120),
+      phase: Math.random() * 6.28,
+    });
+    return {
+      init() {
+        bokeh = Array.from({ length: Math.round(W / 70) + 6 }, () => ({
+          x: Math.random() * W,
+          y: rand(0.05, 0.6) * H,
+          r: rand(14, 46),
+          c: warm[Math.floor(Math.random() * warm.length)],
+          phase: Math.random() * 6.28,
+          drift: rand(-4, 4),
+        }));
+        wisps = Array.from({ length: 6 }, () => makeWisp(true));
+      },
+      draw(dt, a, t) {
+        for (const b of bokeh) {
+          b.x += b.drift * dt;
+          if (b.x < -60) b.x = W + 60;
+          if (b.x > W + 60) b.x = -60;
+          const glow = 0.5 + 0.5 * Math.sin(t * 0.6 + b.phase);
+          const grd = g.createRadialGradient(b.x, b.y, 0, b.x, b.y, b.r);
+          grd.addColorStop(0, `rgba(${b.c},${(colors.dark ? 0.2 : 0.16) * (0.6 + 0.4 * glow)})`);
+          grd.addColorStop(0.7, `rgba(${b.c},${(colors.dark ? 0.12 : 0.1) * (0.6 + 0.4 * glow)})`);
+          grd.addColorStop(1, `rgba(${b.c},0)`);
+          g.globalAlpha = a;
+          g.fillStyle = grd;
+          g.beginPath();
+          g.arc(b.x, b.y, b.r, 0, Math.PI * 2);
+          g.fill();
+        }
+        g.strokeStyle = colors.dark ? '#f2e8e0' : '#ffffff';
+        g.lineWidth = 3;
+        g.lineCap = 'round';
+        for (const w of wisps) {
+          w.y -= w.v * dt;
+          if (w.y < H * 0.25) Object.assign(w, makeWisp(false));
+          const fade = Math.min(1, (H - w.y) / 120) * Math.min(1, (w.y - H * 0.25) / (H * 0.25));
+          g.globalAlpha = a * fade * (colors.dark ? 0.12 : 0.35);
+          g.beginPath();
+          for (let i = 0; i <= 12; i++) {
+            const k = i / 12;
+            const yy = w.y + k * w.len;
+            const xx = w.x + Math.sin(t * 1.2 + w.phase + k * 4) * w.amp * (1 - k * 0.5);
+            if (i === 0) g.moveTo(xx, yy);
+            else g.lineTo(xx, yy);
+          }
+          g.stroke();
         }
       },
     };

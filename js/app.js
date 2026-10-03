@@ -1,11 +1,11 @@
-import * as audio from './audio.js?v=46';
-import * as fx from './fx.js?v=46';
-import { toast } from './toast.js?v=46';
-import * as effects from './effects.js?v=46';
-import * as scenery from './scenery.js?v=46';
-import * as pip from './pip.js?v=46';
-import { shareCard, makeCardFile } from './share.js?v=46';
-import * as photo from './photo.js?v=46';
+import * as audio from './audio.js?v=47';
+import * as fx from './fx.js?v=47';
+import { toast } from './toast.js?v=47';
+import * as effects from './effects.js?v=47';
+import * as scenery from './scenery.js?v=47';
+import * as pip from './pip.js?v=47';
+import { shareCard, makeCardFile } from './share.js?v=47';
+import * as photo from './photo.js?v=47';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -2218,6 +2218,8 @@ const SOUND_INFO = {
   cat: { icon: '🐈', name: 'Cat purring' },
   study: { icon: '📚', name: 'Study hall' },
   train: { icon: '🚆', name: 'Train ride' },
+  birds: { icon: '🐦', name: 'Birdsong' },
+  cafe: { icon: '☕', name: 'Café' },
 };
 const ROOM_R = 4; // metres from you to the edge of the room
 const ROOM_SPAN = 44; // % of the pad from its centre to that edge
@@ -2433,7 +2435,7 @@ const BUILT_IN_MIXES = [
   { id: 'cabin', icon: '🏡', name: 'Cozy cabin', mix: { rain: { vol: 0.7, x: -2.2, z: -1.6 }, fire: { vol: 0.85, x: 1.8, z: -1.4 }, clock: { vol: 0.45, x: -3.2, z: 0.4 } } },
   { id: 'seaside', icon: '🏖️', name: 'Seaside', mix: { waves: { vol: 0.9, x: 0, z: -3.2 }, brown: { vol: 0.25, x: 0, z: 2.4 } } },
   { id: 'campfire', icon: '🏕️', name: 'Campfire night', mix: { night: { vol: 0.8, x: 0, z: 1.5 }, fire: { vol: 0.9, x: 0, z: -1.6 } } },
-  { id: 'cafe', icon: '☕', name: 'Rainy café', mix: { lofi: { vol: 0.7, x: 0, z: -2 }, rain: { vol: 0.55, x: -2, z: 1.8 } } },
+  { id: 'cafe', icon: '☕', name: 'Rainy café', mix: { lofi: { vol: 0.6, x: 0, z: -2 }, rain: { vol: 0.55, x: -2, z: 1.8 }, cafe: { vol: 0.45, x: 1.4, z: 1.2 } } },
   { id: 'deep', icon: '🧠', name: 'Deep focus', mix: { brown: { vol: 0.6, x: 0, z: 2.4 }, binaural: { vol: 0.4, x: 0, z: 0 } } },
   { id: 'stars', icon: '🌌', name: 'Starry beats', mix: { lofi: { vol: 0.6, x: 0, z: -2 }, night: { vol: 0.55, x: -2.2, z: 2 } } },
   { id: 'forest', icon: '🌲', name: 'Forest stream', mix: { stream: { vol: 0.8, x: -1.4, z: -2.6 }, wind: { vol: 0.45, x: 2.4, z: 2.2 }, night: { vol: 0.3, x: -2.4, z: 1.8 } } },
@@ -2443,6 +2445,8 @@ const BUILT_IN_MIXES = [
   { id: 'storm', icon: '⛈️', name: 'Stormy study', mix: { rain: { vol: 0.9, x: 0, z: -1 }, wind: { vol: 0.6, x: -2.4, z: 1.6 }, lofi: { vol: 0.45, x: 0, z: -2 } } },
   { id: 'library', icon: '📚', name: 'Library', mix: { study: { vol: 0.8, x: -1.2, z: -1 }, rain: { vol: 0.35, x: 2.6, z: -1.8 }, clock: { vol: 0.3, x: -3.2, z: 0.4 } } },
   { id: 'nighttrain', icon: '🚆', name: 'Night train', mix: { train: { vol: 0.85, x: 0, z: 1.5 }, rain: { vol: 0.45, x: -2.4, z: -0.4 } } },
+  { id: 'morning', icon: '🌅', name: 'Morning walk', mix: { birds: { vol: 0.8, x: 1.6, z: -3 }, stream: { vol: 0.45, x: -1.4, z: -3.2 }, wind: { vol: 0.3, x: 2.4, z: 2.2 } } },
+  { id: 'coffee', icon: '🥐', name: 'Coffee shop', mix: { cafe: { vol: 0.8, x: 1.4, z: 1.2 }, lofi: { vol: 0.35, x: 0, z: -2 } } },
 ];
 sound.presets = (Array.isArray(sound.presets) ? sound.presets : [])
   .filter((p) => p && typeof p.name === 'string' && p.mix && typeof p.mix === 'object')
@@ -3114,6 +3118,7 @@ statTabs.forEach((t, i) => {
 
 // What's new: the newest first. Bump `id` when adding an entry.
 const CHANGES = [
+  { id: 10, icon: '🐦', text: 'New sounds: Birdsong (a morning forest all around you) and Café (chatter, clinking cups and the espresso machine), with new mixes Morning walk and Coffee shop.' },
   { id: 9, icon: '🏷️', text: 'Add #tags to task names (like "Essay #school") to see focus by tag in Stats. Tap a day in the heatmap to see its sessions.' },
   { id: 8, icon: '🚆', text: 'Two new 3D sounds: a Study hall full of quiet typing and page turns, and a Train ride with hills rolling past. Ambient sound now dips while the chime plays.' },
   { id: 7, icon: '🌊', text: 'Flowtime: tap the length under the timer and pick ∞ to count up, then take a break you\'ve earned when you\'re ready.' },

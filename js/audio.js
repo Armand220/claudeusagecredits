@@ -18,6 +18,7 @@ let tracked = null;
 let analyser = null;
 let meterBuf = null;
 let reverb = null;
+let ambientReverb = null;
 
 export const supported = Boolean(AC);
 
@@ -615,6 +616,8 @@ export function fanfare() {
 // position in the room ("anchor") that you can drag around.
 //
 // A scene builds its graph through a small context:
+//   S.send(node, amount) — some of a sound to the room reverb; the echo goes
+//                  through the ambient volume, like the dry sound
 //   S.P(x, y, z) — a lasting sound source, placed relative to the anchor;
 //                  it follows the anchor when the layer is moved
 //   S.E(x, y, z) — a one-off source (a raindrop, a crackle) at the current anchor
@@ -798,7 +801,7 @@ const SCENES = {
     function owl(t) {
       const [x, z] = aroundListener(10, 16);
       const p = S.E(x, 3, z, 0.25);
-      send(p, 0.5);
+      S.send(p, 0.5);
       [[0, 0.42], [0.55, 0.22], [0.9, 0.75]].forEach(([d, len]) => {
         const s0 = t + d;
         const o = osc('sine', 0);
@@ -849,7 +852,7 @@ const SCENES = {
   clock(S) {
     // An old clock on the wall, in a quiet room.
     const wall = S.P(0, 0.9, 0, 0.5);
-    send(wall, 0.6);
+    S.send(wall, 0.6);
     noiseSource('brown').connect(filter('lowpass', 180)).connect(gain(0.06, S.out));
     let next = Math.ceil(ctx.currentTime + 0.1);
     let tock = false;
@@ -909,8 +912,8 @@ const SCENES = {
     const kitP = S.P(0, -0.3, -0.3, 0.5, bus);
     const hatP = S.P(0.7, 0.4, -0.2, 0.6, bus);
     const bellP = S.P(1.2, 0.6, 0.1, 0.6, bus);
-    send(keysP, 0.15);
-    send(bellP, 0.3);
+    S.send(keysP, 0.15);
+    S.send(bellP, 0.3);
     noiseSource('pink').connect(filter('highpass', 2800)).connect(gain(0.018, S.out));
 
     const mtof = (m) => 440 * 2 ** ((m - 69) / 12);
@@ -1157,7 +1160,7 @@ const SCENES = {
       f,
       p: S.P(-0.45 + i * 0.18, 1.6 + Math.sin(i) * 0.08, Math.cos(i * 1.3) * 0.15, 0.6),
     }));
-    tubes.forEach((t) => send(t.p, 0.35));
+    tubes.forEach((t) => S.send(t.p, 0.35));
     let next = ctx.currentTime + 0.4;
 
     function strike(tube, t, vel) {
@@ -1235,7 +1238,7 @@ const SCENES = {
       { x: -0.6, z: 3.2, kind: 'writer' },
     ].map((d) => {
       const p = S.P(d.x, -0.3, d.z, 0.8, lift);
-      send(p, 0.3);
+      S.send(p, 0.3);
       return { ...d, p, next: ctx.currentTime + rand(0.2, 4) };
     });
     let walkAt = ctx.currentTime + rand(12, 30);
@@ -1317,7 +1320,7 @@ const SCENES = {
       for (let i = 0; i < steps; i++) {
         const at = t + i * pace;
         const p = S.E(dir * (-5 + (10 * i) / (steps - 1)), -1.4, z, 0.8, lift);
-        send(p, 0.4);
+        S.send(p, 0.4);
         const g = gain(0.0001, p);
         envelope(g, at, 0.002, rand(0.35, 0.5), 0.09);
         noiseSource('brown', at, 0.15).connect(filter('lowpass', 500)).connect(g);
@@ -1398,7 +1401,7 @@ const SCENES = {
 
     function horn(t) {
       const p = S.E(-6, 2, -30, 0.2);
-      send(p, 0.6);
+      S.send(p, 0.6);
       for (const [off, len] of [[0, 1.4], [1.75, 0.7]]) {
         for (const f of [311.13, 369.99, 466.16]) {
           const at = t + off;
@@ -1469,6 +1472,274 @@ const SCENES = {
     };
   },
 
+  birds(S) {
+    // A morning forest: birds singing from the trees all around you, each
+    // with its own song and perch, leaves rustling, and a woodpecker
+    // drumming somewhere far off.
+    const leaves = gain(0.07, S.out);
+    leaves.gain.setValueAtTime(0.07, ctx.currentTime);
+    const song = gain(1.5, S.out);
+    noiseSource('pink').connect(filter('highpass', 900)).connect(filter('lowpass', 6000)).connect(leaves);
+    let leavesNext = ctx.currentTime;
+
+    const SONGS = ['warble', 'feebee', 'dove', 'trill', 'chirps', 'warble', 'feebee'];
+    const birds = SONGS.map((kind, i) => {
+      const a = (i / SONGS.length) * Math.PI * 2 + rand(-0.3, 0.3);
+      const r = kind === 'dove' ? rand(9, 14) : rand(4, 10);
+      const p = S.P(Math.sin(a) * r, rand(2, 6), -Math.cos(a) * r, 0.5, song);
+      S.send(p, 0.15);
+      return { song: kind, p, base: rand(0.85, 1.15), next: ctx.currentTime + rand(0.3, 6) };
+    });
+    let peckAt = ctx.currentTime + rand(20, 50);
+
+    function note(p, t, dur, f0, f1, peak, attack = 0.01) {
+      const o = osc('sine', f0);
+      o.frequency.setValueAtTime(f0, t);
+      o.frequency.exponentialRampToValueAtTime(f1, t + dur);
+      const g = gain(0, p);
+      g.gain.setValueAtTime(0, t);
+      g.gain.linearRampToValueAtTime(peak, t + attack);
+      g.gain.setValueAtTime(peak, t + dur * 0.6);
+      g.gain.linearRampToValueAtTime(0, t + dur);
+      o.connect(g);
+      o.start(t);
+      o.stop(t + dur + 0.02);
+    }
+
+    const SING = {
+      // A quick, tumbling run of notes, like a robin.
+      warble(b, t) {
+        const n = 6 + Math.floor(Math.random() * 7);
+        for (let i = 0; i < n; i++) {
+          const dur = rand(0.05, 0.12);
+          const f = rand(2200, 4200) * b.base;
+          note(b.p, t, dur, f, f * rand(0.75, 1.3), rand(0.08, 0.14), 0.008);
+          t += dur + rand(0.02, 0.06);
+        }
+        return t + rand(3, 8);
+      },
+      // Two clear whistles, high then lower: "fee-bee".
+      feebee(b, t) {
+        const f = rand(3800, 4100) * b.base;
+        note(b.p, t, 0.35, f, f * 0.97, 0.12, 0.03);
+        note(b.p, t + 0.43, 0.45, f * 0.86, f * 0.82, 0.11, 0.03);
+        return t + 0.9 + rand(5, 11);
+      },
+      // A soft, low "coo-OO-oo-oo" from further away.
+      dove(b, t) {
+        [[0.45, 480, 560, 0.18], [0.8, 560, 520, 0.24], [0.4, 500, 490, 0.16], [0.4, 500, 485, 0.14]].forEach(([dur, f0, f1, peak]) => {
+          note(b.p, t, dur, f0 * b.base, f1 * b.base, peak, 0.09);
+          t += dur + 0.12;
+        });
+        return t + rand(6, 14);
+      },
+      // A fast trill that swells and fades, like a wren.
+      trill(b, t) {
+        const dur = rand(1.1, 1.9);
+        const rate = rand(18, 24);
+        const f = rand(4200, 5400) * b.base;
+        const n = Math.floor(dur * rate);
+        for (let i = 0; i < n; i++) {
+          const k = Math.sin((i / n) * Math.PI);
+          note(b.p, t + i / rate, 0.028, f, f * 0.88, 0.03 + 0.09 * k, 0.004);
+        }
+        return t + dur + rand(4, 10);
+      },
+      // A few bright chips.
+      chirps(b, t) {
+        const n = 2 + Math.floor(Math.random() * 4);
+        for (let i = 0; i < n; i++) {
+          const f = rand(3000, 4500) * b.base;
+          note(b.p, t, 0.045, f, f * 0.7, 0.1, 0.004);
+          t += rand(0.12, 0.3);
+        }
+        return t + rand(2, 6);
+      },
+    };
+
+    function drum(t) {
+      const [x, z] = aroundListener(14, 22);
+      const p = S.E(x, rand(3, 6), z, 0.4);
+      S.send(p, 0.3);
+      const hits = 12 + Math.floor(Math.random() * 9);
+      let at = t;
+      for (let i = 0; i < hits; i++) {
+        const g = gain(0.0001, p);
+        envelope(g, at, 0.001, 0.4 * (1 - i / hits / 2), 0.03);
+        noiseSource('white', at, 0.04).connect(filter('bandpass', rand(800, 1000), 4)).connect(g);
+        at += 1 / rand(15, 18) + i * 0.0015;
+      }
+    }
+
+    return (until, now = 0) => {
+      for (const b of birds) {
+        if (b.next < now) b.next = now + rand(0, 3);
+        while (b.next < until) b.next = SING[b.song](b, b.next);
+      }
+      if (peckAt < now) peckAt = now + rand(15, 40);
+      if (peckAt < until) {
+        drum(peckAt);
+        peckAt += rand(40, 110);
+      }
+      if (leavesNext < now) leavesNext = now;
+      while (leavesNext < until) {
+        const d = rand(2, 5);
+        leaves.gain.linearRampToValueAtTime(rand(0.03, 0.12), leavesNext + d);
+        leavesNext += d;
+      }
+    };
+  },
+
+  cafe(S) {
+    // A café: people talking at the tables around you (too far away to make
+    // out words), cups and spoons clinking, the espresso machine hissing at
+    // the counter, and the bell over the door.
+    noiseSource('pink').connect(filter('lowpass', 500)).connect(gain(0.08, S.out));
+    // The narrow vowel filters keep only a little of each voice: lift it back.
+    const talk = gain(4.5, S.out);
+
+    // Each voice is a buzzing tone shaped by two moving "vowel" filters.
+    const VOWELS = [[300, 870], [400, 2000], [600, 1100], [700, 1250], [350, 2200], [500, 1500]];
+    const voices = Array.from({ length: 5 }, (_, i) => {
+      const a = (i / 5) * Math.PI * 2 + rand(-0.4, 0.4);
+      const r = rand(2.8, 6);
+      const p = S.P(Math.sin(a) * r, rand(-0.2, 0.3), -Math.cos(a) * r, 0.7, talk);
+      S.send(p, 0.45);
+      const f0 = Math.random() < 0.5 ? rand(95, 135) : rand(170, 240);
+      const src = track(osc('sawtooth', f0));
+      const amp = gain(0, p);
+      const lp = filter('lowpass', 2400);
+      const f1 = filter('bandpass', 500, 6);
+      const f2 = filter('bandpass', 1500, 8);
+      src.connect(f1).connect(lp);
+      src.connect(f2).connect(gain(0.6, lp));
+      lp.connect(amp);
+      src.start();
+      return { f0, src, amp, f1, f2, next: ctx.currentTime + rand(0, 3) };
+    });
+
+    function phrase(v, t) {
+      const syllables = 3 + Math.floor(Math.random() * 10);
+      for (let i = 0; i < syllables; i++) {
+        const dur = rand(0.12, 0.26);
+        const [a, b] = VOWELS[Math.floor(Math.random() * VOWELS.length)];
+        v.f1.frequency.setTargetAtTime(a, t, 0.03);
+        v.f2.frequency.setTargetAtTime(b, t, 0.03);
+        v.src.frequency.setTargetAtTime(v.f0 * rand(0.9, 1.15), t, 0.05);
+        const peak = rand(0.05, 0.11);
+        v.amp.gain.setTargetAtTime(peak, t, 0.025);
+        v.amp.gain.setTargetAtTime(peak * 0.25, t + dur * 0.7, 0.03);
+        t += dur;
+      }
+      v.amp.gain.setTargetAtTime(0, t, 0.05);
+      return t + (Math.random() < 0.3 ? rand(1.5, 4) : rand(0.25, 0.9));
+    }
+
+    function clink(t) {
+      const [x, z] = aroundListener(1.5, 5);
+      const p = S.E(x, -0.3, z, 0.7);
+      S.send(p, 0.3);
+      const f = rand(1800, 3200);
+      const strikes = Math.random() < 0.35 ? 2 : 1;
+      for (let s = 0; s < strikes; s++) {
+        const at = t + s * rand(0.05, 0.09);
+        [[1, 0.1, 0.35], [2.32, 0.06, 0.2], [4.25, 0.03, 0.12], [6.6, 0.015, 0.06]].forEach(([r, amp, dur]) => {
+          const o = osc('sine', f * r);
+          const g = gain(0.0001, p);
+          envelope(g, at, 0.001, amp * (s ? 0.6 : 1), dur);
+          o.connect(g);
+          o.start(at);
+          o.stop(at + dur + 0.05);
+        });
+      }
+    }
+
+    function stir(t) {
+      const [x, z] = aroundListener(1.2, 3);
+      const p = S.E(x, -0.3, z, 0.8);
+      const n = 6 + Math.floor(Math.random() * 6);
+      for (let i = 0; i < n; i++) {
+        const at = t + i * rand(0.17, 0.22);
+        const o = osc('sine', rand(4200, 5600));
+        const g = gain(0.0001, p);
+        envelope(g, at, 0.001, 0.03, 0.04);
+        o.connect(g);
+        o.start(at);
+        o.stop(at + 0.06);
+      }
+    }
+
+    function steam(t) {
+      // The milk steamer at the counter: a hiss that gurgles and rises.
+      const p = S.E(-3, 0.4, -4, 0.5);
+      S.send(p, 0.4);
+      const dur = rand(3, 5.5);
+      const bp = filter('bandpass', 2500, 0.8);
+      bp.frequency.setValueAtTime(2500, t);
+      bp.frequency.linearRampToValueAtTime(5200, t + dur);
+      const g = gain(0, p);
+      g.gain.setValueAtTime(0, t);
+      g.gain.linearRampToValueAtTime(0.22, t + 0.25);
+      g.gain.linearRampToValueAtTime(0.16, t + dur * 0.6);
+      g.gain.linearRampToValueAtTime(0.26, t + dur - 0.3);
+      g.gain.linearRampToValueAtTime(0, t + dur);
+      const gurgle = gain(0.7, g);
+      const lfo = osc('sine', rand(7, 11));
+      lfo.connect(gain(0.3)).connect(gurgle.gain);
+      lfo.start(t);
+      lfo.stop(t + dur + 0.1);
+      noiseSource('white', t, dur).connect(bp).connect(gurgle);
+    }
+
+    function doorbell(t) {
+      const p = S.E(4, 1.8, 3, 0.5);
+      S.send(p, 0.5);
+      [0, 0.18].forEach((off, i) => {
+        [[1318.5, 0.08, 1.4], [1760, 0.05, 1.1], [3520, 0.015, 0.4]].forEach(([f, amp, dur]) => {
+          const at = t + off;
+          const o = osc('sine', f * (i ? 1.002 : 1));
+          const g = gain(0.0001, p);
+          envelope(g, at, 0.002, amp, dur);
+          o.connect(g);
+          o.start(at);
+          o.stop(at + dur + 0.05);
+        });
+      });
+    }
+
+    let clinkAt = ctx.currentTime + rand(0.5, 2);
+    let stirAt = ctx.currentTime + rand(5, 15);
+    let steamAt = ctx.currentTime + rand(15, 40);
+    let doorAt = ctx.currentTime + rand(30, 80);
+
+    return (until, now = 0) => {
+      for (const v of voices) {
+        if (v.next < now) v.next = now + rand(0, 1);
+        while (v.next < until) v.next = phrase(v, v.next);
+      }
+      if (clinkAt < now) clinkAt = now + rand(0, 2);
+      while (clinkAt < until) {
+        clink(clinkAt);
+        clinkAt += Math.random() < 0.3 ? rand(0.3, 1) : rand(2, 7);
+      }
+      if (stirAt < now) stirAt = now + rand(5, 15);
+      if (stirAt < until) {
+        stir(stirAt);
+        stirAt += rand(15, 40);
+      }
+      if (steamAt < now) steamAt = now + rand(10, 30);
+      if (steamAt < until) {
+        steam(steamAt);
+        steamAt += rand(40, 90);
+      }
+      if (doorAt < now) doorAt = now + rand(20, 60);
+      if (doorAt < until) {
+        doorbell(doorAt);
+        doorAt += rand(60, 180);
+      }
+    };
+  },
+
   brown(S) {
     for (const x of [-1.6, 1.6]) {
       noiseSource('brown').connect(filter('lowpass', 900)).connect(gain(0.6, S.P(x, 0, -0.3)));
@@ -1521,6 +1792,8 @@ const DEFAULT_ANCHORS = {
   cat: [0.8, -1.4],
   study: [-1.2, -1],
   train: [0, 1.5],
+  birds: [1.6, -3],
+  cafe: [1.4, 1.2],
 };
 export const defaultAnchor = (kind) => DEFAULT_ANCHORS[kind] || [0, 0];
 // Sounds keep their full volume up to this distance, then fade gently.
@@ -1552,13 +1825,24 @@ export function setLayer(kind, on, opts = {}) {
   const [dx, dz] = defaultAnchor(kind);
   const layer = { ax: opts.x ?? dx, az: opts.z ?? dz, vol: opts.volume ?? 0.8, panners: [], nodes: [] };
   const t = c.currentTime;
-  layer.out = c.createGain();
-  layer.out.gain.setValueAtTime(0.0001, t);
-  layer.out.gain.exponentialRampToValueAtTime(Math.max(0.0002, layer.vol), t + 1.4);
-  layer.out.connect(ambientBus);
+  // Ambient echoes get their own reverb, after the ambient volume and gate.
+  if (!ambientReverb) {
+    ambientReverb = c.createConvolver();
+    ambientReverb.buffer = reverb.buffer;
+    ambientReverb.connect(gain(0.45, ambientBus));
+  }
+  layer.out = gain(0, ambientBus); // the dry sound
+  layer.wet = gain(0, ambientReverb); // what goes to the reverb
+  for (const g of [layer.out.gain, layer.wet.gain]) {
+    g.setValueAtTime(0.0001, t);
+    g.exponentialRampToValueAtTime(Math.max(0.0002, layer.vol), t + 1.4);
+  }
 
   const S = {
     out: layer.out,
+    send(node, amount) {
+      node.connect(gain(amount, layer.wet));
+    },
     ax: () => layer.ax,
     az: () => layer.az,
     P(x, y, z, rolloff = 0.6, dest = layer.out) {
@@ -1589,9 +1873,11 @@ export function setLayerVolume(kind, v) {
   if (!l) return;
   l.vol = Math.max(0, Math.min(1, v));
   const t = ctx.currentTime;
-  l.out.gain.cancelScheduledValues(t);
-  l.out.gain.setValueAtTime(l.out.gain.value, t);
-  l.out.gain.linearRampToValueAtTime(Math.max(0.0001, l.vol), t + 0.08);
+  for (const g of [l.out.gain, l.wet.gain]) {
+    g.cancelScheduledValues(t);
+    g.setValueAtTime(g.value, t);
+    g.linearRampToValueAtTime(Math.max(0.0001, l.vol), t + 0.08);
+  }
 }
 
 /** Move a layer so its sound comes from (x, z) metres around you. */
@@ -1622,12 +1908,16 @@ function stopLayer(kind) {
     setTimeout(() => { if (!layers.size) setAudioSession(false); }, 800);
   }
   const t = ctx.currentTime;
-  l.out.gain.cancelScheduledValues(t);
-  l.out.gain.setValueAtTime(l.out.gain.value, t);
-  l.out.gain.linearRampToValueAtTime(0, t + 0.6);
+  for (const g of [l.out.gain, l.wet.gain]) {
+    g.cancelScheduledValues(t);
+    g.setValueAtTime(g.value, t);
+    g.linearRampToValueAtTime(0, t + 0.6);
+  }
   setTimeout(() => {
     l.nodes.forEach((n) => { try { n.stop(); } catch { /* already stopped */ } });
     l.out.disconnect();
+    // Let the echo ring out before cutting it.
+    setTimeout(() => l.wet.disconnect(), 2500);
   }, 750);
 }
 
