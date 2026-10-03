@@ -1,11 +1,11 @@
-import * as audio from './audio.js?v=57';
-import * as fx from './fx.js?v=57';
-import { toast } from './toast.js?v=57';
-import * as effects from './effects.js?v=57';
-import * as scenery from './scenery.js?v=57';
-import * as pip from './pip.js?v=57';
-import { shareCard, makeCardFile } from './share.js?v=57';
-import * as photo from './photo.js?v=57';
+import * as audio from './audio.js?v=58';
+import * as fx from './fx.js?v=58';
+import { toast } from './toast.js?v=58';
+import * as effects from './effects.js?v=58';
+import * as scenery from './scenery.js?v=58';
+import * as pip from './pip.js?v=58';
+import { shareCard, makeCardFile } from './share.js?v=58';
+import * as photo from './photo.js?v=58';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -2761,6 +2761,7 @@ el.mixes.addEventListener(
 
 const SOUND_INFO = {
   rain: { icon: '🌧️', name: 'Rain' },
+  storm: { icon: '⛈️', name: 'Thunderstorm' },
   waves: { icon: '🌊', name: 'Waves' },
   fire: { icon: '🔥', name: 'Fireplace' },
   night: { icon: '🦗', name: 'Night' },
@@ -2999,7 +3000,7 @@ const BUILT_IN_MIXES = [
   { id: 'autumn', icon: '🍂', name: 'Autumn walk', mix: { wind: { vol: 0.7, x: 0, z: -2.4, orbit: true }, stream: { vol: 0.5, x: 2.2, z: -2 } } },
   { id: 'catnap', icon: '🐈', name: 'Cat nap', mix: { cat: { vol: 0.75, x: 0.8, z: -1.4 }, rain: { vol: 0.5, x: -2.2, z: -1.6 }, fire: { vol: 0.55, x: 2, z: -1.4 } } },
   { id: 'porch', icon: '🎐', name: 'Breezy porch', mix: { chimes: { vol: 0.7, x: -2.8, z: -2.6 }, wind: { vol: 0.45, x: 2.4, z: 2.2 }, night: { vol: 0.35, x: 0, z: 2.4 } } },
-  { id: 'storm', icon: '⛈️', name: 'Stormy study', mix: { rain: { vol: 0.9, x: 0, z: -1 }, wind: { vol: 0.6, x: -2.4, z: 1.6 }, lofi: { vol: 0.45, x: 0, z: -2 } } },
+  { id: 'storm', icon: '⛈️', name: 'Stormy study', mix: { storm: { vol: 0.8, x: 0.2, z: -0.9 }, wind: { vol: 0.45, x: -2.4, z: 1.6 }, lofi: { vol: 0.45, x: 0, z: -2 } } },
   { id: 'library', icon: '📚', name: 'Library', mix: { study: { vol: 0.8, x: -1.2, z: -1 }, rain: { vol: 0.35, x: 2.6, z: -1.8 }, clock: { vol: 0.3, x: -3.2, z: 0.4 } } },
   { id: 'nighttrain', icon: '🚆', name: 'Night train', mix: { train: { vol: 0.85, x: 0, z: 1.5 }, rain: { vol: 0.45, x: -2.4, z: -0.4 } } },
   { id: 'morning', icon: '🌅', name: 'Morning walk', mix: { birds: { vol: 0.8, x: 1.6, z: -3 }, stream: { vol: 0.45, x: -1.4, z: -3.2 }, wind: { vol: 0.3, x: 2.4, z: 2.2 } } },
@@ -3778,6 +3779,7 @@ statTabs.forEach((t, i) => {
 
 // What's new: the newest first. Bump `id` when adding an entry.
 const CHANGES = [
+  { id: 19, icon: '⛈️', text: 'New sound: Thunderstorm. Each lightning flash lights the side of the screen its thunder then rolls in from.' },
   { id: 18, icon: '🔁', text: 'Tasks can repeat every day: edit a task and tap 🔁, and it comes back unticked each morning.' },
   { id: 17, icon: '🌅', text: 'The background now follows the time of day, Stats shows your personal bests, and the shared image includes today\'s intention.' },
   { id: 16, icon: '🔔', text: 'Optional soft bells halfway through a session and with a minute to go (Settings > Sound). Media keys and your lock screen can now start, pause and skip.' },

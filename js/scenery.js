@@ -4,8 +4,8 @@
 // sunbeams and birds in a forest, warm café lights and rising steam.
 // One canvas behind the page; it only animates while a scene is showing.
 
-import * as audio from './audio.js?v=57';
-import { motionOK } from './fx.js?v=57';
+import * as audio from './audio.js?v=58';
+import { motionOK } from './fx.js?v=58';
 
 const canvas = document.createElement('canvas');
 canvas.className = 'scenery';
@@ -105,6 +105,63 @@ const FACTORIES = {
           d.x += d.v * dt * wind;
           if (d.y > H + 30) Object.assign(d, make(false));
         }
+      },
+    };
+  },
+
+  storm() {
+    // Rain, a darker sky, and lightning: a soft flash from the side the
+    // thunder will come from (one gentle pulse, never a strobe), with a bolt
+    // for close strikes.
+    const rain = FACTORIES.rain();
+    let flashes = [];
+    const bolt = (x) => {
+      const pts = [[x, -10]];
+      let px = x;
+      for (let y = 0; y < H * 0.5; y += rand(18, 40)) {
+        px += rand(-26, 26);
+        pts.push([px, y]);
+      }
+      return pts;
+    };
+    return {
+      init() {
+        rain.init();
+      },
+      thunder({ delay, x, power }) {
+        flashes.push({ at: performance.now() / 1000 + delay, x: W * x, power, bolt: power > 0.8 ? bolt(W * x) : null });
+      },
+      draw(dt, a) {
+        g.globalAlpha = a * (colors.dark ? 0.22 : 0.1);
+        g.fillStyle = '#0b1020';
+        g.fillRect(0, 0, W, H);
+        rain.draw(dt, a);
+        const now = performance.now() / 1000;
+        for (const f of flashes) {
+          const age = now - f.at;
+          if (age < 0) continue;
+          if (age > 1) {
+            f.done = true;
+            continue;
+          }
+          const k = age < 0.07 ? age / 0.07 : Math.max(0, 1 - (age - 0.07) / 0.9);
+          const grd = g.createRadialGradient(f.x, -H * 0.15, 0, f.x, -H * 0.15, Math.max(W, H));
+          grd.addColorStop(0, `rgba(225,232,255,${0.28 * f.power * k})`);
+          grd.addColorStop(1, 'rgba(225,232,255,0)');
+          g.globalAlpha = a;
+          g.fillStyle = grd;
+          g.fillRect(0, 0, W, H);
+          if (f.bolt && age < 0.35) {
+            g.globalAlpha = a * 0.55 * (1 - age / 0.35);
+            g.strokeStyle = '#f4f6ff';
+            g.lineWidth = 2;
+            g.lineJoin = 'round';
+            g.beginPath();
+            f.bolt.forEach(([bx, by], i) => (i ? g.lineTo(bx, by) : g.moveTo(bx, by)));
+            g.stroke();
+          }
+        }
+        flashes = flashes.filter((f) => !f.done);
       },
     };
   },
@@ -709,6 +766,12 @@ export function setEnabled(on) {
 export function refresh() {
   readColors();
 }
+
+// The storm's sound says when and where lightning strikes.
+window.addEventListener('tempo:thunder', (e) => {
+  const layer = layers.get('storm');
+  if (layer && active.has('storm') && layer.thunder) layer.thunder(e.detail);
+});
 
 export function mount() {
   const aurora = document.querySelector('.aurora');

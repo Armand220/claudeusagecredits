@@ -705,6 +705,82 @@ const SCENES = {
     };
   },
 
+  storm(S) {
+    // A thunderstorm: heavy rain all around, the wind gusting, and thunder
+    // from every side. Each strike tells the screen first (light travels
+    // faster), so the flash and the thunder come from the same direction.
+    for (const x of [-2.4, 2.4]) {
+      noiseSource('pink').connect(filter('highpass', 350)).connect(filter('lowpass', 7000)).connect(gain(0.5, S.P(x, 1.2, -0.4)));
+    }
+    for (const z of [-2.4, 2.4]) {
+      noiseSource('pink').connect(filter('bandpass', 1800, 0.6)).connect(gain(0.3, S.P(0, 1, z)));
+    }
+    noiseSource('brown').connect(filter('lowpass', 300)).connect(gain(0.38, S.P(0, -0.6, -0.3, 0)));
+    const now = ctx.currentTime;
+    const gust = gain(0.25, S.P(2, 1.5, 1.5, 0.3));
+    gust.gain.setValueAtTime(0.25, now);
+    noiseSource('pink').connect(filter('bandpass', 500, 0.7)).connect(gust);
+    let gustNext = now;
+    let next = now + 0.05;
+    let strikeAt = now + rand(4, 9);
+
+    function drop(t) {
+      const [x, z] = aroundListener(1, 6);
+      const g = gain(0.0001, S.E(x, rand(-1.5, 2.5), z, 1));
+      noiseSource('white', t, 0.04).connect(filter('bandpass', rand(1800, 6500), 1.4)).connect(g);
+      envelope(g, t, 0.001, rand(0.1, 0.4), rand(0.008, 0.03));
+    }
+
+    function strike(t) {
+      const az = Math.random() * Math.PI * 2;
+      const near = Math.random() < 0.35;
+      const dist = near ? rand(4, 7) : rand(10, 16);
+      const x = Math.sin(az) * dist;
+      const z = -Math.cos(az) * dist;
+      const boom = t + (near ? rand(0.15, 0.5) : rand(1.2, 2.6)); // sound after light
+      window.dispatchEvent(new CustomEvent('tempo:thunder', {
+        detail: { delay: Math.max(0, t - ctx.currentTime), x: 0.5 + 0.45 * Math.sin(az), power: near ? 1 : 0.55 },
+      }));
+      const p = S.E(x, rand(3, 6), z, 0.2);
+      S.send(p, 0.5);
+      if (near) {
+        // The sharp crack of a close strike.
+        const g = gain(0.0001, p);
+        envelope(g, boom, 0.002, 1.1, 0.35);
+        noiseSource('white', boom, 0.5).connect(filter('highpass', 1200)).connect(g);
+      }
+      const dur = near ? rand(5, 7) : rand(6, 9);
+      const lp = filter('lowpass', 150);
+      lp.frequency.setValueAtTime(near ? 600 : 160, boom);
+      lp.frequency.linearRampToValueAtTime(near ? 900 : 380, boom + 0.6);
+      lp.frequency.linearRampToValueAtTime(120, boom + dur);
+      const g = gain(0.0001, p);
+      g.gain.setValueAtTime(0.0001, boom);
+      g.gain.exponentialRampToValueAtTime(near ? 1.6 : 1, boom + (near ? 0.15 : 0.8));
+      g.gain.exponentialRampToValueAtTime(0.0001, boom + dur);
+      noiseSource('brown', boom, dur).connect(lp).connect(g);
+    }
+
+    return (until, now2 = 0) => {
+      if (next < now2) next = now2;
+      if (gustNext < now2) gustNext = now2;
+      if (strikeAt < now2) strikeAt = now2 + rand(3, 10);
+      while (next < until) {
+        drop(next);
+        next += rand(0.006, 0.04);
+      }
+      while (gustNext < until) {
+        const d = rand(1.5, 3.5);
+        gust.gain.linearRampToValueAtTime(rand(0.1, 0.6), gustNext + d);
+        gustNext += d;
+      }
+      if (strikeAt < until) {
+        strike(strikeAt);
+        strikeAt += rand(14, 40);
+      }
+    };
+  },
+
   waves(S) {
     noiseSource('brown').connect(filter('lowpass', 320)).connect(gain(0.22, S.P(0, -0.5, -2, 0.3)));
     let next = ctx.currentTime + 0.1;
@@ -1811,6 +1887,7 @@ const DEFAULT_ANCHORS = {
   study: [-1.2, -1],
   train: [0, 1.5],
   birds: [1.6, -3],
+  storm: [0.2, -0.9],
   cafe: [1.4, 1.2],
 };
 export const defaultAnchor = (kind) => DEFAULT_ANCHORS[kind] || [0, 0];

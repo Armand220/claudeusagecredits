@@ -32,7 +32,7 @@ installed as an app on your phone or computer.
 
 **3D sound** (best with headphones)
 - **Mixer**: layer as many sounds as you like, each with its own volume —
-  Rain, Waves, Fireplace, Wind, Stream, Night, **Birdsong**, Wind chimes,
+  Rain, **Thunderstorm**, Waves, Fireplace, Wind, Stream, Night, **Birdsong**, Wind chimes,
   Cat purring, Clock, **Train ride**, **Café**, **Lo-fi beats**, **Study hall**,
   Binaural, Brown noise, Fan
 - **Ready-made mixes** (Cozy cabin, Seaside, Campfire night, Rainy café,
@@ -50,6 +50,9 @@ installed as an app on your phone or computer.
 - Everything is synthesised in the browser (no audio files)
 - Clicks, pops and typing sounds come from where they happen on screen
 - Option to play ambient sound only while the timer runs
+- **Thunderstorm**: thunder from every side, near cracks and far rumbles;
+  each lightning flash lights the side of the screen the thunder then comes
+  from, a moment before it arrives
 - **Train ride**: wheels clack over the rail joints in front of you and then
   behind, other trains rush past on your left, and the horn sounds far ahead
 - **Study hall**: people typing, turning pages and writing at desks all
