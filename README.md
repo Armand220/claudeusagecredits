@@ -75,13 +75,14 @@ installed as an app on your phone or computer.
   session in Stats) to note what you got done
 
 **Progress**
-- Daily goal meter with a celebration when you hit it
+- Daily goal (in sessions or minutes) with a celebration when you hit it
 - Stats with Overview (today, streak, last 7 days vs the week before,
   12-week heatmap: tap a day to see its sessions), History (best focus hours,
   focus by task and by tag, recent sessions with ratings and distractions)
   and Achievements (twenty-five to unlock), plus a "This week" review
 - **Share today**: a ready-to-post image of your day's focus
-- Export and import a backup file to move your data between devices
+- Export and import a backup file to move your data between devices, or
+  export every session as a spreadsheet (CSV)
 
 **Look and feel**
 - Light and dark themes, six colour palettes (Sunset, Ocean, Forest, Lavender,

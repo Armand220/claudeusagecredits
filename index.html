@@ -23,7 +23,7 @@
   <!-- Fonts load without blocking the first paint. -->
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..700&family=Outfit:wght@200..700&display=swap" media="print" onload="this.media='all'">
   <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..700&family=Outfit:wght@200..700&display=swap"></noscript>
-  <link rel="stylesheet" href="styles.css?v=53">
+  <link rel="stylesheet" href="styles.css?v=54">
 </head>
 <body data-mode="focus">
   <div class="photo-bg" aria-hidden="true"></div>
@@ -443,9 +443,16 @@
         <label class="field row"><span>Long break after every</span>
           <span class="inline"><input type="number" name="longEvery" min="2" max="12" inputmode="numeric"> focus sessions</span>
         </label>
-        <label class="field row"><span>Daily goal</span>
-          <span class="inline"><input type="number" name="goal" min="1" max="24" inputmode="numeric"> focus sessions a day</span>
-        </label>
+        <div class="field row goal-row" role="group" aria-labelledby="goal-row-label"><span id="goal-row-label">Daily goal</span>
+          <span class="inline">
+            <input type="number" name="goal" min="1" max="24" inputmode="numeric" aria-label="Focus sessions a day">
+            <input type="number" name="goalMinutes" min="15" max="720" step="15" inputmode="numeric" aria-label="Minutes of focus a day" hidden>
+            <select name="goalType" aria-label="Count the goal in">
+              <option value="sessions">focus sessions a day</option>
+              <option value="minutes">minutes of focus a day</option>
+            </select>
+          </span>
+        </div>
       </fieldset>
 
       <fieldset>
@@ -508,6 +515,7 @@
         <div class="data-actions">
           <button type="button" class="preset pressable" id="btn-export"><strong>Export backup</strong><span>Save a .json file</span></button>
           <label class="preset pressable" id="import-label"><strong>Import backup</strong><span>Restore from a file</span><input type="file" id="import-file" accept="application/json,.json" class="sr-only"></label>
+          <button type="button" class="preset pressable data-wide" id="btn-export-csv"><strong>Export sessions</strong><span>A spreadsheet (.csv) of every session</span></button>
         </div>
       </fieldset>
 
@@ -616,6 +624,6 @@
     </div>
   </dialog>
 
-  <script type="module" src="js/app.js?v=53"></script>
+  <script type="module" src="js/app.js?v=54"></script>
 </body>
 </html>

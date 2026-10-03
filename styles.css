@@ -2023,6 +2023,18 @@ body.is-zen .intention input { font-size: clamp(15px, 2vmin, 20px); color: var(-
 .field-note { margin: -2px 0 10px; font-size: 13px; color: var(--ink-3); }
 .data-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .data-actions .preset { cursor: pointer; }
+.data-actions .data-wide { grid-column: 1 / -1; }
+.goal-row .inline { flex-wrap: wrap; }
+.goal-row select {
+  height: 40px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 15px;
+}
 
 /* --------------------------------------------------------------- Badges */
 

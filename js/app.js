@@ -1,11 +1,11 @@
-import * as audio from './audio.js?v=53';
-import * as fx from './fx.js?v=53';
-import { toast } from './toast.js?v=53';
-import * as effects from './effects.js?v=53';
-import * as scenery from './scenery.js?v=53';
-import * as pip from './pip.js?v=53';
-import { shareCard, makeCardFile } from './share.js?v=53';
-import * as photo from './photo.js?v=53';
+import * as audio from './audio.js?v=54';
+import * as fx from './fx.js?v=54';
+import { toast } from './toast.js?v=54';
+import * as effects from './effects.js?v=54';
+import * as scenery from './scenery.js?v=54';
+import * as pip from './pip.js?v=54';
+import { shareCard, makeCardFile } from './share.js?v=54';
+import * as photo from './photo.js?v=54';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -39,9 +39,11 @@ const DEFAULTS = {
   chimeVolume: 70,
   flow: false,
   flowRatio: 5,
+  goalType: 'sessions',
+  goalMinutes: 120,
 };
 const PALETTES = ['sunset', 'ocean', 'forest', 'lavender', 'rose', 'mono'];
-const LIMITS = { focus: [1, 180], short: [1, 60], long: [1, 90], longEvery: [2, 12], goal: [1, 24], chimeVolume: [0, 100], flowRatio: [2, 6] };
+const LIMITS = { focus: [1, 180], short: [1, 60], long: [1, 90], longEvery: [2, 12], goal: [1, 24], chimeVolume: [0, 100], flowRatio: [2, 6], goalMinutes: [15, 720] };
 const RING_C = 2 * Math.PI * 100;
 
 // ---------------------------------------------------------------------------
@@ -72,6 +74,7 @@ function cleanSettings(raw) {
   if (!PALETTES.includes(out.palette)) out.palette = 'sunset';
   if (!audio.chimeStyles.includes(out.chimeStyle)) out.chimeStyle = 'bells';
   out.flow = Boolean(out.flow);
+  if (!['sessions', 'minutes'].includes(out.goalType)) out.goalType = 'sessions';
   return out;
 }
 
@@ -529,6 +532,7 @@ function switchTo(mode, { earned = null } = {}) {
 
 function complete({ late = 0, flowMs = 0 } = {}) {
   const ended = timer.mode;
+  const goalBefore = goalProgress().value;
   const endedAt = timer.running && !flowMs ? timer.endAt : Date.now();
   if (ended === 'focus') {
     const task = tasks.find((t) => t.id === activeTaskId);
@@ -603,10 +607,12 @@ function complete({ late = 0, flowMs = 0 } = {}) {
   }
   if (ended === 'focus') {
     const today = dayTotals(new Date());
-    const hitGoal = today.s === settings.goal;
+    const goal = goalProgress(today);
+    const hitGoal = goalBefore < goal.target && goal.value >= goal.target;
     if (hitGoal) {
       setTimeout(() => {
-        toast({ icon: '🎯', title: 'Daily goal reached!', body: `${today.s} focus sessions today. Brilliant work.`, tone: 'gold' });
+        const what = settings.goalType === 'minutes' ? `${fmtMinutes(today.m)} of focus` : `${today.s} focus sessions`;
+        toast({ icon: '🎯', title: 'Daily goal reached!', body: `${what} today. Brilliant work.`, tone: 'gold' });
         fx.celebrate(el.goal);
         fx.pop(el.goal, 1.2);
         audio.fanfare();
@@ -1514,17 +1520,23 @@ function streakDays() {
   return n;
 }
 
+// The daily goal counts focus sessions, or minutes of focus (handy with Flowtime).
+function goalProgress(totals = dayTotals(new Date())) {
+  return settings.goalType === 'minutes'
+    ? { value: totals.m, target: settings.goalMinutes, unit: 'minutes of focus' }
+    : { value: totals.s, target: settings.goal, unit: 'focus sessions' };
+}
+
 function renderGoal() {
-  const { s } = dayTotals(new Date());
-  const goal = settings.goal;
-  const f = Math.min(1, s / goal);
+  const { value, target, unit } = goalProgress();
+  const f = Math.min(1, value / target);
   el.goalFill.style.strokeDasharray = `${GOAL_C}`;
   el.goalFill.style.strokeDashoffset = `${GOAL_C * (1 - f)}`;
-  el.goalCount.textContent = String(s);
-  el.goalTarget.textContent = String(goal);
-  el.goal.classList.toggle('is-done', s >= goal);
-  el.goal.setAttribute('aria-label', `Daily goal: ${s} of ${goal} focus sessions. Open stats.`);
-  el.goal.title = s >= goal ? 'Daily goal reached!' : `Daily goal: ${goal} focus sessions`;
+  el.goalCount.textContent = String(value);
+  el.goalTarget.textContent = settings.goalType === 'minutes' ? `${target}m` : String(target);
+  el.goal.classList.toggle('is-done', value >= target);
+  el.goal.setAttribute('aria-label', `Daily goal: ${value} of ${target} ${unit}. Open stats.`);
+  el.goal.title = value >= target ? 'Daily goal reached!' : `Daily goal: ${target} ${unit}`;
 }
 
 let celebrationAt = 0;
@@ -1560,7 +1572,7 @@ function checkFocusAchievements(endedAt, next, opts = {}) {
   const streak = streakDays();
   if (total >= 1) unlock('first', opts);
   if (today.s >= 3) unlock('hattrick', opts);
-  if (today.s >= settings.goal) unlock('goal', opts);
+  if (goalProgress(today).value >= goalProgress(today).target) unlock('goal', opts);
   if (next === 'long') unlock('deep', opts);
   if (streak >= 3) unlock('streak3', opts);
   if (streak >= 7) unlock('streak7', opts);
@@ -2283,11 +2295,19 @@ function fillSettings() {
   for (const k of Object.keys(LIMITS)) f.elements[k].value = settings[k];
   for (const k of ['autoBreaks', 'autoFocus', 'breathing', 'chime', 'sfx', 'notify', 'wakeLock', 'scenery', 'soundsWithTimer', 'flow']) f.elements[k].checked = settings[k];
   $('#flow-ratio-row').hidden = !settings.flow;
+  f.elements.goalType.value = settings.goalType;
+  syncGoalInputs();
   f.elements.theme.value = settings.theme;
   f.elements.palette.value = settings.palette;
   f.elements.chimeStyle.value = settings.chimeStyle;
   f.elements.chimeVolume.style.setProperty('--fill', `${settings.chimeVolume}%`);
   markPreset();
+}
+
+function syncGoalInputs() {
+  const f = el.settingsForm;
+  f.elements.goal.hidden = settings.goalType !== 'sessions';
+  f.elements.goalMinutes.hidden = settings.goalType !== 'minutes';
 }
 
 function markPreset() {
@@ -2341,6 +2361,12 @@ el.settingsForm.addEventListener('change', async (e) => {
     settings.theme = input.value;
     applyTheme();
     audio.sfx('pop', input.closest('label'));
+  } else if (name === 'goalType') {
+    settings.goalType = input.value;
+    syncGoalInputs();
+    renderGoal();
+    audio.sfx('tick', input);
+    fx.pop(el.goal, 1.12);
   } else if (name === 'chimeStyle') {
     settings.chimeStyle = input.value;
     audio.chime('break', settings.chimeStyle);
@@ -2438,6 +2464,34 @@ $('#btn-export').addEventListener('click', (e) => {
   setTimeout(() => URL.revokeObjectURL(a.href), 2000);
   audio.sfx('pop', e.currentTarget);
   toast({ icon: '💾', title: 'Backup saved', body: a.download });
+});
+
+// Every session as a spreadsheet.
+$('#btn-export-csv').addEventListener('click', (e) => {
+  const q = (v) => {
+    const s = String(v ?? '');
+    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+  const pad2 = (n) => String(n).padStart(2, '0');
+  const ymd = (d) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+  const hm = (d) => `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+  const rows = [['date', 'start', 'end', 'minutes', 'completed', 'task', 'tags', 'feeling', 'distractions', 'flowtime', 'note']];
+  for (const h of [...history].sort((a, b) => a.t - b.t)) {
+    const end = new Date(h.t);
+    const start = new Date(h.t - h.m * 60000);
+    const { label, tags } = h.task ? splitTags(h.task) : { label: '', tags: [] };
+    rows.push([ymd(start), hm(start), hm(end), h.m, h.s ? 'yes' : 'no', label, tags.join(' '), h.r ? RATING_NAMES[h.r - 1] : '', h.d || 0, h.f ? 'yes' : 'no', h.n || '']);
+  }
+  const csv = `${rows.map((r) => r.map(q).join(',')).join('\r\n')}\r\n`;
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob(['\ufeff', csv], { type: 'text/csv' }));
+  a.download = `tempo-sessions-${ymd(new Date())}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  audio.sfx('pop', e.currentTarget);
+  toast({ icon: '📄', title: 'Sessions exported', body: `${rows.length - 1} sessions in ${a.download}` });
 });
 
 $('#import-file').addEventListener('change', async (e) => {
@@ -3508,6 +3562,7 @@ statTabs.forEach((t, i) => {
 
 // What's new: the newest first. Bump `id` when adding an entry.
 const CHANGES = [
+  { id: 15, icon: '🎯', text: 'Set your daily goal in minutes instead of sessions (great with Flowtime), and export your sessions as a spreadsheet.' },
   { id: 14, icon: '🏆', text: 'Seven new achievements, a "This week" review in Stats, and Undo when you skip a session by accident.' },
   { id: 13, icon: '🔗', text: 'Share your sound mix as a link, get an idea for each break, and tick off today\'s intention when it\'s done.' },
   { id: 12, icon: '🔎', text: 'Press Ctrl K (⌘K on a Mac) or / to search and run anything: start, sounds, mixes, tasks, themes and more.' },
@@ -3917,6 +3972,7 @@ function paletteCommands(query) {
   add({ cat: 'Open', top: true, icon: '⚙️', title: 'Settings', words: 'preferences options', run: () => $('#btn-settings').click() });
   add({ cat: 'Open', icon: '❓', title: 'Tips and keyboard shortcuts', keys: '?', words: 'help what\'s new', run: () => $('#btn-help').click() });
   add({ cat: 'Open', icon: '💾', title: 'Export a backup', words: 'download save data', run: () => $('#btn-export').click() });
+  add({ cat: 'Open', icon: '📄', title: 'Export sessions as a spreadsheet', words: 'csv excel download data', run: () => $('#btn-export-csv').click() });
   // Look
   for (const [v, name] of [['light', 'Light theme'], ['dark', 'Dark theme'], ['auto', 'Theme: match my device']]) {
     if (settings.theme !== v) add({ cat: 'Look', icon: v === 'dark' ? '🌙' : v === 'light' ? '☀️' : '🌗', title: name, words: 'appearance mode', run: () => {
