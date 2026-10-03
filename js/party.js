@@ -7,10 +7,11 @@
 // Privacy, by design:
 // - The party code never leaves your device. The relay only sees a one-way
 //   hash of it as the host's name.
-// - Everything sent through the relay (the connection offers, which would
-//   otherwise contain network addresses) is end-to-end encrypted with AES-GCM
-//   under a key derived from the code with 200,000 rounds of PBKDF2. Without
-//   the code it can't be read or forged, and guessing codes is slow.
+// - Every handshake message carries a box sealed with AES-GCM under a key
+//   derived from the code with 200,000 rounds of PBKDF2; the other side only
+//   trusts what's inside it, so nobody without the code can join or forge
+//   messages, and guessing codes is slow. (The plain WebRTC fields the public
+//   server insists on travel alongside; they contain no personal addresses.)
 // - "Private" connections (the default) go through a TURN relay only, so
 //   party members never learn each other's IP addresses. The relay forwards
 //   traffic it can't read: WebRTC encrypts it (DTLS) from end to end.
@@ -132,14 +133,18 @@ function openSignal(id, { onMessage, onClose }) {
     let opened = false;
     let openedAt = 0;
     let closed = false;
+    let note = ''; // anything the server said before hanging up
     const heartbeat = setInterval(() => {
       if (ws.readyState === 1) ws.send(JSON.stringify({ type: 'HEARTBEAT' }));
     }, 5000);
     const api = {
-      // The usual PeerJS data-connection fields ride along in the clear (they
-      // say nothing about you); everything that matters is inside the sealed box.
-      send(type, dst, box, connectionId) {
-        const payload = { box, type: 'data', connectionId: connectionId || 'tempo', label: 'party', serialization: 'json', reliable: true };
+      // Messages look exactly like the official PeerJS client's (the public
+      // server rejects anything else). The offer/answer carry no addresses; in
+      // private mode the only candidates are the relay's own, with the one
+      // field that could hold yours blanked. The sealed box proves the sender
+      // knows the party code, and the receiver trusts only what's inside it.
+      send(type, dst, box, connectionId, clear = {}) {
+        const payload = { ...clear, type: 'data', connectionId: connectionId || 'tempo', label: 'party', serialization: 'json', reliable: true, browser: 'chrome', box };
         if (ws.readyState === 1) ws.send(JSON.stringify({ type, dst, payload }));
       },
       close() {
@@ -172,6 +177,7 @@ function openSignal(id, { onMessage, onClose }) {
         clearTimeout(timeout);
         resolve(api);
       } else if (m.type === 'ID-TAKEN' || m.type === 'INVALID-KEY' || m.type === 'ERROR') {
+        note = str(m.payload && m.payload.msg, 80) || m.type;
         if (!opened) {
           clearTimeout(timeout);
           reject(new Error(m.type === 'ID-TAKEN' ? 'taken' : `network:server (${str(m.payload && m.payload.msg, 80) || m.type})`));
@@ -193,7 +199,7 @@ function openSignal(id, { onMessage, onClose }) {
         clearTimeout(timeout);
         reject(new Error(`network:closed (${e.code})`));
       } else if (!closed) {
-        onClose({ code: e.code, reason: str(e.reason, 60), after: Math.round((Date.now() - openedAt) / 100) / 10 });
+        onClose({ code: e.code, reason: str(e.reason, 60) || note, after: Math.round((Date.now() - openedAt) / 100) / 10 });
       }
     };
   });
@@ -222,7 +228,10 @@ function peerLink(privately, sendSealed, onState) {
     if (!e.candidate) return;
     // Belt and braces: in private mode never pass on anything but relays.
     if (privately && e.candidate.type && e.candidate.type !== 'relay') return;
-    sendSealed('CANDIDATE', { candidate: e.candidate.toJSON() });
+    const c = e.candidate.toJSON();
+    // A relay candidate notes where the relay saw you come from; blank that.
+    if (privately) c.candidate = String(c.candidate).replace(/ raddr \S+ rport \d+/, ' raddr 0.0.0.0 rport 0');
+    sendSealed('CANDIDATE', { candidate: c });
   };
   pc.onconnectionstatechange = () => onState(pc.connectionState);
   return {
@@ -244,6 +253,9 @@ function peerLink(privately, sendSealed, onState) {
     },
   };
 }
+
+// The fields the public PeerJS server expects to see on each message.
+const clearFields = (body) => (body.sdp ? { sdp: body.sdp } : body.candidate ? { candidate: body.candidate } : {});
 
 const str = (v, max) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
 
@@ -279,7 +291,7 @@ export async function host(name, hooks, { private: privately = true } = {}) {
     const members = memberList();
     guests.forEach((g) => g.ready && send(g, { t: 'members', members }));
   };
-  const relay = async (type, dst, body) => signal?.send(type, dst, await seal(secrets.key, body), body.cid);
+  const relay = async (type, dst, body) => signal?.send(type, dst, await seal(secrets.key, body), body.cid, clearFields(body));
 
   function drop(g) {
     if (guests.get(g.id) !== g) return;
@@ -477,7 +489,7 @@ function joinOnce(secrets, name, hooks, privately) {
       }
     }
   };
-  const relay = async (type, body) => signal?.send(type, secrets.id, await seal(secrets.key, { cid, ...body }), cid);
+  const relay = async (type, body) => signal?.send(type, secrets.id, await seal(secrets.key, { cid, ...body }), cid, clearFields(body));
   const cleanup = () => {
     clearInterval(pinger);
     signal?.close();

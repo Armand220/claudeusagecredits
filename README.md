@@ -42,13 +42,14 @@ installed as an app on your phone or computer.
   notification if Tempo is in the background). Guests can also send messages
 - Guests' focus sessions still count in their own stats, and their own timer,
   tasks and sounds come back when they leave
-- **Private by design**: devices connect peer to peer (WebRTC). The connection
-  details passed through the public PeerJS relay are end-to-end encrypted
-  with a key derived from the party code (AES-GCM, PBKDF2 with 200,000
-  rounds), and the relay only sees a one-way hash of the code. With "Private
-  connection" on (the default) all traffic goes through a TURN relay, so
-  party members never see each other's IP addresses; WebRTC encrypts the
-  data end to end, so the relay can't read it
+- **Private by design**: devices connect peer to peer (WebRTC). The PeerJS
+  relay that introduces them only sees a one-way hash of the party code, and
+  every handshake message is sealed with a key derived from the code
+  (AES-GCM, PBKDF2 with 200,000 rounds), so nobody without the code can join.
+  With "Private connection" on (the default) all traffic goes through a TURN
+  relay: the only addresses ever exchanged are the relay's (the field that
+  could reveal yours is blanked), so party members never see each other's IP
+  addresses, and WebRTC encrypts the data end to end
 
 **3D sound** (best with headphones)
 - **Mixer**: layer as many sounds as you like, each with its own volume —
