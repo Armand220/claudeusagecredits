@@ -1,9 +1,9 @@
-import * as audio from './audio.js?v=23';
-import * as fx from './fx.js?v=23';
-import { toast } from './toast.js?v=23';
-import * as effects from './effects.js?v=23';
-import * as scenery from './scenery.js?v=23';
-import * as pip from './pip.js?v=23';
+import * as audio from './audio.js?v=24';
+import * as fx from './fx.js?v=24';
+import { toast } from './toast.js?v=24';
+import * as effects from './effects.js?v=24';
+import * as scenery from './scenery.js?v=24';
+import * as pip from './pip.js?v=24';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -170,6 +170,7 @@ const el = {
   extend: $('#btn-extend'),
   pip: $('#btn-pip'),
   mixer: $('#mixer'),
+  mixes: $('#mixes'),
   mixList: $('#mix-list'),
   room: $('#room'),
   dots: $('#cycle-dots'),
@@ -1667,6 +1668,7 @@ function setSound(kind, on) {
 }
 
 function afterSoundChange() {
+  renderMixes();
   syncSoundGate();
   syncOrbit();
   wakeGlow();
@@ -1811,6 +1813,161 @@ function orbitStep() {
     save();
   }
 }
+
+// ----- Ready-made and saved mixes -----------------------------------------
+
+const BUILT_IN_MIXES = [
+  { id: 'cabin', icon: '🏡', name: 'Cozy cabin', mix: { rain: { vol: 0.7, x: -2.2, z: -1.6 }, fire: { vol: 0.85, x: 1.8, z: -1.4 }, clock: { vol: 0.45, x: -3.2, z: 0.4 } } },
+  { id: 'seaside', icon: '🏖️', name: 'Seaside', mix: { waves: { vol: 0.9, x: 0, z: -3.2 }, brown: { vol: 0.25, x: 0, z: 2.4 } } },
+  { id: 'campfire', icon: '🏕️', name: 'Campfire night', mix: { night: { vol: 0.8, x: 0, z: 1.5 }, fire: { vol: 0.9, x: 0, z: -1.6 } } },
+  { id: 'cafe', icon: '☕', name: 'Rainy café', mix: { lofi: { vol: 0.7, x: 0, z: -2 }, rain: { vol: 0.55, x: -2, z: 1.8 } } },
+  { id: 'deep', icon: '🧠', name: 'Deep focus', mix: { brown: { vol: 0.6, x: 0, z: 2.4 }, binaural: { vol: 0.4, x: 0, z: 0 } } },
+  { id: 'stars', icon: '🌌', name: 'Starry beats', mix: { lofi: { vol: 0.6, x: 0, z: -2 }, night: { vol: 0.55, x: -2.2, z: 2 } } },
+];
+sound.presets = (Array.isArray(sound.presets) ? sound.presets : [])
+  .filter((p) => p && typeof p.name === 'string' && p.mix && typeof p.mix === 'object')
+  .slice(0, 12);
+
+const allMixes = () => [...BUILT_IN_MIXES, ...sound.presets.map((p) => ({ ...p, icon: '⭐', custom: true }))];
+
+function mixMatches(m) {
+  const want = Object.keys(m.mix).sort().join();
+  return want === activeKinds().sort().join();
+}
+
+function renderMixes() {
+  el.mixes.replaceChildren(
+    ...allMixes().map((m) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'mix-card pressable';
+      b.dataset.mix = m.id;
+      b.setAttribute('aria-pressed', String(mixMatches(m)));
+      const icon = document.createElement('span');
+      icon.className = 'mix-icon';
+      icon.textContent = m.icon;
+      icon.setAttribute('aria-hidden', 'true');
+      const name = document.createElement('span');
+      name.textContent = m.name;
+      b.append(icon, name);
+      b.title = Object.keys(m.mix).map((k) => SOUND_INFO[k] ? SOUND_INFO[k].name : k).join(' + ') + (m.custom ? ' — double-click to delete' : '');
+      return b;
+    }),
+  );
+}
+
+function applyMix(m, source) {
+  audio.unlock();
+  const want = m.mix;
+  for (const k of audio.ambientKinds) {
+    if (want[k]) {
+      const [dx, dz] = audio.defaultAnchor(k);
+      const w = want[k];
+      sound.mix[k] = { vol: clampNum(w.vol, 0, 1, 0.8), x: clampNum(w.x, -4, 4, dx), z: clampNum(w.z, -4, 4, dz), orbit: Boolean(w.orbit), on: false };
+      setSound(k, true);
+    } else if (sound.mix[k] && sound.mix[k].on) {
+      setSound(k, false);
+    }
+  }
+  audio.sfx('pop', source);
+  fx.burst(source, { count: 12, spread: 50, size: 6 });
+  afterSoundChange();
+}
+
+el.mixes.addEventListener('click', (e) => {
+  const card = e.target.closest('.mix-card');
+  if (!card) return;
+  const m = allMixes().find((x) => x.id === card.dataset.mix);
+  if (m) applyMix(m, card);
+});
+
+el.mixes.addEventListener('dblclick', (e) => {
+  const card = e.target.closest('.mix-card');
+  const i = card ? sound.presets.findIndex((p) => p.id === card.dataset.mix) : -1;
+  if (i < 0) return;
+  const [gone] = sound.presets.splice(i, 1);
+  audio.sfx('remove', card);
+  save();
+  renderMixes();
+  toast({
+    icon: '⭐',
+    title: `Deleted "${gone.name}"`,
+    action: { label: 'Undo', onClick: () => { sound.presets.splice(i, 0, gone); save(); renderMixes(); } },
+  });
+});
+
+const saveForm = $('#save-mix');
+const saveBtn = $('#btn-save-mix');
+saveBtn.addEventListener('click', () => {
+  saveBtn.hidden = true;
+  saveForm.hidden = false;
+  $('#save-mix-name').value = '';
+  $('#save-mix-name').focus();
+});
+saveForm.addEventListener('submit', (e) => {
+  e.preventDefault();
+  const name = $('#save-mix-name').value.trim();
+  const kinds = activeKinds();
+  if (!name || !kinds.length) {
+    fx.nudge(saveForm);
+    return;
+  }
+  const mix = Object.fromEntries(kinds.map((k) => [k, { vol: sound.mix[k].vol, x: sound.mix[k].x, z: sound.mix[k].z, orbit: sound.mix[k].orbit }]));
+  sound.presets.push({ id: newId(), name: name.slice(0, 24), mix });
+  if (sound.presets.length > 12) sound.presets.shift();
+  save();
+  saveForm.hidden = true;
+  saveBtn.hidden = false;
+  renderMixes();
+  audio.sfx('check', saveBtn);
+  toast({ icon: '⭐', title: `Saved "${name}"`, body: 'Find it with the mixes above. Double-click a saved mix to delete it.' });
+});
+saveForm.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    e.stopPropagation();
+    saveForm.hidden = true;
+    saveBtn.hidden = false;
+  }
+});
+
+// ----- Sleep timer: fade the sounds out after a while --------------------------
+
+let sleepAt = 0;
+let sleepTimer = 0;
+let sleepTick = 0;
+const sleepSelect = $('#sleep-select');
+const sleepLabel = $('#sleep-label');
+
+function renderSleep() {
+  if (!sleepAt) {
+    sleepLabel.textContent = 'Sleep timer';
+    return;
+  }
+  const mins = Math.max(1, Math.ceil((sleepAt - Date.now()) / 60000));
+  sleepLabel.textContent = `Stops in ${mins} min`;
+}
+
+function setSleep(minutes) {
+  clearTimeout(sleepTimer);
+  clearInterval(sleepTick);
+  sleepAt = minutes ? Date.now() + minutes * 60000 : 0;
+  if (minutes) {
+    sleepTimer = setTimeout(() => {
+      mutedKinds = activeKinds();
+      mutedKinds.forEach((k) => setSound(k, false));
+      setSleep(0);
+      sleepSelect.value = '0';
+      toast({ icon: '🌙', title: 'Sounds faded out', body: 'Press M to bring them back.' });
+    }, minutes * 60000);
+    sleepTick = setInterval(renderSleep, 20000);
+  }
+  renderSleep();
+}
+
+sleepSelect.addEventListener('change', () => {
+  setSleep(Number(sleepSelect.value));
+  audio.sfx(Number(sleepSelect.value) ? 'on' : 'off', sleepSelect);
+});
 
 function moveSound(k, x, z) {
   const r = Math.hypot(x, z);
@@ -2343,6 +2500,12 @@ window.addEventListener('storage', (e) => {
   Object.keys(achievements).forEach((k) => delete achievements[k]);
   Object.assign(achievements, obj(d.achievements));
   Object.assign(counters, cleanCounters(d.counters));
+  // Saved mixes are shared; what's playing stays per tab.
+  const sp = obj(d.sound).presets;
+  if (Array.isArray(sp)) {
+    sound.presets = sp.filter((p) => p && typeof p.name === 'string' && p.mix && typeof p.mix === 'object').slice(0, 12);
+    renderMixes();
+  }
   audio.setSfxEnabled(settings.sfx);
   scenery.setEnabled(settings.scenery);
   applyTheme();
@@ -2386,6 +2549,7 @@ applyMode();
 renderTasks();
 renderChips();
 renderMixer();
+renderMixes();
 syncSoundGate();
 syncOrbit();
 renderGoal();

@@ -641,6 +641,64 @@ body.sounds-gated .mixer { opacity: .6; }
 }
 .hint svg { width: 18px; height: 18px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 
+/* ---------------------------------------------------------------- Mixes */
+
+.mixes {
+  display: flex;
+  gap: 8px;
+  margin: -2px -20px 12px;
+  padding: 2px 20px 6px;
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 16px, #000 calc(100% - 16px), transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 16px, #000 calc(100% - 16px), transparent);
+}
+.mixes::-webkit-scrollbar { display: none; }
+.mix-card {
+  flex: none;
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  min-width: 88px;
+  padding: 10px 10px 8px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--glass-strong);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-2);
+  scroll-snap-align: start;
+}
+.mix-card:hover { color: var(--ink); border-color: color-mix(in srgb, var(--accent) 40%, transparent); }
+.mix-card[aria-pressed="true"] { color: var(--ink); border-color: var(--accent); background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent); }
+.mix-icon { font-size: 22px; line-height: 1.2; transition: transform .45s var(--spring-strong); }
+.mix-card:hover .mix-icon { transform: scale(1.18) rotate(-6deg); }
+
+.mixer-tools { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+.save-mix { display: flex; gap: 6px; }
+.save-mix input {
+  width: 150px;
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--accent);
+  border-radius: 10px;
+  background: var(--surface);
+  outline: none;
+  font-size: 14px;
+}
+.sleep { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: var(--ink-2); }
+.sleep select {
+  height: 32px;
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+}
+
 /* ---------------------------------------------------------------- Mixer */
 
 .mixer { margin-top: 14px; display: grid; gap: 12px; animation: rise-in .45s var(--spring); }
