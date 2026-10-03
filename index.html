@@ -12,7 +12,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..700&family=Outfit:wght@200..700&display=swap">
-  <link rel="stylesheet" href="styles.css?v=21">
+  <link rel="stylesheet" href="styles.css?v=22">
 </head>
 <body data-mode="focus">
   <div class="aurora" aria-hidden="true"><span></span><span></span><span></span></div>
@@ -91,6 +91,7 @@
             <div class="time" id="time" role="timer" aria-label="25 minutes 0 seconds remaining"></div>
             <div class="session-label" id="session-label">Session 1 of 4</div>
             <div class="cycle-dots" id="cycle-dots" aria-hidden="true"></div>
+            <button type="button" class="extend-btn pressable" id="btn-extend" title="Add a minute (+)" hidden>+1 min</button>
           </div>
         </div>
 
@@ -370,6 +371,8 @@
           <div><dt><kbd>R</kbd></dt><dd>Reset the session</dd></div>
           <div><dt><kbd>S</kbd></dt><dd>Skip to the next session</dd></div>
           <div><dt><kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd></dt><dd>Focus, short break, long break</dd></div>
+          <div><dt><kbd>+</kbd> <kbd>−</kbd></dt><dd>Add or remove a minute</dd></div>
+          <div><dt><kbd>[</kbd> <kbd>]</kbd></dt><dd>Ambient volume down / up</dd></div>
           <div><dt><kbd>N</kbd></dt><dd>Add a task</dd></div>
           <div><dt><kbd>F</kbd></dt><dd>Zen mode</dd></div>
           <div><dt><kbd>P</kbd></dt><dd>Floating mini timer</dd></div>
@@ -391,6 +394,6 @@
     </div>
   </dialog>
 
-  <script type="module" src="js/app.js?v=21"></script>
+  <script type="module" src="js/app.js?v=22"></script>
 </body>
 </html>

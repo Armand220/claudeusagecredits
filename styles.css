@@ -1730,6 +1730,20 @@ body.is-zen .aurora span { --blob-opacity: .75; }
 
 /* ----------------------------------------------------------- Cycle dots */
 
+.extend-btn {
+  justify-self: center;
+  margin-top: 6px;
+  padding: 3px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--glass-strong);
+  color: var(--ink-2);
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  animation: rise-in .4s var(--spring);
+}
+.extend-btn:hover { color: var(--accent-strong); border-color: var(--accent); }
 .cycle-dots { display: flex; justify-content: center; gap: 6px; margin-top: 8px; min-height: 8px; }
 .cycle-dots i {
   display: block;

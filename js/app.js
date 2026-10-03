@@ -1,9 +1,9 @@
-import * as audio from './audio.js?v=21';
-import * as fx from './fx.js?v=21';
-import { toast } from './toast.js?v=21';
-import * as effects from './effects.js?v=21';
-import * as scenery from './scenery.js?v=21';
-import * as pip from './pip.js?v=21';
+import * as audio from './audio.js?v=22';
+import * as fx from './fx.js?v=22';
+import { toast } from './toast.js?v=22';
+import * as effects from './effects.js?v=22';
+import * as scenery from './scenery.js?v=22';
+import * as pip from './pip.js?v=22';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -167,6 +167,7 @@ const el = {
   settingsForm: $('#settings-form'),
   install: $('#btn-install'),
   zen: $('#btn-zen'),
+  extend: $('#btn-extend'),
   pip: $('#btn-pip'),
   mixer: $('#mixer'),
   mixList: $('#mix-list'),
@@ -233,6 +234,25 @@ function pause() {
   timer.paused = Math.max(0, timer.endAt - Date.now());
   timer.running = false;
   afterTimerChange();
+}
+
+/** Stretch or trim the current session (not before it has started). */
+function addTime(ms, source) {
+  if (isFresh()) return false;
+  const rem = remainingMs();
+  // Never trim below 10 seconds left (and never let "minus" add time).
+  const change = ms >= 0 ? ms : Math.min(0, Math.max(ms, 10000 - rem));
+  if (change === 0) return false;
+  timer.total = Math.max(totalMs() + change, 10000);
+  if (timer.running) timer.endAt += change;
+  else timer.paused = rem + change;
+  afterTimerChange();
+  if (source) {
+    fx.pop(source, 1.12);
+    audio.sfx(change > 0 ? 'on' : 'off', source);
+  }
+  fx.pop(el.time, 1.04);
+  return true;
 }
 
 function clearSession() {
@@ -311,6 +331,15 @@ function complete({ late = 0 } = {}) {
   );
   const auto = next === 'focus' ? settings.autoFocus : settings.autoBreaks;
   if (auto) start();
+  else {
+    toast({
+      icon: next === 'focus' ? '🎯' : '☕',
+      title: ended === 'focus' ? 'Focus session done' : 'Break is over',
+      body: next === 'focus' ? 'Ready when you are.' : `Time for a ${settings[next]}-minute break.`,
+      duration: 9000,
+      action: { label: next === 'focus' ? 'Start focus' : 'Start break', onClick: () => { if (!timer.running) toggleTimer(el.toggle); } },
+    });
+  }
   if (ended === 'focus') {
     const today = dayTotals(new Date());
     const hitGoal = today.s === settings.goal;
@@ -401,6 +430,7 @@ function renderTimer(force = false) {
   el.head.setAttribute('cy', `${110 + 100 * Math.sin(a)}`);
 
   el.body.classList.toggle('is-running', timer.running);
+  el.extend.hidden = isFresh();
   el.toggle.setAttribute('aria-pressed', String(timer.running));
   el.toggleLabel.textContent = timer.running ? 'Pause' : isFresh() ? 'Start' : 'Resume';
 }
@@ -1929,6 +1959,7 @@ el.reset.addEventListener('click', () => {
 });
 
 el.zen.addEventListener('click', () => setZen(!isZen()));
+el.extend.addEventListener('click', () => addTime(60000, el.extend));
 el.pip.hidden = !pip.supported();
 el.pip.addEventListener('click', togglePip);
 
@@ -2142,6 +2173,15 @@ document.addEventListener('keydown', (e) => {
     setTimeout(() => el.taskInput.focus(), isZen() ? 500 : 0);
   } else if (['1', '2', '3'].includes(key)) {
     el.tabs[Number(key) - 1].click();
+  } else if (key === '+' || key === '=') {
+    addTime(60000, el.extend);
+  } else if (key === '-' || key === '_') {
+    addTime(-60000, el.extend);
+  } else if (key === '[' || key === ']') {
+    el.volume.value = String(Math.max(0, Math.min(100, Number(el.volume.value) + (key === ']' ? 10 : -10))));
+    el.volume.dispatchEvent(new Event('input'));
+    el.volume.dispatchEvent(new Event('change'));
+    fx.pop(el.volume.closest('.volume'), 1.08);
   } else if (key === '?') {
     e.preventDefault();
     openSheet(el.helpDialog, $('#btn-help'));
