@@ -1,9 +1,9 @@
-import * as audio from './audio.js?v=18';
-import * as fx from './fx.js?v=18';
-import { toast } from './toast.js?v=18';
-import * as effects from './effects.js?v=18';
-import * as scenery from './scenery.js?v=18';
-import * as pip from './pip.js?v=18';
+import * as audio from './audio.js?v=19';
+import * as fx from './fx.js?v=19';
+import { toast } from './toast.js?v=19';
+import * as effects from './effects.js?v=19';
+import * as scenery from './scenery.js?v=19';
+import * as pip from './pip.js?v=19';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -56,33 +56,55 @@ function readStore() {
 
 const stored = readStore();
 
-const settings = { ...DEFAULTS, ...obj(stored.settings) };
-for (const [k, [min, max]] of Object.entries(LIMITS)) settings[k] = clampInt(settings[k], min, max, DEFAULTS[k]);
-if (!['auto', 'light', 'dark'].includes(settings.theme)) settings.theme = 'auto';
-if (!PALETTES.includes(settings.palette)) settings.palette = 'sunset';
+// Each piece of saved state is cleaned before use, so a damaged or old save
+// can't break the app. The same cleaners keep other open tabs in sync.
+function cleanSettings(raw) {
+  const out = { ...DEFAULTS, ...obj(raw) };
+  for (const [k, [min, max]] of Object.entries(LIMITS)) out[k] = clampInt(out[k], min, max, DEFAULTS[k]);
+  if (!['auto', 'light', 'dark'].includes(out.theme)) out.theme = 'auto';
+  if (!PALETTES.includes(out.palette)) out.palette = 'sunset';
+  return out;
+}
 
-const timer = { mode: 'focus', running: false, endAt: 0, total: null, paused: null, cycle: 0, ...obj(stored.timer) };
-if (!MODES[timer.mode]) timer.mode = 'focus';
-timer.cycle = clampInt(timer.cycle, 0, 1e6, 0);
+function cleanTimer(raw) {
+  const out = { mode: 'focus', running: false, endAt: 0, total: null, paused: null, cycle: 0, ...obj(raw) };
+  if (!MODES[out.mode]) out.mode = 'focus';
+  out.cycle = clampInt(out.cycle, 0, 1e6, 0);
+  out.running = Boolean(out.running) && Number.isFinite(out.endAt);
+  return out;
+}
 
-let tasks = (Array.isArray(stored.tasks) ? stored.tasks : [])
-  .filter((t) => t && typeof t.title === 'string' && t.id)
-  .map((t) => ({
-    id: String(t.id),
-    title: t.title.slice(0, 120),
-    est: clampInt(t.est, 1, 20, 1),
-    pomos: clampInt(t.pomos, 0, 999, 0),
-    done: Boolean(t.done),
-  }));
+function cleanTasks(raw) {
+  return (Array.isArray(raw) ? raw : [])
+    .filter((t) => t && typeof t.title === 'string' && t.id)
+    .map((t) => ({
+      id: String(t.id),
+      title: t.title.slice(0, 120),
+      est: clampInt(t.est, 1, 20, 1),
+      pomos: clampInt(t.pomos, 0, 999, 0),
+      done: Boolean(t.done),
+    }));
+}
+
+function cleanHistory(raw) {
+  return (Array.isArray(raw) ? raw : [])
+    .filter((h) => h && Number.isFinite(h.t) && Number.isFinite(h.m) && h.t > Date.now() - 400 * DAY)
+    .map((h) => ({ t: h.t, m: h.m, s: h.s ? 1 : 0, ...(typeof h.task === 'string' ? { task: h.task.slice(0, 120) } : {}) }));
+}
+
+function cleanCounters(raw) {
+  const out = { tasksDone: 0, soundsTried: [], ...obj(raw) };
+  if (!Array.isArray(out.soundsTried)) out.soundsTried = [];
+  return out;
+}
+
+const settings = cleanSettings(stored.settings);
+const timer = cleanTimer(stored.timer);
+let tasks = cleanTasks(stored.tasks);
 let activeTaskId = tasks.some((t) => t.id === stored.activeTaskId) ? stored.activeTaskId : null;
-
-let history = (Array.isArray(stored.history) ? stored.history : [])
-  .filter((h) => h && Number.isFinite(h.t) && Number.isFinite(h.m) && h.t > Date.now() - 400 * DAY)
-  .map((h) => ({ t: h.t, m: h.m, s: h.s ? 1 : 0, ...(typeof h.task === 'string' ? { task: h.task.slice(0, 120) } : {}) }));
-
+let history = cleanHistory(stored.history);
 const achievements = { ...obj(stored.achievements) };
-const counters = { tasksDone: 0, soundsTried: [], ...obj(stored.counters) };
-if (!Array.isArray(counters.soundsTried)) counters.soundsTried = [];
+const counters = cleanCounters(stored.counters);
 
 const clampNum = (v, min, max, fallback) => (Number.isFinite(Number(v)) && v !== null && v !== '' ? Math.min(max, Math.max(min, Number(v))) : fallback);
 const sound = { volume: 50, ...obj(stored.sound) };
@@ -248,7 +270,10 @@ function complete({ late = 0 } = {}) {
   const endedAt = timer.running ? timer.endAt : Date.now();
   if (ended === 'focus') {
     const task = tasks.find((t) => t.id === activeTaskId);
-    history.push({ t: endedAt, m: Math.round(totalMs() / 60000), s: 1, ...(task ? { task: task.title } : {}) });
+    // Another open tab may have recorded this same session already.
+    if (!history.some((h) => h.s && h.t === endedAt)) {
+      history.push({ t: endedAt, m: Math.round(totalMs() / 60000), s: 1, ...(task ? { task: task.title } : {}) });
+    }
     if (task && !task.done) task.pomos += 1;
     timer.cycle += 1;
   } else if (ended === 'long') {
@@ -1989,7 +2014,8 @@ document.addEventListener('keydown', (e) => {
     el.skip.click();
   } else if (key === 'n') {
     e.preventDefault();
-    el.taskInput.focus();
+    if (isZen()) setZen(false);
+    setTimeout(() => el.taskInput.focus(), isZen() ? 500 : 0);
   } else if (['1', '2', '3'].includes(key)) {
     el.tabs[Number(key) - 1].click();
   } else if (key === '?') {
@@ -2036,8 +2062,34 @@ document.addEventListener('visibilitychange', () => {
   syncWakeLock();
 });
 
+// Another tab changed the data: take it on without reloading, so this tab's
+// sound keeps playing. Ambient sound itself stays per tab.
 window.addEventListener('storage', (e) => {
-  if (e.key === STORE_KEY) window.location.reload();
+  if (e.key !== STORE_KEY || !e.newValue) return;
+  let d;
+  try {
+    d = obj(JSON.parse(e.newValue));
+  } catch {
+    return;
+  }
+  Object.assign(settings, cleanSettings(d.settings));
+  const t = cleanTimer(d.timer);
+  Object.keys(timer).forEach((k) => delete timer[k]);
+  Object.assign(timer, t);
+  tasks = cleanTasks(d.tasks);
+  activeTaskId = tasks.some((x) => x.id === d.activeTaskId) ? d.activeTaskId : null;
+  history = cleanHistory(d.history);
+  Object.keys(achievements).forEach((k) => delete achievements[k]);
+  Object.assign(achievements, obj(d.achievements));
+  Object.assign(counters, cleanCounters(d.counters));
+  audio.setSfxEnabled(settings.sfx);
+  scenery.setEnabled(settings.scenery);
+  applyTheme();
+  applyMode();
+  schedule();
+  renderTasks();
+  renderGoal();
+  syncWakeLock();
 });
 
 // Install as an app

@@ -15,7 +15,7 @@
   --line: rgb(60 35 20 / 10%);
   --ink: #1f1612;
   --ink-2: #5d4f48;
-  --ink-3: #8c7d75;
+  --ink-3: #73655e;
   --danger: #c4372b;
   --shadow-sm: 0 1px 2px rgb(60 30 10 / 6%), 0 2px 8px rgb(60 30 10 / 5%);
   --shadow: 0 1px 2px rgb(60 30 10 / 5%), 0 12px 32px -8px rgb(60 30 10 / 14%);
@@ -75,7 +75,7 @@ body[data-mode="long"] {
     --line: rgb(255 255 255 / 9%);
     --ink: #f7efea;
     --ink-2: #c9bcb4;
-    --ink-3: #8f827b;
+    --ink-3: #9a8d86;
     --danger: #ff7d70;
     --shadow-sm: 0 1px 2px rgb(0 0 0 / 30%);
     --shadow: 0 1px 2px rgb(0 0 0 / 35%), 0 18px 40px -12px rgb(0 0 0 / 55%);
@@ -99,7 +99,7 @@ body[data-mode="long"] {
   --line: rgb(255 255 255 / 9%);
   --ink: #f7efea;
   --ink-2: #c9bcb4;
-  --ink-3: #8f827b;
+  --ink-3: #9a8d86;
   --danger: #ff7d70;
   --shadow-sm: 0 1px 2px rgb(0 0 0 / 30%);
   --shadow: 0 1px 2px rgb(0 0 0 / 35%), 0 18px 40px -12px rgb(0 0 0 / 55%);
@@ -243,6 +243,7 @@ svg { display: block; }
   gap: 12px;
   padding: 8px 0 22px;
 }
+.brand-heading { margin: 0; font: inherit; }
 .brand {
   display: inline-flex;
   align-items: center;
