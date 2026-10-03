@@ -1413,6 +1413,8 @@ legend {
 .tile-delta.is-down { color: var(--ink-2); }
 :root[data-theme="dark"] .tile-delta.is-up { color: #6fd39a; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .tile-delta.is-up { color: #6fd39a; } }
+#flow-ratio-row { margin-bottom: 14px; }
+#flow-ratio-row select,
 .field.row.chime-row select {
   height: 40px;
   padding: 0 10px;
@@ -1950,8 +1952,10 @@ body.is-zen .aurora span { --blob-opacity: .75; }
   -webkit-backdrop-filter: blur(20px) saturate(170%);
   backdrop-filter: blur(20px) saturate(170%);
   box-shadow: 0 18px 40px -12px rgb(0 0 0 / 35%);
-  transform: translateX(-50%);
+  translate: -50% 0;
 }
+/* Lift the dial above the buttons below it while the picker is open. */
+.dial.has-pop { z-index: 4; }
 .length-opt {
   width: 46px;
   height: 36px;
@@ -1965,6 +1969,10 @@ body.is-zen .aurora span { --blob-opacity: .75; }
 }
 .length-opt:hover { color: var(--ink); border-color: var(--accent); }
 .length-opt[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); border-color: transparent; }
+.length-opt.is-flow { width: 100%; font-size: 14px; letter-spacing: .01em; }
+.flow-break-btn { color: var(--accent-strong); border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
+body.is-flow.is-running .time .colon { animation: flow-blink 2s ease-in-out infinite; }
+@keyframes flow-blink { 50% { opacity: .35; } }
 .dial-actions { position: relative; }
 
 .timeline-section { margin-top: 20px; }

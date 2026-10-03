@@ -10,8 +10,11 @@ installed as an app on your phone or computer.
 
 **Timer**
 - Focus, short break and long break, with a long break after every few focus
-  sessions. One-tap presets: Classic 25/5, Deep 50/10, Sprint 15/3, Flow 90/20
+  sessions. One-tap presets: Classic 25/5, Deep 50/10, Sprint 15/3, Long haul 90/20
 - Watch-face dial with a glowing progress ring, tick marks and session dots
+- **Flowtime**: pick ∞ in the length picker to count up instead, stop
+  whenever you lose steam, and take a break worth a fifth of the time you
+  worked (adjustable in Settings). A gentle nudge after 90 minutes
 - **+1 min** (or `+` / `-`) to stretch or trim a running session
 - Keeps accurate time in background tabs and picks up where it left off after a reload
 - Chime, optional notification, optional auto-start; when a session ends the
@@ -52,7 +55,7 @@ installed as an app on your phone or computer.
 - Daily goal meter with a celebration when you hit it
 - Stats with Overview (today, streak, last 7 days vs the week before,
   12-week heatmap), History (best focus hours, recent sessions with ratings
-  and distractions) and Achievements (seventeen to unlock)
+  and distractions) and Achievements (eighteen to unlock)
 - **Share today**: a ready-to-post image of your day's focus
 - Export and import a backup file to move your data between devices
 
@@ -73,7 +76,7 @@ installed as an app on your phone or computer.
 | --- | --- |
 | `Space` | Start / pause |
 | `R` | Reset |
-| `S` | Skip to the next session |
+| `S` | Skip to the next session (in Flowtime: finish and take your break) |
 | `1` `2` `3` | Focus / short break / long break |
 | `+` `-` | Add / remove a minute |
 | `N` | New task |

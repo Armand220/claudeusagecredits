@@ -23,7 +23,7 @@
   <!-- Fonts load without blocking the first paint. -->
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..700&family=Outfit:wght@200..700&display=swap" media="print" onload="this.media='all'">
   <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..700&family=Outfit:wght@200..700&display=swap"></noscript>
-  <link rel="stylesheet" href="styles.css?v=42">
+  <link rel="stylesheet" href="styles.css?v=43">
 </head>
 <body data-mode="focus">
   <div class="photo-bg" aria-hidden="true"></div>
@@ -119,6 +119,7 @@
               <button type="button" class="extend-btn length-btn pressable" id="btn-length" aria-haspopup="true" aria-expanded="false" title="Change the length">25 min ▾</button>
               <div class="length-pop" id="length-pop" role="group" aria-label="Session length" hidden></div>
               <button type="button" class="extend-btn pressable" id="btn-extend" title="Add a minute (+)" hidden>+1 min</button>
+              <button type="button" class="extend-btn flow-break-btn pressable" id="btn-flow-break" title="Finish and take your break (S)" hidden>☕ Break</button>
               <button type="button" class="extend-btn distract-btn pressable" id="btn-distract" title="Mind wandered? Tap to note it (D), then get back to it" hidden>⚡ <span id="distract-count">Distracted</span></button>
             </div>
           </div>
@@ -377,8 +378,20 @@
           <button type="button" class="preset pressable" data-preset="25,5,15"><strong>Classic</strong><span>25 · 5 · 15</span></button>
           <button type="button" class="preset pressable" data-preset="50,10,20"><strong>Deep</strong><span>50 · 10 · 20</span></button>
           <button type="button" class="preset pressable" data-preset="15,3,10"><strong>Sprint</strong><span>15 · 3 · 10</span></button>
-          <button type="button" class="preset pressable" data-preset="90,20,30"><strong>Flow</strong><span>90 · 20 · 30</span></button>
+          <button type="button" class="preset pressable" data-preset="90,20,30"><strong>Long haul</strong><span>90 · 20 · 30</span></button>
         </div>
+        <label class="switch"><input type="checkbox" name="flow"><span>Flowtime: focus counts up, and you take a break when you're ready</span></label>
+        <label class="field row" id="flow-ratio-row"><span>Flowtime break</span>
+          <span class="inline">
+            <select name="flowRatio">
+              <option value="2">½ of your focus time</option>
+              <option value="3">⅓ of your focus time</option>
+              <option value="4">¼ of your focus time</option>
+              <option value="5">⅕ of your focus time</option>
+              <option value="6">⅙ of your focus time</option>
+            </select>
+          </span>
+        </label>
         <div class="grid-3">
           <label class="field"><span>Focus</span><input type="number" name="focus" min="1" max="180" inputmode="numeric"></label>
           <label class="field"><span>Short break</span><input type="number" name="short" min="1" max="60" inputmode="numeric"></label>
@@ -499,7 +512,7 @@
         <dl class="keys">
           <div><dt><kbd>Space</kbd></dt><dd>Start or pause</dd></div>
           <div><dt><kbd>R</kbd></dt><dd>Reset the session</dd></div>
-          <div><dt><kbd>S</kbd></dt><dd>Skip to the next session</dd></div>
+          <div><dt><kbd>S</kbd></dt><dd>Skip to the next session (in Flowtime: take your break)</dd></div>
           <div><dt><kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd></dt><dd>Focus, short break, long break</dd></div>
           <div><dt><kbd>+</kbd> <kbd>−</kbd></dt><dd>Add or remove a minute</dd></div>
           <div><dt><kbd>[</kbd> <kbd>]</kbd></dt><dd>Ambient volume down / up</dd></div>
@@ -518,6 +531,7 @@
           <li><span aria-hidden="true">👆</span><span>Tap a task to count focus sessions towards it. Drag the grip to reorder, double-click a name to rename it. On a phone, swipe a task right to tick it off or left to delete it.</span></li>
           <li><span aria-hidden="true">🎛️</span><span>Tap several sounds to mix them, or pick a ready-made mix. In the room, drag each sound around you, press orbit to send it circling, or drag your own head to turn around.</span></li>
           <li><span aria-hidden="true">🪟</span><span>Pop the timer out (P) into a small window that stays on top while you work in other apps.</span></li>
+          <li><span aria-hidden="true">🌊</span><span>Prefer to stop when you lose steam? Tap the length under the timer and pick ∞ Flowtime. The timer counts up, and when you stop you earn a break worth a fifth of the time you worked.</span></li>
           <li><span aria-hidden="true">⚡</span><span>Mind wandered? Tap Distracted (D), note the thought as a task if it matters, and carry on. Rate each session when it ends.</span></li>
           <li><span aria-hidden="true">🧘</span><span>Zen mode hides everything except the timer. During breaks, follow the breathing orb.</span></li>
           <li><span aria-hidden="true">🎯</span><span>Set a daily goal in Settings. Your streak, heatmap, history and achievements are in Stats, where you can also share an image of your day.</span></li>
@@ -528,6 +542,6 @@
     </div>
   </dialog>
 
-  <script type="module" src="js/app.js?v=42"></script>
+  <script type="module" src="js/app.js?v=43"></script>
 </body>
 </html>

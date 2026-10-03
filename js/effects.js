@@ -1,8 +1,8 @@
 // Ambient visual effects: watch-face ticks, cursor spotlight, 3D tilt
 // and a glow that pulses with the ambient sound.
 
-import * as audio from './audio.js?v=42';
-import { motionOK } from './fx.js?v=42';
+import * as audio from './audio.js?v=43';
+import { motionOK } from './fx.js?v=43';
 
 const finePointer = window.matchMedia('(hover: hover) and (pointer: fine)');
 const SVG_NS = 'http://www.w3.org/2000/svg';
@@ -67,9 +67,10 @@ export function initTilt(card, maxDeg = 4) {
   window.addEventListener('resize', () => { rect = null; });
   card.addEventListener('pointermove', (e) => {
     if (!motionOK()) return;
-    if (!rect) measure();
     cancelAnimationFrame(raf);
     raf = requestAnimationFrame(() => {
+      // A scroll may have cleared the measurement since the move.
+      if (!rect) measure();
       const r = rect;
       const x = (e.clientX - r.left) / r.width - 0.5;
       const y = (e.clientY - r.top) / r.height - 0.5;

@@ -1,11 +1,11 @@
-import * as audio from './audio.js?v=42';
-import * as fx from './fx.js?v=42';
-import { toast } from './toast.js?v=42';
-import * as effects from './effects.js?v=42';
-import * as scenery from './scenery.js?v=42';
-import * as pip from './pip.js?v=42';
-import { shareCard, makeCardFile } from './share.js?v=42';
-import * as photo from './photo.js?v=42';
+import * as audio from './audio.js?v=43';
+import * as fx from './fx.js?v=43';
+import { toast } from './toast.js?v=43';
+import * as effects from './effects.js?v=43';
+import * as scenery from './scenery.js?v=43';
+import * as pip from './pip.js?v=43';
+import { shareCard, makeCardFile } from './share.js?v=43';
+import * as photo from './photo.js?v=43';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -37,9 +37,11 @@ const DEFAULTS = {
   soundsWithTimer: false,
   chimeStyle: 'bells',
   chimeVolume: 70,
+  flow: false,
+  flowRatio: 5,
 };
 const PALETTES = ['sunset', 'ocean', 'forest', 'lavender', 'rose', 'mono'];
-const LIMITS = { focus: [1, 180], short: [1, 60], long: [1, 90], longEvery: [2, 12], goal: [1, 24], chimeVolume: [0, 100] };
+const LIMITS = { focus: [1, 180], short: [1, 60], long: [1, 90], longEvery: [2, 12], goal: [1, 24], chimeVolume: [0, 100], flowRatio: [2, 6] };
 const RING_C = 2 * Math.PI * 100;
 
 // ---------------------------------------------------------------------------
@@ -69,6 +71,7 @@ function cleanSettings(raw) {
   if (!['auto', 'light', 'dark'].includes(out.theme)) out.theme = 'auto';
   if (!PALETTES.includes(out.palette)) out.palette = 'sunset';
   if (!audio.chimeStyles.includes(out.chimeStyle)) out.chimeStyle = 'bells';
+  out.flow = Boolean(out.flow);
   return out;
 }
 
@@ -77,7 +80,11 @@ function cleanTimer(raw) {
   if (!MODES[out.mode]) out.mode = 'focus';
   out.cycle = clampInt(out.cycle, 0, 1e6, 0);
   out.distractions = clampInt(out.distractions, 0, 99, 0);
-  out.running = Boolean(out.running) && Number.isFinite(out.endAt);
+  out.flow = Boolean(out.flow) && out.mode === 'focus';
+  out.nudged = Boolean(out.nudged);
+  if (!Number.isFinite(out.startAt)) out.startAt = 0;
+  out.earned = out.mode !== 'focus' && Number.isFinite(out.earned) && out.earned >= 60000 ? Math.min(out.earned, 90 * 60000) : null;
+  out.running = Boolean(out.running) && Number.isFinite(out.flow ? out.startAt : out.endAt);
   return out;
 }
 
@@ -104,6 +111,7 @@ function cleanHistory(raw) {
       ...(typeof h.task === 'string' ? { task: h.task.slice(0, 120) } : {}),
       ...(Number.isInteger(h.r) && h.r >= 1 && h.r <= 4 ? { r: h.r } : {}),
       ...(Number.isInteger(h.d) && h.d > 0 ? { d: Math.min(h.d, 99) } : {}),
+      ...(h.f ? { f: 1 } : {}),
     }));
 }
 
@@ -185,6 +193,7 @@ const el = {
   miniMode: $('#mini-mode'),
   navBadge: $('#nav-badge'),
   extend: $('#btn-extend'),
+  flowBreak: $('#btn-flow-break'),
   lengthBtn: $('#btn-length'),
   lengthPop: $('#length-pop'),
   distract: $('#btn-distract'),
@@ -211,9 +220,20 @@ const updateTicks = effects.makeTicks($('.ring'));
 // Timer
 
 const durationOf = (mode) => settings[mode] * 60000;
-const totalMs = () => timer.total ?? durationOf(timer.mode);
+// A break earned in Flowtime replaces the usual length.
+const sessionLength = () => (timer.mode !== 'focus' && timer.earned ? timer.earned : durationOf(timer.mode));
+const totalMs = () => timer.total ?? sessionLength();
 const remainingMs = () => (timer.running ? Math.max(0, timer.endAt - Date.now()) : timer.paused ?? totalMs());
-const isFresh = () => !timer.running && timer.total == null;
+const isFresh = () => !timer.running && timer.total == null && timer.paused == null;
+
+// Flowtime: focus counts up until you stop, and you earn a break in
+// proportion to how long you worked.
+const FLOW_LAP = 3600e3; // the ring goes round once an hour, like a clock
+const FLOW_NUDGE = 90 * 60000;
+const isFlow = () => timer.mode === 'focus' && (isFresh() ? settings.flow : timer.flow);
+const flowElapsed = () => (timer.running ? Math.max(0, Date.now() - timer.startAt) : timer.paused ?? 0);
+const elapsedMs = () => (timer.flow ? flowElapsed() : totalMs() - remainingMs());
+const earnedBreak = (ms) => Math.min(90, Math.max(1, Math.round(ms / 60000 / settings.flowRatio))) * 60000;
 
 let tickTimer = 0;
 let endTimer = 0;
@@ -222,6 +242,10 @@ function schedule() {
   clearTimeout(tickTimer);
   clearTimeout(endTimer);
   if (!timer.running) return;
+  if (timer.flow) {
+    tickTimer = setTimeout(onTick, 1000 - (flowElapsed() % 1000) + 15);
+    return;
+  }
   const rem = timer.endAt - Date.now();
   if (rem <= 0) {
     complete({ late: -rem });
@@ -234,12 +258,40 @@ function schedule() {
 }
 
 function onTick() {
-  if (timer.running && Date.now() >= timer.endAt) {
+  if (timer.running && !timer.flow && Date.now() >= timer.endAt) {
     complete({ late: Date.now() - timer.endAt });
     return;
   }
+  if (timer.running && timer.flow && !timer.nudged && flowElapsed() >= FLOW_NUDGE) nudgeFlow();
   renderTimer();
   schedule();
+}
+
+// A long stretch in Flowtime gets one gentle reminder to rest.
+function nudgeFlow() {
+  timer.nudged = true;
+  save();
+  if (document.visibilityState !== 'visible') return;
+  audio.sfx('on', el.time);
+  toast({
+    icon: '🌊',
+    title: `${Math.round(flowElapsed() / 60000)} minutes in flow`,
+    body: 'Brilliant focus. A break soon will help you keep it up.',
+    duration: 12000,
+    action: { label: 'Take my break', onClick: () => finishFlow() },
+  });
+}
+
+/** End a Flowtime session and start the break you earned. */
+function finishFlow() {
+  if (!timer.flow || isFresh()) return;
+  const ms = flowElapsed();
+  if (ms < 60000) {
+    reset();
+    toast({ icon: '🌊', title: 'Under a minute', body: 'Nothing to log yet. Start again when you\'re ready.', duration: 4000 });
+    return;
+  }
+  complete({ flowMs: ms });
 }
 
 function maybeOfferNotifications() {
@@ -268,8 +320,13 @@ function maybeOfferNotifications() {
 function start() {
   if (timer.running) return;
   if (timer.mode === 'focus') maybeOfferNotifications();
-  if (timer.total == null) timer.total = durationOf(timer.mode);
-  timer.endAt = Date.now() + (timer.paused ?? timer.total);
+  if (isFresh()) timer.flow = timer.mode === 'focus' && settings.flow;
+  if (timer.flow) {
+    timer.startAt = Date.now() - (timer.paused ?? 0);
+  } else {
+    if (timer.total == null) timer.total = sessionLength();
+    timer.endAt = Date.now() + (timer.paused ?? timer.total);
+  }
   timer.paused = null;
   timer.running = true;
   afterTimerChange();
@@ -277,14 +334,14 @@ function start() {
 
 function pause() {
   if (!timer.running) return;
-  timer.paused = Math.max(0, timer.endAt - Date.now());
+  timer.paused = timer.flow ? flowElapsed() : Math.max(0, timer.endAt - Date.now());
   timer.running = false;
   afterTimerChange();
 }
 
 /** Stretch or trim the current session (not before it has started). */
 function addTime(ms, source) {
-  if (isFresh()) return false;
+  if (isFresh() || timer.flow) return false;
   const rem = remainingMs();
   // Never trim below 10 seconds left (and never let "minus" add time).
   const change = ms >= 0 ? ms : Math.min(0, Math.max(ms, 10000 - rem));
@@ -322,26 +379,38 @@ const LENGTHS = { focus: [15, 20, 25, 30, 45, 50, 60, 90], short: [3, 5, 10, 15]
 function renderLength() {
   const fresh = isFresh();
   el.lengthBtn.hidden = !fresh;
-  el.lengthBtn.textContent = `${settings[timer.mode]} min ▾`;
+  el.lengthBtn.textContent = isFlow() ? '∞ Flowtime ▾' : `${Math.round(sessionLength() / 60000)} min ▾`;
   if (!fresh) closeLengthPop();
 }
 
 function openLengthPop() {
   const mode = timer.mode;
-  const opts = [...new Set([...LENGTHS[mode], settings[mode]])].sort((a, b) => a - b);
-  el.lengthPop.replaceChildren(
-    ...opts.map((m) => {
-      const b = document.createElement('button');
-      b.type = 'button';
-      b.className = 'length-opt pressable';
-      b.dataset.min = String(m);
-      b.textContent = String(m);
-      b.setAttribute('aria-pressed', String(m === settings[mode]));
-      b.setAttribute('aria-label', `${m} minutes`);
-      return b;
-    }),
-  );
+  const current = Math.round(sessionLength() / 60000);
+  const opts = [...new Set([...LENGTHS[mode], current])].sort((a, b) => a - b);
+  const flow = isFlow();
+  const buttons = opts.map((m) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'length-opt pressable';
+    b.dataset.min = String(m);
+    b.textContent = String(m);
+    b.setAttribute('aria-pressed', String(!flow && m === current));
+    b.setAttribute('aria-label', `${m} minutes`);
+    return b;
+  });
+  if (mode === 'focus') {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'length-opt is-flow pressable';
+    b.dataset.min = 'flow';
+    b.textContent = '∞ Flowtime';
+    b.title = 'Count up and take a break when you\'re ready';
+    b.setAttribute('aria-pressed', String(flow));
+    buttons.push(b);
+  }
+  el.lengthPop.replaceChildren(...buttons);
   el.lengthPop.hidden = false;
+  el.dial.classList.add('has-pop');
   el.lengthBtn.setAttribute('aria-expanded', 'true');
   fx.enter(el.lengthPop);
   audio.sfx('open', el.lengthBtn);
@@ -351,6 +420,7 @@ function openLengthPop() {
 function closeLengthPop() {
   if (el.lengthPop.hidden) return;
   el.lengthPop.hidden = true;
+  el.dial.classList.remove('has-pop');
   el.lengthBtn.setAttribute('aria-expanded', 'false');
 }
 
@@ -366,6 +436,9 @@ function clearSession() {
   timer.total = null;
   timer.paused = null;
   timer.distractions = 0;
+  timer.flow = false;
+  timer.startAt = 0;
+  timer.nudged = false;
 }
 
 function reset() {
@@ -394,27 +467,29 @@ function nextAfter(mode) {
   return timer.cycle % settings.longEvery === 0 ? 'long' : 'short';
 }
 
-function switchTo(mode) {
+function switchTo(mode, { earned = null } = {}) {
   timer.mode = mode;
   clearSession();
+  timer.earned = mode === 'focus' ? null : earned;
   applyMode();
   afterTimerChange();
   renderTasks();
 }
 
-function complete({ late = 0 } = {}) {
+function complete({ late = 0, flowMs = 0 } = {}) {
   const ended = timer.mode;
-  const endedAt = timer.running ? timer.endAt : Date.now();
+  const endedAt = timer.running && !flowMs ? timer.endAt : Date.now();
   if (ended === 'focus') {
     const task = tasks.find((t) => t.id === activeTaskId);
     // Another open tab may have recorded this same session already.
     if (!history.some((h) => h.s && h.t === endedAt)) {
       history.push({
         t: endedAt,
-        m: Math.round(totalMs() / 60000),
+        m: Math.round((flowMs || totalMs()) / 60000),
         s: 1,
         ...(task ? { task: task.title } : {}),
         ...(timer.distractions ? { d: timer.distractions } : {}),
+        ...(flowMs ? { f: 1 } : {}),
       });
     }
     if (task && !task.done) task.pomos += 1;
@@ -423,7 +498,10 @@ function complete({ late = 0 } = {}) {
     timer.cycle = 0;
   }
   const next = nextAfter(ended);
-  switchTo(next);
+  let earned = null;
+  if (flowMs) earned = next === 'long' ? Math.max(earnedBreak(flowMs), durationOf('long')) : earnedBreak(flowMs);
+  switchTo(next, { earned });
+  const breakMin = Math.round(totalMs() / 60000);
   renderGoal();
 
   // Stay quiet about a session that ended long ago while the page was closed.
@@ -434,8 +512,9 @@ function complete({ late = 0 } = {}) {
 
   if (settings.chime) audio.chime(next === 'focus' ? 'focus' : 'break', settings.chimeStyle);
   if (ended === 'focus' && isZen()) unlock('zen', { delay: 1600 });
+  if (flowMs >= 3600e3) unlock('flow', { delay: 2200 });
   if (settings.sfx) fx.haptic([140, 90, 140, 90, 260]);
-  notify(ended, next);
+  if (!flowMs) notify(ended, next, breakMin);
   if (ended === 'focus') fx.celebrate(el.dial);
   else fx.burst(el.dial, { count: 18, spread: 150, size: 8 });
   fx.pop(el.dial, 1.04);
@@ -456,9 +535,11 @@ function complete({ late = 0 } = {}) {
       audio.sfx('pop', el.toggle);
     };
     toast({
-      icon: '☕',
-      title: 'Focus session done. How did it go?',
-      body: auto ? `Your ${settings[next]}-minute break has started.` : `Time for a ${settings[next]}-minute break.`,
+      icon: flowMs ? '🌊' : '☕',
+      title: flowMs ? `${fmtMinutes(Math.round(flowMs / 60000))} in flow. How did it go?` : 'Focus session done. How did it go?',
+      body: flowMs
+        ? `You earned a ${breakMin}-minute break${auto ? '. It has started.' : '.'}`
+        : auto ? `Your ${breakMin}-minute break has started.` : `Time for a ${breakMin}-minute break.`,
       duration: 12000,
       actions: [
         ...RATINGS.map((emoji, i) => ({ label: emoji, kind: 'emoji', ariaLabel: RATING_NAMES[i], title: RATING_NAMES[i], onClick: rate(i + 1) })),
@@ -484,6 +565,10 @@ function complete({ late = 0 } = {}) {
 }
 
 function skip() {
+  if (timer.flow && !isFresh()) {
+    finishFlow();
+    return;
+  }
   const ended = timer.mode;
   if (ended === 'focus') {
     const elapsed = totalMs() - remainingMs();
@@ -536,24 +621,27 @@ function renderDigits(text, animate) {
 }
 
 function renderTimer(force = false) {
+  const flow = isFlow();
   const rem = remainingMs();
-  const secs = Math.ceil(rem / 1000);
+  const elapsed = flow ? flowElapsed() : 0;
+  const secs = flow ? Math.floor(elapsed / 1000) : Math.ceil(rem / 1000);
   const clock = fmtClock(secs);
 
   if (clock !== lastClock || force) {
     renderDigits(clock, !force && timer.running);
     lastClock = clock;
-    el.time.setAttribute('aria-label', `${Math.floor(secs / 60)} minutes ${secs % 60} seconds remaining`);
-    const emoji = { focus: '🎯', short: '☕', long: '🌿' }[timer.mode];
-    document.title = isFresh() ? 'Tempo · Focus Timer' : `${emoji} ${clock} · ${MODES[timer.mode].label} · Tempo`;
+    el.time.setAttribute('aria-label', `${Math.floor(secs / 60)} minutes ${secs % 60} seconds ${flow ? 'of focus so far' : 'remaining'}`);
+    const emoji = flow ? '🌊' : { focus: '🎯', short: '☕', long: '🌿' }[timer.mode];
+    document.title = isFresh() ? 'Tempo · Focus Timer' : `${emoji} ${clock} · ${flow ? 'Flow' : MODES[timer.mode].label} · Tempo`;
 
-    if (timer.running && secs > 0 && secs <= 3 && !force && document.visibilityState === 'visible') {
+    if (!flow && timer.running && secs > 0 && secs <= 3 && !force && document.visibilityState === 'visible') {
       audio.sfx('tick', el.time);
       fx.pop(el.time, 1.05);
     }
   }
 
-  const f = Math.max(0, Math.min(1, rem / totalMs()));
+  // In Flowtime the ring fills like a clock, one lap an hour.
+  const f = flow ? (elapsed % FLOW_LAP) / FLOW_LAP : Math.max(0, Math.min(1, rem / totalMs()));
   lastFraction = f;
   el.ring.style.strokeDashoffset = `${RING_C * (1 - f)}`;
   updateTicks(f);
@@ -567,7 +655,16 @@ function renderTimer(force = false) {
   el.body.classList.toggle('is-running', timer.running);
   el.miniTime.textContent = clock;
   el.miniMode.textContent = MODES[timer.mode].label;
-  el.extend.hidden = isFresh();
+  el.extend.hidden = isFresh() || flow;
+  el.body.classList.toggle('is-flow', flow);
+  el.flowBreak.hidden = !flow || isFresh();
+  if (flow) {
+    const mins = Math.round(earnedBreak(elapsed) / 60000);
+    el.flowBreak.textContent = `☕ Break · ${mins} min`;
+    el.flowBreak.setAttribute('aria-label', `Finish and take a ${mins}-minute break`);
+  }
+  el.skip.title = flow && !isFresh() ? 'Finish and take your break (S)' : 'Skip (S)';
+  el.skip.setAttribute('aria-label', flow && !isFresh() ? 'Finish and take your break' : 'Skip to next session');
   renderDistractions();
   renderLength();
   el.toggle.setAttribute('aria-pressed', String(timer.running));
@@ -659,6 +756,7 @@ function renderDots() {
 }
 
 function sessionNote() {
+  if (isFlow()) return 'Flowtime · break when you\'re ready';
   const pos = (timer.cycle % settings.longEvery) + 1;
   return MODES[timer.mode].note(pos, settings.longEvery);
 }
@@ -689,7 +787,7 @@ function applyTheme() {
   else document.documentElement.dataset.theme = settings.theme;
   el.body.dataset.palette = settings.palette;
   favKey = '';
-  renderFavicon(Math.max(0, Math.min(1, remainingMs() / totalMs())));
+  renderFavicon(lastFraction);
   updateThemeColor();
 }
 
@@ -777,13 +875,13 @@ async function syncWakeLock() {
   }
 }
 
-async function notify(ended, next) {
+async function notify(ended, next, breakMin) {
   if (!settings.notify || !('Notification' in window) || Notification.permission !== 'granted') return;
   const title = ended === 'focus' ? 'Focus session done' : 'Break is over';
   const body =
     next === 'focus'
       ? 'Ready for the next focus session?'
-      : `Nice work. Take ${settings[next]} minutes to recharge.`;
+      : `Nice work. Take ${breakMin} minutes to recharge.`;
   const opts = { body, icon: 'icons/icon-192.png', badge: 'icons/icon-192.png', tag: 'tempo', renotify: true };
   try {
     const reg = navigator.serviceWorker && (await navigator.serviceWorker.getRegistration());
@@ -1129,7 +1227,7 @@ function renderSummary() {
 function estimateFinish(focusLeft) {
   let t = Date.now();
   let mode = timer.mode;
-  let rem = remainingMs();
+  let rem = timer.flow ? Math.max(0, durationOf('focus') - flowElapsed()) : remainingMs();
   let cycle = timer.cycle;
   let need = focusLeft;
   for (let guard = 0; guard < 500; guard++) {
@@ -1211,6 +1309,7 @@ const ACHIEVEMENTS = [
   { id: 'orbit', icon: '🪐', name: 'In orbit', desc: 'Send a sound circling around you' },
   { id: 'zen', icon: '🧘', name: 'Zen master', desc: 'Finish a focus session in zen mode' },
   { id: 'marathon', icon: '🏃', name: 'Marathon', desc: 'Four hours of focus in one day' },
+  { id: 'flow', icon: '🌊', name: 'In the zone', desc: 'Stay in Flowtime for an hour' },
 ];
 const GOAL_C = 2 * Math.PI * 15;
 
@@ -1474,12 +1573,12 @@ function renderLog() {
       when.textContent = fmtWhen(h.t);
       const what = document.createElement('span');
       what.className = 'log-what';
-      what.textContent = h.task || (h.s ? 'Focus session' : 'Focus (ended early)');
-      if (h.r || h.d) {
+      what.textContent = h.task || (h.f ? 'Flow session' : h.s ? 'Focus session' : 'Focus (ended early)');
+      if (h.r || h.d || h.f) {
         const meta = document.createElement('span');
         meta.className = 'log-meta';
-        meta.textContent = [h.r ? RATINGS[h.r - 1] : '', h.d ? `⚡${h.d}` : ''].filter(Boolean).join(' ');
-        meta.title = [h.r ? `Felt ${RATING_NAMES[h.r - 1].toLowerCase()}` : '', h.d ? `${h.d} distraction${h.d === 1 ? '' : 's'}` : ''].filter(Boolean).join(', ');
+        meta.textContent = [h.f ? '🌊' : '', h.r ? RATINGS[h.r - 1] : '', h.d ? `⚡${h.d}` : ''].filter(Boolean).join(' ');
+        meta.title = [h.f ? 'Flowtime' : '', h.r ? `Felt ${RATING_NAMES[h.r - 1].toLowerCase()}` : '', h.d ? `${h.d} distraction${h.d === 1 ? '' : 's'}` : ''].filter(Boolean).join(', ');
         what.append(' ', meta);
       }
       const dur = document.createElement('span');
@@ -1739,7 +1838,8 @@ $$('dialog.sheet').forEach((dialog) => {
 function fillSettings() {
   const f = el.settingsForm;
   for (const k of Object.keys(LIMITS)) f.elements[k].value = settings[k];
-  for (const k of ['autoBreaks', 'autoFocus', 'breathing', 'chime', 'sfx', 'notify', 'wakeLock', 'scenery', 'soundsWithTimer']) f.elements[k].checked = settings[k];
+  for (const k of ['autoBreaks', 'autoFocus', 'breathing', 'chime', 'sfx', 'notify', 'wakeLock', 'scenery', 'soundsWithTimer', 'flow']) f.elements[k].checked = settings[k];
+  $('#flow-ratio-row').hidden = !settings.flow;
   f.elements.theme.value = settings.theme;
   f.elements.palette.value = settings.palette;
   f.elements.chimeStyle.value = settings.chimeStyle;
@@ -1749,14 +1849,16 @@ function fillSettings() {
 
 function markPreset() {
   const current = `${settings.focus},${settings.short},${settings.long}`;
-  $$('.preset[data-preset]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.preset === current)));
+  $$('.preset[data-preset]').forEach((b) => b.setAttribute('aria-pressed', String(!settings.flow && b.dataset.preset === current)));
 }
 
 $$('.preset[data-preset]').forEach((btn) => {
   btn.addEventListener('click', () => {
     const [focus, short, long] = btn.dataset.preset.split(',').map(Number);
-    Object.assign(settings, { focus, short, long });
+    Object.assign(settings, { focus, short, long, flow: false });
     const f = el.settingsForm;
+    f.elements.flow.checked = false;
+    $('#flow-ratio-row').hidden = true;
     f.elements.focus.value = focus;
     f.elements.short.value = short;
     f.elements.long.value = long;
@@ -1824,6 +1926,12 @@ el.settingsForm.addEventListener('change', async (e) => {
       syncSoundGate();
     }
     if (name === 'soundsWithTimer') syncSoundGate();
+    if (name === 'flow') {
+      $('#flow-ratio-row').hidden = !settings.flow;
+      markPreset();
+      applyMode();
+      renderSummary();
+    }
   }
   save();
 });
@@ -2629,11 +2737,22 @@ el.reset.addEventListener('click', () => {
 
 el.zen.addEventListener('click', () => setZen(!isZen()));
 el.extend.addEventListener('click', () => addTime(60000, el.extend));
+el.flowBreak.addEventListener('click', () => {
+  audio.sfx('pop', el.flowBreak);
+  fx.pop(el.flowBreak, 1.1);
+  finishFlow();
+});
 el.lengthBtn.addEventListener('click', () => (el.lengthPop.hidden ? openLengthPop() : closeLengthPop()));
 el.lengthPop.addEventListener('click', (e) => {
   const b = e.target.closest('.length-opt');
   if (!b) return;
-  settings[timer.mode] = Number(b.dataset.min);
+  if (b.dataset.min === 'flow') {
+    settings.flow = true;
+  } else {
+    settings[timer.mode] = Number(b.dataset.min);
+    if (timer.mode === 'focus') settings.flow = false;
+    timer.earned = null;
+  }
   save();
   audio.sfx('pop', b);
   closeLengthPop();
@@ -2670,8 +2789,7 @@ el.tabs.forEach((tab) => {
       fx.pop(tab, 1.05);
       return;
     }
-    const elapsed = totalMs() - remainingMs();
-    if (timer.running && elapsed > 5000 && !window.confirm('The timer is running. Switch anyway?')) return;
+    if (timer.running && elapsedMs() > 5000 && !window.confirm('The timer is running. Switch anyway?')) return;
     audio.sfx('tap', tab);
     switchTo(mode);
   });
@@ -2819,6 +2937,7 @@ statTabs.forEach((t, i) => {
 
 // What's new: the newest first. Bump `id` when adding an entry.
 const CHANGES = [
+  { id: 7, icon: '🌊', text: 'Flowtime: tap the length under the timer and pick ∞ to count up, then take a break you\'ve earned when you\'re ready.' },
   { id: 6, icon: '🖼️', text: 'Set your own background photo in Settings > Appearance.' },
   { id: 5, icon: '🐈', text: 'New sounds: Wind, Stream, Wind chimes and a purring cat, plus new mixes like Cat nap and Forest stream.' },
   { id: 4, icon: '⏱️', text: 'Tap the length under the timer to change it quickly. Stats now show today\'s timeline and where your focus went.' },
