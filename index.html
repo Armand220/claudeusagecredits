@@ -23,7 +23,7 @@
   <!-- Fonts load without blocking the first paint. -->
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..700&family=Outfit:wght@200..700&display=swap" media="print" onload="this.media='all'">
   <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..700&family=Outfit:wght@200..700&display=swap"></noscript>
-  <link rel="stylesheet" href="styles.css?v=55">
+  <link rel="stylesheet" href="styles.css?v=56">
 </head>
 <body data-mode="focus">
   <div class="photo-bg" aria-hidden="true"></div>
@@ -393,6 +393,10 @@
           <h3 id="tags-title">Focus by tag · last 7 days</h3>
           <ol class="top-tasks" id="tag-bars"></ol>
         </section>
+        <section class="heat-section" id="records-section" aria-labelledby="records-title" hidden>
+          <h3 id="records-title">Personal bests</h3>
+          <ul class="review-list" id="records-list"></ul>
+        </section>
         <section class="heat-section" aria-labelledby="log-title">
           <h3 id="log-title">Recent sessions</h3>
           <p class="sheet-note log-summary" id="log-summary"></p>
@@ -497,6 +501,7 @@
           <label class="swatch-opt pressable" title="Rose"><input type="radio" name="palette" value="rose"><span class="swatch" data-p="rose"></span><span class="sr-only">Rose</span></label>
           <label class="swatch-opt pressable" title="Mono"><input type="radio" name="palette" value="mono"><span class="swatch" data-p="mono"></span><span class="sr-only">Mono</span></label>
         </div>
+        <label class="switch"><input type="checkbox" name="daySky"><span>Background colours follow the time of day</span></label>
         <label class="switch"><input type="checkbox" name="scenery"><span>Animated backgrounds that match the sound</span></label>
         <div class="photo-row">
           <span class="photo-label">Background photo</span>
@@ -625,6 +630,6 @@
     </div>
   </dialog>
 
-  <script type="module" src="js/app.js?v=55"></script>
+  <script type="module" src="js/app.js?v=56"></script>
 </body>
 </html>

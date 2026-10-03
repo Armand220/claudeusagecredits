@@ -190,6 +190,20 @@ svg { display: block; }
 .aurora span:nth-child(1) { --c: var(--blob-1); top: -35vmax; left: -25vmax; animation: drift-1 26s ease-in-out infinite alternate; }
 .aurora span:nth-child(2) { --c: var(--blob-2); top: -20vmax; right: -35vmax; animation: drift-2 32s ease-in-out infinite alternate; }
 .aurora span:nth-child(3) { --c: var(--blob-3); bottom: -45vmax; left: 5vmax; animation: drift-3 38s ease-in-out infinite alternate; }
+/* Time of day: a wide, soft wash over the blobs. */
+.aurora::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(130vmax 90vmax at var(--sky-at, 50% 120%), var(--sky, transparent), transparent 62%);
+  opacity: 0;
+  transition: opacity 3s ease;
+}
+body[data-daypart] .aurora::after { opacity: .32; }
+body[data-daypart="dawn"] { --sky: #ffb38a; --sky-at: 10% -10%; }
+body[data-daypart="day"] { --sky: #9fd8ff; --sky-at: 70% -20%; }
+body[data-daypart="dusk"] { --sky: #ffae42; --sky-at: 90% 110%; }
+body[data-daypart="night"] { --sky: #4b4fb8; --sky-at: 50% -20%; }
 @keyframes drift-1 { to { transform: translate(18vmax, 14vmax) scale(1.15); } }
 @keyframes drift-2 { to { transform: translate(-16vmax, 20vmax) scale(.9); } }
 @keyframes drift-3 { to { transform: translate(12vmax, -18vmax) scale(1.1); } }

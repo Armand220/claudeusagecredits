@@ -1,11 +1,11 @@
-import * as audio from './audio.js?v=55';
-import * as fx from './fx.js?v=55';
-import { toast } from './toast.js?v=55';
-import * as effects from './effects.js?v=55';
-import * as scenery from './scenery.js?v=55';
-import * as pip from './pip.js?v=55';
-import { shareCard, makeCardFile } from './share.js?v=55';
-import * as photo from './photo.js?v=55';
+import * as audio from './audio.js?v=56';
+import * as fx from './fx.js?v=56';
+import { toast } from './toast.js?v=56';
+import * as effects from './effects.js?v=56';
+import * as scenery from './scenery.js?v=56';
+import * as pip from './pip.js?v=56';
+import { shareCard, makeCardFile } from './share.js?v=56';
+import * as photo from './photo.js?v=56';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -42,6 +42,7 @@ const DEFAULTS = {
   goalType: 'sessions',
   goalMinutes: 120,
   bells: false,
+  daySky: true,
 };
 const PALETTES = ['sunset', 'ocean', 'forest', 'lavender', 'rose', 'mono'];
 const LIMITS = { focus: [1, 180], short: [1, 60], long: [1, 90], longEvery: [2, 12], goal: [1, 24], chimeVolume: [0, 100], flowRatio: [2, 6], goalMinutes: [15, 720] };
@@ -970,6 +971,17 @@ function applyMode() {
   renderTimer(true);
 }
 
+// The background drifts with the day: a peach dawn, a golden evening, an
+// indigo night.
+function syncDaypart() {
+  const h = new Date().getHours();
+  const part = h >= 5 && h < 9 ? 'dawn' : h >= 9 && h < 17 ? 'day' : h >= 17 && h < 21 ? 'dusk' : 'night';
+  if (settings.daySky) el.body.dataset.daypart = part;
+  else delete el.body.dataset.daypart;
+}
+setInterval(syncDaypart, 5 * 60000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) syncDaypart(); });
+
 function updateThemeColor() {
   requestAnimationFrame(() => {
     const c = getComputedStyle(el.body).getPropertyValue('--bg').trim();
@@ -979,6 +991,7 @@ function updateThemeColor() {
 }
 
 function applyTheme() {
+  syncDaypart();
   if (settings.theme === 'auto') delete document.documentElement.dataset.theme;
   else document.documentElement.dataset.theme = settings.theme;
   el.body.dataset.palette = settings.palette;
@@ -1774,6 +1787,7 @@ function renderStats() {
   renderTimeline();
   renderTopTasks();
   renderWeekReview();
+  renderRecords();
   renderBadges();
 }
 
@@ -1989,6 +2003,65 @@ document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible') renderIntention();
 });
 renderIntention();
+
+// Personal bests over everything recorded.
+function renderRecords() {
+  const focus = history.filter((h) => h.s);
+  $('#records-section').hidden = focus.length < 3;
+  if (focus.length < 3) return;
+  const dateOf = (t) => new Date(t).toLocaleDateString([], { month: 'short', day: 'numeric', year: new Date(t).getFullYear() === new Date().getFullYear() ? undefined : 'numeric' });
+  const rows = [];
+  const longest = focus.reduce((a, b) => (b.m > a.m ? b : a));
+  rows.push(['⏳', 'Longest session', `${fmtMinutes(longest.m)} · ${dateOf(longest.t)}`]);
+  const byDay = new Map();
+  for (const h of history) {
+    const d = new Date(h.t);
+    d.setHours(0, 0, 0, 0);
+    byDay.set(d.getTime(), (byDay.get(d.getTime()) || 0) + h.m);
+  }
+  const [bestDay, bestDayM] = [...byDay.entries()].sort((a, b) => b[1] - a[1])[0];
+  rows.push(['🌟', 'Best day', `${fmtMinutes(bestDayM)} · ${dateOf(bestDay)}`]);
+  const byWeek = new Map();
+  for (const [t, m] of byDay) {
+    const d = new Date(t);
+    d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+    byWeek.set(d.getTime(), (byWeek.get(d.getTime()) || 0) + m);
+  }
+  const [bestWeek, bestWeekM] = [...byWeek.entries()].sort((a, b) => b[1] - a[1])[0];
+  rows.push(['📆', 'Best week', `${fmtMinutes(bestWeekM)} · from ${dateOf(bestWeek)}`]);
+  const days = [...byDay.keys()].sort((a, b) => a - b);
+  let run = 0;
+  let best = 0;
+  let prev = null;
+  for (const t of days) {
+    const next = prev == null ? null : new Date(prev);
+    if (next) next.setDate(next.getDate() + 1);
+    run = next && next.getTime() === t ? run + 1 : 1;
+    best = Math.max(best, run);
+    prev = t;
+  }
+  rows.push(['🔥', 'Longest streak', `${best} ${best === 1 ? 'day' : 'days'}`]);
+  const since = Math.min(...history.map((h) => h.t));
+  rows.push(['🧭', 'Since', `${dateOf(since)} · ${fmtMinutes(history.reduce((n, h) => n + h.m, 0))} in all`]);
+  $('#records-list').replaceChildren(
+    ...rows.map(([icon, label, value], i) => {
+      const li = document.createElement('li');
+      li.style.setProperty('--delay', `${i * 50}ms`);
+      const ic = document.createElement('span');
+      ic.className = 'review-icon';
+      ic.setAttribute('aria-hidden', 'true');
+      ic.textContent = icon;
+      const l = document.createElement('span');
+      l.className = 'review-label';
+      l.textContent = label;
+      const v = document.createElement('span');
+      v.className = 'review-value';
+      v.textContent = value;
+      li.append(ic, l, v);
+      return li;
+    }),
+  );
+}
 
 // This week (from Monday) at a glance.
 function renderWeekReview() {
@@ -2372,7 +2445,7 @@ $$('dialog.sheet').forEach((dialog) => {
 function fillSettings() {
   const f = el.settingsForm;
   for (const k of Object.keys(LIMITS)) f.elements[k].value = settings[k];
-  for (const k of ['autoBreaks', 'autoFocus', 'breathing', 'chime', 'sfx', 'notify', 'wakeLock', 'scenery', 'soundsWithTimer', 'flow', 'bells']) f.elements[k].checked = settings[k];
+  for (const k of ['autoBreaks', 'autoFocus', 'breathing', 'chime', 'sfx', 'notify', 'wakeLock', 'scenery', 'soundsWithTimer', 'flow', 'bells', 'daySky']) f.elements[k].checked = settings[k];
   $('#flow-ratio-row').hidden = !settings.flow;
   f.elements.goalType.value = settings.goalType;
   syncGoalInputs();
@@ -2474,6 +2547,7 @@ el.settingsForm.addEventListener('change', async (e) => {
       syncSoundGate();
     }
     if (name === 'soundsWithTimer') syncSoundGate();
+    if (name === 'daySky') syncDaypart();
     if (name === 'flow') {
       $('#flow-ratio-row').hidden = !settings.flow;
       markPreset();
@@ -3641,6 +3715,7 @@ statTabs.forEach((t, i) => {
 
 // What's new: the newest first. Bump `id` when adding an entry.
 const CHANGES = [
+  { id: 17, icon: '🌅', text: 'The background now follows the time of day, Stats shows your personal bests, and the shared image includes today\'s intention.' },
   { id: 16, icon: '🔔', text: 'Optional soft bells halfway through a session and with a minute to go (Settings > Sound). Media keys and your lock screen can now start, pause and skip.' },
   { id: 15, icon: '🎯', text: 'Set your daily goal in minutes instead of sessions (great with Flowtime), and export your sessions as a spreadsheet.' },
   { id: 14, icon: '🏆', text: 'Seven new achievements, a "This week" review in Stats, and Undo when you skip a session by accident.' },
@@ -3732,6 +3807,7 @@ function shareData() {
     sessions: t.s,
     streak: streakDays(),
     week,
+    intention: intention.text ? `🌱 ${intention.text}${intention.done ? ' ✓' : ''}` : '',
     date: today.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' }),
     colors: { accent: v('accent'), accent2: v('accent-2'), bg: v('bg'), ink: v('ink'), ink2: v('ink-2'), track: v('track'), card: v('surface') },
   };

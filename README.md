@@ -82,7 +82,8 @@ installed as an app on your phone or computer.
 - Stats with Overview (today, streak, last 7 days vs the week before,
   12-week heatmap: tap a day to see its sessions), History (best focus hours,
   focus by task and by tag, recent sessions with ratings and distractions)
-  and Achievements (twenty-five to unlock), plus a "This week" review
+  and Achievements (twenty-five to unlock), plus a "This week" review and
+  your personal bests
 - **Share today**: a ready-to-post image of your day's focus
 - Export and import a backup file to move your data between devices, or
   export every session as a spreadsheet (CSV)
@@ -90,6 +91,8 @@ installed as an app on your phone or computer.
 **Look and feel**
 - Light and dark themes, six colour palettes (Sunset, Ocean, Forest, Lavender,
   Rose, Mono), and your own background photo (kept on your device)
+- The background follows the time of day: peach at dawn, golden in the
+  evening, indigo at night
 - Glass cards, drifting aurora, springy buttons with ripples and confetti, a
   cursor spotlight and a gentle 3D tilt
 - Respects "reduce motion"; accessibility audit (axe) passes with no issues

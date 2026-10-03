@@ -83,6 +83,19 @@ export async function drawCard(data) {
   g.font = `500 40px ${body}`;
   g.fillText('today', 140, 690);
 
+  // Today's intention, shortened to fit.
+  if (data.intention) {
+    g.font = `500 30px ${body}`;
+    g.fillStyle = c.ink;
+    let text = data.intention;
+    const max = W - 280;
+    if (g.measureText(text).width > max) {
+      while (text.length > 1 && g.measureText(`${text}…`).width > max) text = text.slice(0, -1);
+      text = `${text.trimEnd()}…`;
+    }
+    g.fillText(text, 140, 745);
+  }
+
   // Small stats
   const stat = (x, value, label) => {
     g.fillStyle = c.ink;
