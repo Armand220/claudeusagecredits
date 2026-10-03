@@ -16,6 +16,7 @@ let sceneTimer = 0;
 let tracked = null;
 let analyser = null;
 let meterBuf = null;
+let reverb = null;
 
 export const supported = Boolean(AC);
 
@@ -39,6 +40,9 @@ function ensure() {
     analyser.fftSize = 512;
     meterBuf = new Float32Array(analyser.fftSize);
     ambientBus.connect(analyser);
+    reverb = ctx.createConvolver();
+    reverb.buffer = roomImpulse(2.2, 3.2);
+    reverb.connect(gain(0.45, master));
   }
   if (ctx.state === 'suspended') ctx.resume().catch(() => {});
   return ctx;
@@ -123,6 +127,22 @@ function glide(p, x, y, z, t) {
   p.positionX.linearRampToValueAtTime(x, t);
   p.positionY.linearRampToValueAtTime(y, t);
   p.positionZ.linearRampToValueAtTime(z, t);
+}
+
+/** A synthetic room impulse response for the reverb. */
+function roomImpulse(seconds, decay) {
+  const len = Math.floor(ctx.sampleRate * seconds);
+  const buf = ctx.createBuffer(2, len, ctx.sampleRate);
+  for (let ch = 0; ch < 2; ch++) {
+    const d = buf.getChannelData(ch);
+    for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, decay);
+  }
+  return buf;
+}
+
+/** Send some of a node's signal to the room reverb. */
+function send(node, amount) {
+  if (reverb) node.connect(gain(amount, reverb));
 }
 
 /** Exponential glide of an AudioParam from one value to another. */
@@ -333,6 +353,43 @@ const SFX = {
     o.start(t);
     o.stop(t + 0.12);
   },
+  key(t, out) {
+    const bp = filter('bandpass', rand(2600, 4200), 1.3);
+    const g = gain(0.0001, out);
+    envelope(g, t, 0.001, rand(0.16, 0.26), rand(0.014, 0.028));
+    noiseSource('white', t, 0.04).connect(bp).connect(g);
+    const o = osc('sine', rand(150, 200));
+    const g2 = gain(0.0001, out);
+    envelope(g2, t, 0.002, 0.2, 0.035);
+    o.connect(g2);
+    o.start(t);
+    o.stop(t + 0.06);
+  },
+  keySpace(t, out) {
+    const bp = filter('bandpass', 1500, 1.1);
+    const g = gain(0.0001, out);
+    envelope(g, t, 0.002, 0.28, 0.04);
+    noiseSource('white', t, 0.06).connect(bp).connect(g);
+    const o = osc('sine', 110);
+    const g2 = gain(0.0001, out);
+    envelope(g2, t, 0.003, 0.3, 0.06);
+    o.connect(g2);
+    o.start(t);
+    o.stop(t + 0.09);
+  },
+  keyBack(t, out) {
+    const bp = filter('bandpass', 2000, 2);
+    const g = gain(0.0001, out);
+    envelope(g, t, 0.001, 0.22, 0.03);
+    noiseSource('white', t, 0.05).connect(bp).connect(g);
+    const o = osc('sine', 0);
+    sweep(o.frequency, 900, 500, t, 0.04);
+    const g2 = gain(0.0001, out);
+    envelope(g2, t, 0.002, 0.08, 0.04);
+    o.connect(g2);
+    o.start(t);
+    o.stop(t + 0.07);
+  },
   tick(t, out) {
     const o = osc('square', 2600);
     const hp = filter('highpass', 1800);
@@ -383,6 +440,7 @@ export function chime(kind) {
   notes.forEach(([f, x], i) => {
     const p = panner(x, 0.4, -1.4, 0);
     p.connect(chimeBus);
+    send(p, 0.28);
     bell(t + i * 0.16, f, p, 0.32);
   });
 }
@@ -398,6 +456,7 @@ export function fanfare() {
     const a = (i / notes.length) * Math.PI * 2;
     const p = panner(Math.sin(a) * 1.6, 0.2 + i * 0.12, -Math.cos(a) * 1.6, 0);
     p.connect(chimeBus);
+    send(p, 0.2);
     bell(t + i * 0.085, f, p, 0.16);
   });
 }
@@ -534,6 +593,137 @@ const SCENES = {
       while (next < until) {
         crackle(next, Math.random() < 0.06);
         next += Math.random() < 0.2 ? rand(0.008, 0.04) : rand(0.06, 0.5);
+      }
+    };
+  },
+
+  night(out) {
+    // Crickets dotted around you in the dark, each with its own voice.
+    const crickets = Array.from({ length: 6 }, () => {
+      const [x, z] = aroundListener(2, 8);
+      const p = panner(x, rand(-1.2, 0.3), z, 0.9);
+      p.connect(out);
+      return {
+        p,
+        f: rand(4000, 5400),
+        pulses: 2 + Math.floor(Math.random() * 3),
+        gap: rand(0.026, 0.04),
+        every: rand(0.45, 1.15),
+        level: rand(0.05, 0.13),
+        next: ctx.currentTime + rand(0.1, 1.5),
+        restUntil: 0,
+      };
+    });
+
+    function chirp(c, t) {
+      const o = osc('sine', c.f);
+      const g = gain(0, c.p);
+      for (let k = 0; k < c.pulses; k++) {
+        const s0 = t + k * c.gap;
+        g.gain.setValueAtTime(0, s0);
+        g.gain.linearRampToValueAtTime(c.level, s0 + 0.004);
+        g.gain.linearRampToValueAtTime(c.level * 0.6, s0 + 0.012);
+        g.gain.linearRampToValueAtTime(0, s0 + 0.019);
+      }
+      o.connect(g);
+      o.start(t);
+      o.stop(t + c.pulses * c.gap + 0.03);
+    }
+
+    // A breeze that wanders around you.
+    const now = ctx.currentTime;
+    const windP = panner(-3, 1, -2, 0.3);
+    place(windP, -3, 1, -2, now);
+    windP.connect(out);
+    const bp = filter('bandpass', 380, 0.6);
+    bp.frequency.setValueAtTime(380, now);
+    const wg = gain(0.2, windP);
+    wg.gain.setValueAtTime(0.2, now);
+    noiseSource('pink').connect(bp).connect(wg);
+    let windNext = now;
+
+    let owlAt = now + rand(15, 40);
+    function owl(t) {
+      const [x, z] = aroundListener(10, 16);
+      const p = panner(x, 3, z, 0.25);
+      p.connect(out);
+      send(p, 0.5);
+      [[0, 0.42], [0.55, 0.22], [0.9, 0.75]].forEach(([d, len]) => {
+        const s0 = t + d;
+        const o = osc('sine', 0);
+        o.frequency.setValueAtTime(400, s0);
+        o.frequency.linearRampToValueAtTime(385, s0 + len);
+        const vib = osc('sine', 5.5);
+        const depth = gain(5);
+        vib.connect(depth).connect(o.frequency);
+        const g = gain(0, p);
+        g.gain.setValueAtTime(0, s0);
+        g.gain.linearRampToValueAtTime(0.35, s0 + 0.08);
+        g.gain.setValueAtTime(0.35, s0 + len - 0.12);
+        g.gain.linearRampToValueAtTime(0, s0 + len);
+        o.connect(g);
+        o.start(s0);
+        vib.start(s0);
+        o.stop(s0 + len + 0.05);
+        vib.stop(s0 + len + 0.05);
+      });
+    }
+
+    return (until) => {
+      for (const c of crickets) {
+        while (c.next < until) {
+          if (c.next >= c.restUntil) chirp(c, c.next);
+          c.next += c.every * rand(0.93, 1.07);
+          if (Math.random() < 0.02) c.restUntil = c.next + rand(2, 6);
+        }
+      }
+      while (windNext < until) {
+        const dur = rand(2, 4.5);
+        wg.gain.linearRampToValueAtTime(rand(0.06, 0.38), windNext + dur);
+        bp.frequency.linearRampToValueAtTime(rand(250, 750), windNext + dur);
+        glide(windP, rand(-4, 4), rand(0, 2), rand(-4, 4), windNext + dur);
+        windNext += dur;
+      }
+      if (owlAt < until) {
+        owl(owlAt);
+        owlAt += rand(45, 110);
+      }
+    };
+  },
+
+  clock(out) {
+    // An old clock on the wall to your left, in a quiet room.
+    const wall = panner(-2.4, 0.9, -0.6, 0.5);
+    wall.connect(out);
+    send(wall, 0.6);
+    noiseSource('brown').connect(filter('lowpass', 180)).connect(gain(0.06, out));
+    let next = Math.ceil(ctx.currentTime + 0.1);
+    let tock = false;
+
+    function tick(t, low) {
+      const bp = filter('bandpass', low ? 2100 : 2900, 6);
+      const g = gain(0.0001, wall);
+      envelope(g, t, 0.0005, 0.9, 0.025);
+      noiseSource('white', t, 0.03).connect(bp).connect(g);
+      const o = osc('sine', low ? 1150 : 1520);
+      const g2 = gain(0.0001, wall);
+      envelope(g2, t, 0.001, 0.1, 0.05);
+      o.connect(g2);
+      o.start(t);
+      o.stop(t + 0.08);
+      const body = osc('triangle', low ? 170 : 210);
+      const g3 = gain(0.0001, wall);
+      envelope(g3, t, 0.001, 0.12, 0.06);
+      body.connect(g3);
+      body.start(t);
+      body.stop(t + 0.1);
+    }
+
+    return (until) => {
+      while (next < until) {
+        tick(next, tock);
+        tock = !tock;
+        next += 1;
       }
     };
   },

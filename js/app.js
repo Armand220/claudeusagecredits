@@ -1,7 +1,7 @@
-import * as audio from './audio.js?v=7';
-import * as fx from './fx.js?v=7';
-import { toast } from './toast.js?v=7';
-import * as effects from './effects.js?v=7';
+import * as audio from './audio.js?v=8';
+import * as fx from './fx.js?v=8';
+import { toast } from './toast.js?v=8';
+import * as effects from './effects.js?v=8';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -1443,6 +1443,29 @@ document.addEventListener('keydown', (e) => {
     setZen(false);
   }
 });
+
+// Soft 3D keyboard clicks while typing; the sound follows the caret.
+let lastKeyAt = 0;
+document.addEventListener(
+  'keydown',
+  (e) => {
+    const t = e.target;
+    if (!settings.sfx || !(t instanceof HTMLInputElement) || t.type !== 'text') return;
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    const now = performance.now();
+    if (now - lastKeyAt < 28) return;
+    let name = null;
+    if (e.key === ' ') name = 'keySpace';
+    else if (e.key === 'Backspace' || e.key === 'Delete') name = 'keyBack';
+    else if (e.key.length === 1) name = 'key';
+    if (!name) return;
+    lastKeyAt = now;
+    const r = t.getBoundingClientRect();
+    const caret = t.selectionStart ?? t.value.length;
+    audio.sfx(name, { x: r.left + 14 + Math.min(r.width - 28, caret * 8), y: r.top + r.height / 2 });
+  },
+  true,
+);
 
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState !== 'visible') return;
