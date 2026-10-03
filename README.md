@@ -104,7 +104,8 @@ installed as an app on your phone or computer.
 - Respects "reduce motion"; accessibility audit (axe) passes with no issues
 - **Command palette** (`Ctrl K`, `⌘K` or `/`): type to find and run
   anything, from "play rain" and "focus for 50 minutes" to "dark theme";
-  type a new task's name to add it
+  type a new task's name to add it, a number like `40` for a 40-minute focus,
+  or `until 3:30pm` to focus until then
 - Open in two tabs and they stay in sync
 - On phones: app-style Timer / Sounds / Tasks tabs with a mini timer bar;
   wide screens show all three side by side

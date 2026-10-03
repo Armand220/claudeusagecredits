@@ -1,11 +1,11 @@
-import * as audio from './audio.js?v=59';
-import * as fx from './fx.js?v=59';
-import { toast } from './toast.js?v=59';
-import * as effects from './effects.js?v=59';
-import * as scenery from './scenery.js?v=59';
-import * as pip from './pip.js?v=59';
-import { shareCard, makeCardFile } from './share.js?v=59';
-import * as photo from './photo.js?v=59';
+import * as audio from './audio.js?v=60';
+import * as fx from './fx.js?v=60';
+import { toast } from './toast.js?v=60';
+import * as effects from './effects.js?v=60';
+import * as scenery from './scenery.js?v=60';
+import * as pip from './pip.js?v=60';
+import { shareCard, makeCardFile } from './share.js?v=60';
+import * as photo from './photo.js?v=60';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -3847,6 +3847,7 @@ statTabs.forEach((t, i) => {
 
 // What's new: the newest first. Bump `id` when adding an entry.
 const CHANGES = [
+  { id: 21, icon: '🕒', text: 'In the search (Ctrl K), type a number like 40 to focus that long, or "until 3:30pm" to focus until then.' },
   { id: 20, icon: '🎲', text: 'Tap Surprise me in the mixes for a random mix that goes together. A session left paused for ten minutes now gets a gentle reminder.' },
   { id: 19, icon: '⛈️', text: 'New sound: Thunderstorm. Each lightning flash lights the side of the screen its thunder then rolls in from.' },
   { id: 18, icon: '🔁', text: 'Tasks can repeat every day: edit a task and tap 🔁, and it comes back unticked each morning.' },
@@ -4197,6 +4198,63 @@ const isMac = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
 $('#palette-kbd').textContent = isMac ? '⌘K' : 'Ctrl K';
 $('#btn-palette').title = `Search commands (${isMac ? '⌘K' : 'Ctrl K'})`;
 
+// Start a one-off focus of a given length, leaving the usual length alone.
+function startCustomFocus(ms, label) {
+  if (timer.running && elapsedMs() > 5000 && !window.confirm('The timer is running. Start a new focus anyway?')) return;
+  if (!isFresh() || timer.mode !== 'focus') switchTo('focus');
+  timer.total = ms;
+  timer.flow = false;
+  audio.unlock();
+  start();
+  audio.sfx('start', el.toggle);
+  fx.burst(el.toggle, { count: 12, spread: 70, size: 6 });
+  toast({ icon: '⏱️', title: label, duration: 2500 });
+}
+
+// Typed numbers and times become commands: "40" or "until 3:30pm".
+function typedCommands(q) {
+  const out = [];
+  const mins = /^(\d{1,3})\s*(m|min|mins|minutes?)?$/.exec(q);
+  if (mins) {
+    const m = Number(mins[1]);
+    if (m >= 1 && m <= 180) {
+      out.push({ cat: 'Timer', icon: '▶️', title: `Start a ${m}-minute focus now`, run: () => startCustomFocus(m * 60000, `Focusing for ${m} minutes`) });
+      out.push({ cat: 'Timer', icon: '⏱️', title: `Make focus sessions ${m} minutes`, run: () => {
+        settings.focus = m;
+        settings.flow = false;
+        save();
+        if (timer.mode === 'focus' && isFresh()) applyMode();
+        renderSummary();
+        markPreset();
+        toast({ icon: '⏱️', title: `Focus sessions are now ${m} minutes`, duration: 2200 });
+      } });
+    }
+  }
+  const until = /^(?:until|till|til|to)?\s*(\d{1,2})(?:[:.](\d{2}))?\s*(am|pm|a|p)?$/.exec(q);
+  if (until && (/^(until|till|til|to)/.test(q) || until[2] || until[3])) {
+    let h = Number(until[1]);
+    const mi = Number(until[2] || 0);
+    const ap = until[3];
+    if (h <= 23 && mi <= 59 && !(ap && (h < 1 || h > 12))) {
+      if (ap && ap[0] === 'p' && h < 12) h += 12;
+      if (ap && ap[0] === 'a' && h === 12) h = 0;
+      const now = new Date();
+      const end = new Date(now);
+      end.setHours(h, mi, 0, 0);
+      // "until 3" means the next 3 o'clock: today, or this afternoon, or tomorrow.
+      if (!ap && end <= now && h < 12) end.setHours(h + 12);
+      if (end <= now) end.setDate(end.getDate() + 1);
+      const ms = end - now;
+      const m = Math.round(ms / 60000);
+      if (m >= 1 && m <= 180) {
+        const at = end.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+        out.push({ cat: 'Timer', icon: '🕒', title: `Focus until ${at} (${fmtMinutes(m)})`, run: () => startCustomFocus(end - Date.now(), `Focusing until ${at}`) });
+      }
+    }
+  }
+  return out;
+}
+
 function paletteCommands(query) {
   const cmds = [];
   const add = (c) => cmds.push(c);
@@ -4323,6 +4381,7 @@ function renderPalette() {
       .filter((x) => !real || x.s > 20)
       .slice(0, 40)
       .map((x) => x.c);
+    items.unshift(...typedCommands(q));
     const raw = palInput.value.trim();
     const add = { cat: 'Task', icon: '➕', title: `Add task “${raw}”`, run: () => {
       addTask(raw.slice(0, 120), 1);
