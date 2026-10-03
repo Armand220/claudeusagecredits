@@ -174,7 +174,7 @@ svg { display: block; }
   position: relative;
   overflow: hidden;
   isolation: isolate;
-  transition: transform .5s var(--spring-strong), translate .45s var(--spring), background-color .2s, color .2s, border-color .2s, box-shadow .25s;
+  transition: transform .5s var(--spring-strong), background-color .2s, color .2s, border-color .2s, box-shadow .25s;
 }
 .pressable:active {
   transform: scale(.92);
@@ -449,7 +449,6 @@ body.is-running .time .colon { animation: blink 1s steps(1) infinite; }
 #btn-skip:active svg { transform: translateX(3px); }
 
 .primary-btn {
-  translate: var(--mag-x, 0px) var(--mag-y, 0px);
   display: inline-flex;
   align-items: center;
   justify-content: center;

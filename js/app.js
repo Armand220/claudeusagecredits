@@ -1,7 +1,7 @@
-import * as audio from './audio.js?v=8';
-import * as fx from './fx.js?v=8';
-import { toast } from './toast.js?v=8';
-import * as effects from './effects.js?v=8';
+import * as audio from './audio.js?v=9';
+import * as fx from './fx.js?v=9';
+import { toast } from './toast.js?v=9';
+import * as effects from './effects.js?v=9';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -1515,6 +1515,5 @@ if (timer.running) schedule();
 syncWakeLock();
 effects.initSpotlight();
 effects.initTilt($('.timer-card'));
-effects.initMagnet(el.toggle);
 effects.initAudioGlow(el.dial);
 requestAnimationFrame(() => el.body.classList.add('is-ready'));

@@ -1,8 +1,8 @@
-// Ambient visual effects: watch-face ticks, cursor spotlight, 3D tilt,
-// a magnetic button and a glow that pulses with the ambient sound.
+// Ambient visual effects: watch-face ticks, cursor spotlight, 3D tilt
+// and a glow that pulses with the ambient sound.
 
-import * as audio from './audio.js?v=8';
-import { motionOK } from './fx.js?v=8';
+import * as audio from './audio.js?v=9';
+import { motionOK } from './fx.js?v=9';
 
 const finePointer = window.matchMedia('(hover: hover) and (pointer: fine)');
 const SVG_NS = 'http://www.w3.org/2000/svg';
@@ -56,11 +56,21 @@ export function initSpotlight() {
 export function initTilt(card, maxDeg = 4) {
   if (!finePointer.matches) return;
   let raf = 0;
+  let rect = null;
+  const measure = () => {
+    // offset* ignore transforms, so the tilt can't feed back into itself.
+    const box = card.getBoundingClientRect();
+    rect = { left: box.left + (box.width - card.offsetWidth) / 2, top: box.top + (box.height - card.offsetHeight) / 2, width: card.offsetWidth, height: card.offsetHeight };
+  };
+  card.addEventListener('pointerenter', measure);
+  window.addEventListener('scroll', () => { rect = null; }, { passive: true });
+  window.addEventListener('resize', () => { rect = null; });
   card.addEventListener('pointermove', (e) => {
     if (!motionOK()) return;
+    if (!rect) measure();
     cancelAnimationFrame(raf);
     raf = requestAnimationFrame(() => {
-      const r = card.getBoundingClientRect();
+      const r = rect;
       const x = (e.clientX - r.left) / r.width - 0.5;
       const y = (e.clientY - r.top) / r.height - 0.5;
       card.style.setProperty('--tilt-x', `${(-y * maxDeg).toFixed(2)}deg`);
@@ -74,36 +84,6 @@ export function initTilt(card, maxDeg = 4) {
     card.style.setProperty('--tilt-y', '0deg');
     card.classList.remove('is-tilting');
   });
-}
-
-/** Pull a button gently towards a nearby cursor. */
-export function initMagnet(btn, reach = 70, strength = 0.22) {
-  if (!finePointer.matches) return;
-  let tx = 0;
-  let ty = 0;
-  const set = (x, y) => {
-    if (Math.abs(x - tx) < 0.2 && Math.abs(y - ty) < 0.2) return;
-    tx = x;
-    ty = y;
-    btn.style.setProperty('--mag-x', `${x.toFixed(1)}px`);
-    btn.style.setProperty('--mag-y', `${y.toFixed(1)}px`);
-  };
-  document.addEventListener(
-    'pointermove',
-    (e) => {
-      if (!motionOK()) return set(0, 0);
-      const r = btn.getBoundingClientRect();
-      const cx = r.left + r.width / 2 - tx;
-      const cy = r.top + r.height / 2 - ty;
-      const dx = e.clientX - cx;
-      const dy = e.clientY - cy;
-      const within = Math.abs(dx) < r.width / 2 + reach && Math.abs(dy) < r.height / 2 + reach;
-      if (within) set(dx * strength, dy * strength * 1.3);
-      else set(0, 0);
-    },
-    { passive: true },
-  );
-  document.addEventListener('pointerleave', () => set(0, 0));
 }
 
 /** Drive a --level custom property from the ambient sound's loudness. */
