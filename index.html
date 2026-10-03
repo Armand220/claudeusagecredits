@@ -23,7 +23,7 @@
   <!-- Fonts load without blocking the first paint. -->
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..700&family=Outfit:wght@200..700&display=swap" media="print" onload="this.media='all'">
   <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..700&family=Outfit:wght@200..700&display=swap"></noscript>
-  <link rel="stylesheet" href="styles.css?v=34">
+  <link rel="stylesheet" href="styles.css?v=35">
 </head>
 <body data-mode="focus">
   <div class="aurora" aria-hidden="true"><span></span><span></span><span></span></div>
@@ -115,6 +115,8 @@
             <div class="session-label" id="session-label">Session 1 of 4</div>
             <div class="cycle-dots" id="cycle-dots" aria-hidden="true"></div>
             <div class="dial-actions">
+              <button type="button" class="extend-btn length-btn pressable" id="btn-length" aria-haspopup="true" aria-expanded="false" title="Change the length">25 min ▾</button>
+              <div class="length-pop" id="length-pop" role="group" aria-label="Session length" hidden></div>
               <button type="button" class="extend-btn pressable" id="btn-extend" title="Add a minute (+)" hidden>+1 min</button>
               <button type="button" class="extend-btn distract-btn pressable" id="btn-distract" title="Mind wandered? Tap to note it (D), then get back to it" hidden>⚡ <span id="distract-count">Distracted</span></button>
             </div>
@@ -295,6 +297,11 @@
           <thead><tr><th scope="col">Day</th><th scope="col">Minutes</th></tr></thead>
           <tbody></tbody>
         </table>
+        <section class="timeline-section" id="timeline-section" aria-labelledby="timeline-title" hidden>
+          <h3 id="timeline-title">Today</h3>
+          <div class="timeline" id="timeline"></div>
+          <div class="timeline-axis" id="timeline-axis" aria-hidden="true"></div>
+        </section>
         <p class="sheet-note" id="stat-total"></p>
         <button type="button" class="preset share-btn pressable" id="btn-share"><strong>📤 Share today</strong><span>Make an image of today's focus</span></button>
         <section class="heat-section" aria-labelledby="heat-title">
@@ -313,6 +320,10 @@
           <p class="sheet-note hours-note" id="hours-note"></p>
           <div class="hours" id="hours"></div>
           <div class="hours-axis" aria-hidden="true"><span>12 am</span><span>6 am</span><span>12 pm</span><span>6 pm</span><span>12 am</span></div>
+        </section>
+        <section class="heat-section" aria-labelledby="top-title">
+          <h3 id="top-title">Where your focus went · last 7 days</h3>
+          <ol class="top-tasks" id="top-tasks"></ol>
         </section>
         <section class="heat-section" aria-labelledby="log-title">
           <h3 id="log-title">Recent sessions</h3>
@@ -481,6 +492,6 @@
     </div>
   </dialog>
 
-  <script type="module" src="js/app.js?v=34"></script>
+  <script type="module" src="js/app.js?v=35"></script>
 </body>
 </html>

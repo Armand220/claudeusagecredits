@@ -1,10 +1,10 @@
-import * as audio from './audio.js?v=34';
-import * as fx from './fx.js?v=34';
-import { toast } from './toast.js?v=34';
-import * as effects from './effects.js?v=34';
-import * as scenery from './scenery.js?v=34';
-import * as pip from './pip.js?v=34';
-import { shareCard } from './share.js?v=34';
+import * as audio from './audio.js?v=35';
+import * as fx from './fx.js?v=35';
+import { toast } from './toast.js?v=35';
+import * as effects from './effects.js?v=35';
+import * as scenery from './scenery.js?v=35';
+import * as pip from './pip.js?v=35';
+import { shareCard } from './share.js?v=35';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -183,6 +183,8 @@ const el = {
   miniMode: $('#mini-mode'),
   navBadge: $('#nav-badge'),
   extend: $('#btn-extend'),
+  lengthBtn: $('#btn-length'),
+  lengthPop: $('#length-pop'),
   distract: $('#btn-distract'),
   distractCount: $('#distract-count'),
   pip: $('#btn-pip'),
@@ -310,6 +312,44 @@ function noteDistraction(source) {
   if (timer.distractions === 1) {
     toast({ icon: '⚡', title: 'Noted. Back to it!', body: 'Jot the thought down as a task if it matters, then refocus.', duration: 3500 });
   }
+}
+
+// Tap the length (before starting) to pick another one quickly.
+const LENGTHS = { focus: [15, 20, 25, 30, 45, 50, 60, 90], short: [3, 5, 10, 15], long: [10, 15, 20, 30] };
+
+function renderLength() {
+  const fresh = isFresh();
+  el.lengthBtn.hidden = !fresh;
+  el.lengthBtn.textContent = `${settings[timer.mode]} min ▾`;
+  if (!fresh) closeLengthPop();
+}
+
+function openLengthPop() {
+  const mode = timer.mode;
+  const opts = [...new Set([...LENGTHS[mode], settings[mode]])].sort((a, b) => a - b);
+  el.lengthPop.replaceChildren(
+    ...opts.map((m) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'length-opt pressable';
+      b.dataset.min = String(m);
+      b.textContent = String(m);
+      b.setAttribute('aria-pressed', String(m === settings[mode]));
+      b.setAttribute('aria-label', `${m} minutes`);
+      return b;
+    }),
+  );
+  el.lengthPop.hidden = false;
+  el.lengthBtn.setAttribute('aria-expanded', 'true');
+  fx.enter(el.lengthPop);
+  audio.sfx('open', el.lengthBtn);
+  el.lengthPop.querySelector('[aria-pressed="true"]')?.focus();
+}
+
+function closeLengthPop() {
+  if (el.lengthPop.hidden) return;
+  el.lengthPop.hidden = true;
+  el.lengthBtn.setAttribute('aria-expanded', 'false');
 }
 
 function renderDistractions() {
@@ -527,6 +567,7 @@ function renderTimer(force = false) {
   el.miniMode.textContent = MODES[timer.mode].label;
   el.extend.hidden = isFresh();
   renderDistractions();
+  renderLength();
   el.toggle.setAttribute('aria-pressed', String(timer.running));
   el.toggleLabel.textContent = timer.running ? 'Pause' : isFresh() ? 'Start' : 'Resume';
 }
@@ -1356,6 +1397,8 @@ function renderStats() {
   renderHeatmap(byDay);
   renderHours();
   renderLog();
+  renderTimeline();
+  renderTopTasks();
   renderBadges();
 }
 
@@ -1441,6 +1484,84 @@ function renderLog() {
       dur.className = 'log-dur';
       dur.textContent = fmtMinutes(h.m);
       li.append(when, what, dur);
+      return li;
+    }),
+  );
+}
+
+// A strip showing when today's sessions happened.
+function renderTimeline() {
+  const start = new Date();
+  start.setHours(0, 0, 0, 0);
+  const today = history.filter((h) => h.t >= start.getTime());
+  $('#timeline-section').hidden = today.length === 0;
+  if (!today.length) return;
+  const hourOf = (ts) => (ts - start.getTime()) / 3600e3;
+  let from = Math.floor(Math.min(...today.map((h) => hourOf(h.t - h.m * 60000))));
+  let to = Math.ceil(Math.max(...today.map((h) => hourOf(h.t))));
+  from = Math.max(0, Math.min(from, 8));
+  to = Math.min(24, Math.max(to, from + 6));
+  const span = to - from;
+  const fmtHour = (hr) => new Date(2000, 0, 1, hr % 24).toLocaleTimeString([], { hour: 'numeric' });
+  $('#timeline').replaceChildren(
+    ...today.map((h) => {
+      const b = document.createElement('span');
+      b.className = `tl-block${h.s ? '' : ' is-partial'}`;
+      const s0 = hourOf(h.t - h.m * 60000);
+      b.style.left = `${((s0 - from) / span) * 100}%`;
+      b.style.width = `${Math.max(0.6, ((h.m / 60) / span) * 100)}%`;
+      const label = `${new Date(h.t - h.m * 60000).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}: ${fmtMinutes(h.m)}${h.task ? ` · ${h.task}` : ''}`;
+      b.title = label;
+      b.setAttribute('role', 'img');
+      b.setAttribute('aria-label', label);
+      return b;
+    }),
+  );
+  const ticks = [];
+  for (let hr = from; hr <= to; hr += span > 12 ? 3 : 2) {
+    const t = document.createElement('span');
+    t.style.left = `${((hr - from) / span) * 100}%`;
+    t.textContent = fmtHour(hr);
+    ticks.push(t);
+  }
+  $('#timeline-axis').replaceChildren(...ticks);
+}
+
+// Minutes per task over the last 7 days.
+function renderTopTasks() {
+  const since = Date.now() - 7 * DAY;
+  const by = new Map();
+  for (const h of history) {
+    if (h.t < since) continue;
+    const k = h.task || 'Focus without a task';
+    by.set(k, (by.get(k) || 0) + h.m);
+  }
+  const rows = [...by.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6);
+  const max = rows.length ? rows[0][1] : 0;
+  const list = $('#top-tasks');
+  if (!rows.length) {
+    const li = document.createElement('li');
+    li.className = 'log-empty';
+    li.textContent = 'Tap a task before you focus to see where your time goes.';
+    list.replaceChildren(li);
+    return;
+  }
+  list.replaceChildren(
+    ...rows.map(([name, m], i) => {
+      const li = document.createElement('li');
+      li.className = 'top-row';
+      li.style.setProperty('--w', `${Math.max(4, (m / max) * 100)}%`);
+      li.style.setProperty('--delay', `${i * 40}ms`);
+      const n = document.createElement('span');
+      n.className = 'top-name';
+      n.textContent = name;
+      const v = document.createElement('span');
+      v.className = 'top-val';
+      v.textContent = fmtMinutes(m);
+      const bar = document.createElement('span');
+      bar.className = 'top-bar';
+      bar.setAttribute('aria-hidden', 'true');
+      li.append(n, v, bar);
       return li;
     }),
   );
@@ -2444,6 +2565,30 @@ el.reset.addEventListener('click', () => {
 
 el.zen.addEventListener('click', () => setZen(!isZen()));
 el.extend.addEventListener('click', () => addTime(60000, el.extend));
+el.lengthBtn.addEventListener('click', () => (el.lengthPop.hidden ? openLengthPop() : closeLengthPop()));
+el.lengthPop.addEventListener('click', (e) => {
+  const b = e.target.closest('.length-opt');
+  if (!b) return;
+  settings[timer.mode] = Number(b.dataset.min);
+  save();
+  audio.sfx('pop', b);
+  closeLengthPop();
+  applyMode();
+  renderSummary();
+  if (typeof markPreset === 'function') markPreset();
+  fx.pop(el.time, 1.06);
+  el.lengthBtn.focus();
+});
+el.lengthPop.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    e.stopPropagation();
+    closeLengthPop();
+    el.lengthBtn.focus();
+  }
+});
+document.addEventListener('pointerdown', (e) => {
+  if (!el.lengthPop.hidden && !e.target.closest('#length-pop, #btn-length')) closeLengthPop();
+});
 el.distract.addEventListener('click', () => noteDistraction(el.distract));
 el.pip.hidden = !pip.supported();
 el.pip.addEventListener('click', togglePip);
