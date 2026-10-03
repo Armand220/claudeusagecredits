@@ -2278,6 +2278,54 @@ body.is-flow.is-running .time .colon { animation: flow-blink 2s ease-in-out infi
 .toast-action.is-emoji:hover { background: var(--accent-soft); transform: scale(1.12); }
 .toast-action.is-ghost { background: var(--track); color: var(--ink); }
 
+/* Focus party */
+.party-btn.is-live { color: var(--accent-strong); box-shadow: 0 0 0 2px var(--accent); }
+.party-sheet { width: min(460px, calc(100vw - 24px)); }
+.party-sheet .sheet-note { margin: 0 0 14px; }
+.party-sheet .field input, .party-join input {
+  width: 100%;
+  height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+}
+.party-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 14px 0; }
+.party-actions .primary-btn { min-height: 46px; padding: 0 22px; font-size: 16px; }
+.party-or { margin: 18px 0 10px; font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); text-align: center; }
+.party-join { display: flex; gap: 8px; }
+.party-join input { flex: 1; min-width: 0; text-transform: uppercase; letter-spacing: .08em; }
+.party-join #party-msg { text-transform: none; letter-spacing: normal; }
+.party-status { min-height: 1.4em; margin: 10px 0 0; font-size: 13.5px; color: var(--ink-2); }
+.party-code {
+  margin: 4px 0 6px;
+  padding: 16px;
+  border-radius: 16px;
+  background: var(--accent-soft);
+  font-family: var(--font-display);
+  font-size: clamp(30px, 9vw, 42px);
+  font-weight: 600;
+  letter-spacing: .12em;
+  text-align: center;
+  color: var(--accent-strong);
+  font-variant-numeric: tabular-nums;
+}
+.party-h { margin: 16px 0 8px; font-size: 13px; font-weight: 600; color: var(--ink-2); }
+.party-members { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.party-members li { display: flex; align-items: center; gap: 8px; font-weight: 600; }
+.party-members em { font-style: normal; font-size: 12px; font-weight: 600; color: var(--ink-3); }
+.party-dot { width: 8px; height: 8px; border-radius: 50%; background: #2fbf71; box-shadow: 0 0 0 3px rgb(47 191 113 / 20%); }
+body.is-guest .controls::after {
+  content: "The host is in charge: your taps ask them";
+  position: absolute;
+  margin-top: 70px;
+  font-size: 12px;
+  color: var(--ink-3);
+}
+body.is-guest .controls { position: relative; justify-content: center; }
+
 /* Phones: keep the timer, its task, the break idea and the intention close
    together so they fit above the tab bar. */
 @media (max-width: 760px) {

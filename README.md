@@ -32,6 +32,24 @@ installed as an app on your phone or computer.
 - **Floating mini timer** that stays on top of other windows (`P`)
 - The browser tab icon becomes a little progress ring
 
+**Focus party** (focus together, live)
+- Tap **🎉 Party** to host: you get a random code like `K7QX-2M9P` and an
+  invite link. Everyone who joins shares your timer (ending at the same
+  moment), your sounds (in the same places around them) and your tasks
+- The host is in charge. When a guest taps Start, Skip, a sound, a mix or
+  adds a task, it becomes a request: the host hears a soft bell and sees
+  "Maya asks to pause the timer" with **Do it** / **Not now** (or a quiet
+  notification if Tempo is in the background). Guests can also send messages
+- Guests' focus sessions still count in their own stats, and their own timer,
+  tasks and sounds come back when they leave
+- **Private by design**: devices connect peer to peer (WebRTC). The connection
+  details passed through the public PeerJS relay are end-to-end encrypted
+  with a key derived from the party code (AES-GCM, PBKDF2 with 200,000
+  rounds), and the relay only sees a one-way hash of the code. With "Private
+  connection" on (the default) all traffic goes through a TURN relay, so
+  party members never see each other's IP addresses; WebRTC encrypts the
+  data end to end, so the relay can't read it
+
 **3D sound** (best with headphones)
 - **Mixer**: layer as many sounds as you like, each with its own volume —
   Rain, **Thunderstorm**, Waves, Fireplace, Wind, Stream, Night, **Birdsong**, Wind chimes,
@@ -144,6 +162,7 @@ Plain HTML, CSS and JavaScript modules, with no build step and no dependencies.
 - `js/effects.js`, `js/fx.js`, `js/toast.js`: visual effects and notifications
 - `js/pip.js`: the floating mini timer
 - `js/share.js`: the shareable image of your day
+- `js/party.js`: focus parties (WebRTC, encrypted signaling, relay-only privacy)
 - `js/photo.js`: your background photo (stored in IndexedDB)
 - `sw.js`, `manifest.webmanifest`: offline support and app install
 

@@ -23,7 +23,7 @@
   <!-- Fonts load without blocking the first paint. -->
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..700&family=Outfit:wght@200..700&display=swap" media="print" onload="this.media='all'">
   <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..700&family=Outfit:wght@200..700&display=swap"></noscript>
-  <link rel="stylesheet" href="styles.css?v=62">
+  <link rel="stylesheet" href="styles.css?v=64">
 </head>
 <body data-mode="focus">
   <div class="photo-bg" aria-hidden="true"></div>
@@ -52,6 +52,9 @@
         <button class="icon-btn pressable" id="btn-install" type="button" hidden aria-label="Install app" data-sfx="tap">
           <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0-4.5-4.5M12 15l4.5-4.5M5 19h14"/></svg>
           <span class="label">Install</span>
+        </button>
+        <button class="icon-btn pressable party-btn" id="btn-party" type="button" aria-label="Focus party" title="Focus party: focus together in real time">
+          <span aria-hidden="true">🎉</span><span class="label" id="party-label">Party</span>
         </button>
         <button class="icon-btn pressable hide-sm palette-btn" id="btn-palette" type="button" aria-label="Search commands" aria-keyshortcuts="Control+K Meta+K" title="Search commands">
           <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4 4"/></svg>
@@ -554,6 +557,18 @@
     </div>
   </dialog>
 
+  <dialog class="sheet party-sheet" id="party-dialog" aria-labelledby="party-title">
+    <div class="sheet-inner">
+      <header class="sheet-head">
+        <h2 id="party-title">🎉 Focus party</h2>
+        <button type="button" class="icon-btn close pressable" data-close aria-label="Close">
+          <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+        </button>
+      </header>
+      <div id="party-body"></div>
+    </div>
+  </dialog>
+
   <dialog class="sheet palette" id="palette" aria-label="Search commands">
     <div class="palette-search">
       <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4 4"/></svg>
@@ -632,6 +647,6 @@
     </div>
   </dialog>
 
-  <script type="module" src="js/app.js?v=62"></script>
+  <script type="module" src="js/app.js?v=64"></script>
 </body>
 </html>

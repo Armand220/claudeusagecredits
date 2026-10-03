@@ -1,11 +1,12 @@
-import * as audio from './audio.js?v=62';
-import * as fx from './fx.js?v=62';
-import { toast } from './toast.js?v=62';
-import * as effects from './effects.js?v=62';
-import * as scenery from './scenery.js?v=62';
-import * as pip from './pip.js?v=62';
-import { shareCard, makeCardFile } from './share.js?v=62';
-import * as photo from './photo.js?v=62';
+import * as audio from './audio.js?v=64';
+import * as fx from './fx.js?v=64';
+import { toast } from './toast.js?v=64';
+import * as effects from './effects.js?v=64';
+import * as scenery from './scenery.js?v=64';
+import * as pip from './pip.js?v=64';
+import { shareCard, makeCardFile } from './share.js?v=64';
+import * as party from './party.js?v=64';
+import * as photo from './photo.js?v=64';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -183,11 +184,421 @@ for (const k of Object.keys(sound.mix)) {
 
 function save() {
   try {
-    localStorage.setItem(STORE_KEY, JSON.stringify({ settings, timer, tasks, activeTaskId, history, sound, achievements, counters, intention }));
+    // A party guest sees the host's timer, tasks and sounds, but keeps their own on disk.
+    const own = P && P.role === 'guest' ? P.backup : null;
+    const data = own
+      ? { settings: { ...settings, ...own.settings }, timer: own.timer, tasks: own.tasks, activeTaskId: own.activeTaskId, sound: { ...sound, mix: own.mix } }
+      : { settings, timer, tasks, activeTaskId, sound };
+    localStorage.setItem(STORE_KEY, JSON.stringify({ ...data, history, achievements, counters, intention }));
   } catch {
     /* storage full or blocked: the app still works for this visit */
   }
+  if (P && P.role === 'host') queuePartyBroadcast();
 }
+
+// ---------------------------------------------------------------------------
+// Focus party (see party.js): the host shares the timer, tasks and sounds;
+// guests follow along and ask for changes.
+
+let P = null; // { role: 'host' | 'guest', ctl, code, hostName, members, backup }
+let partyTimer = 0;
+const PARTY_SETTINGS = ['focus', 'short', 'long', 'longEvery', 'flow', 'flowRatio'];
+const partyName = () => settings.partyName || 'Friend';
+
+function partyState() {
+  const mix = {};
+  for (const k of activeKinds()) mix[k] = { vol: sound.mix[k].vol, x: sound.mix[k].x, z: sound.mix[k].z, orbit: sound.mix[k].orbit };
+  return {
+    timer: { ...timer },
+    settings: Object.fromEntries(PARTY_SETTINGS.map((k) => [k, settings[k]])),
+    mix,
+    tasks: tasks.map((t) => ({ id: t.id, title: t.title, est: t.est, pomos: t.pomos, done: t.done })),
+    activeTaskId,
+  };
+}
+
+function queuePartyBroadcast() {
+  clearTimeout(partyTimer);
+  partyTimer = setTimeout(() => P && P.role === 'host' && P.ctl.broadcast(partyState()), 120);
+}
+
+// A guest takes on the host's state (timestamps moved onto our own clock).
+function applyPartyState(s) {
+  if (!P || P.role !== 'guest' || !s || typeof s !== 'object') return;
+  const off = P.ctl.offset();
+  const t = obj(s.timer);
+  const shifted = { ...t, endAt: Number(t.endAt) - off, startAt: Number(t.startAt) - off };
+  Object.keys(timer).forEach((k) => delete timer[k]);
+  Object.assign(timer, cleanTimer(shifted));
+  const st = obj(s.settings);
+  for (const k of PARTY_SETTINGS) if (k in st) settings[k] = k === 'flow' ? Boolean(st[k]) : clampInt(st[k], ...LIMITS[k], settings[k]);
+  tasks = cleanTasks(s.tasks);
+  activeTaskId = tasks.some((x) => x.id === s.activeTaskId) ? s.activeTaskId : null;
+  const want = obj(s.mix);
+  for (const k of audio.ambientKinds) {
+    const w = want[k] && typeof want[k] === 'object' ? want[k] : null;
+    const on = sound.mix[k] && sound.mix[k].on;
+    if (w) {
+      const [dx, dz] = audio.defaultAnchor(k);
+      const m = { vol: clampNum(w.vol, 0, 1, 0.8), x: clampNum(w.x, -4, 4, dx), z: clampNum(w.z, -4, 4, dz), orbit: Boolean(w.orbit) };
+      if (on) {
+        Object.assign(sound.mix[k], m);
+        audio.setLayerVolume(k, m.vol);
+        audio.moveLayer(k, m.x, m.z);
+      } else {
+        sound.mix[k] = { ...m, on: false };
+        setSound(k, true);
+      }
+    } else if (on) {
+      setSound(k, false);
+    }
+  }
+  afterSoundChange();
+  applyMode();
+  schedule();
+  renderTasks();
+  renderGoal();
+  syncWakeLock();
+}
+
+function renderPartyButton() {
+  const b = $('#btn-party');
+  b.classList.toggle('is-live', Boolean(P));
+  $('#party-label').textContent = P ? `Party · ${P.members.length}` : 'Party';
+}
+
+const PARTY_ERRORS = {
+  'not-found': "Couldn't find that party. Check the code, and that the host still has Tempo open.",
+  full: 'That party is full (12 guests).',
+  unreachable: "Couldn't connect. Try turning off 'Private connection', or another network.",
+  network: "Couldn't reach the party service. Check your internet connection.",
+};
+
+function renderPartyDialog(prefill = '') {
+  const body = $('#party-body');
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+  if (!P) {
+    body.innerHTML = `
+      <p class="sheet-note">Focus together in real time. Everyone sees the same timer, tasks and sounds; the host is in charge, and guests can ask for changes.</p>
+      <label class="field"><span>Your name</span><input id="party-name" type="text" maxlength="24" value="${esc(settings.partyName || '')}" placeholder="Your name" autocomplete="nickname"></label>
+      <label class="switch"><input type="checkbox" id="party-private" checked><span>Private connection: party members never see your IP address</span></label>
+      <div class="party-actions">
+        <button type="button" class="primary-btn pressable" id="party-host">Start a party</button>
+      </div>
+      <div class="party-or" aria-hidden="true">or join one</div>
+      <form class="party-join" id="party-join-form" autocomplete="off">
+        <label class="sr-only" for="party-code">Party code</label>
+        <input id="party-code" type="text" maxlength="12" placeholder="Code, like K7QX-2M9P" value="${esc(prefill)}" autocapitalize="characters" spellcheck="false">
+        <button type="submit" class="text-btn pressable">Join</button>
+      </form>
+      <p class="party-status" id="party-status" role="status"></p>`;
+    return;
+  }
+  const members = P.members.map((m) => `<li><span class="party-dot" aria-hidden="true"></span>${esc(m.name)}${m.host ? ' <em>host</em>' : ''}</li>`).join('');
+  if (P.role === 'host') {
+    body.innerHTML = `
+      <p class="sheet-note">Share the code or the link. Guests see your timer, tasks and sounds; their taps arrive here as requests.</p>
+      <div class="party-code" aria-label="Party code">${party.formatCode(P.code)}</div>
+      <div class="party-actions">
+        <button type="button" class="primary-btn pressable" id="party-copy">Copy invite link</button>
+        <button type="button" class="text-btn pressable" id="party-end">End party</button>
+      </div>
+      <h3 class="party-h">In the party</h3><ul class="party-members">${members}</ul>
+      <p class="field-note">${P.ctl.private ? '🔒 Private: everyone connects through a relay, so nobody sees anyone\'s IP address. Connection details are end-to-end encrypted with the code.' : 'Direct connections: faster, but members can see each other\'s IP address.'}</p>`;
+  } else {
+    body.innerHTML = `
+      <p class="sheet-note">You're in <strong>${esc(P.hostName)}</strong>'s party. Tap Start, a sound, or add a task to ask the host; they decide.</p>
+      <form class="party-join" id="party-msg-form" autocomplete="off">
+        <label class="sr-only" for="party-msg">Message to the host</label>
+        <input id="party-msg" type="text" maxlength="140" placeholder="Ask the host something…">
+        <button type="submit" class="text-btn pressable">Send</button>
+      </form>
+      <div class="party-actions">
+        <button type="button" class="text-btn pressable" id="party-break">Ask for a break</button>
+        <button type="button" class="text-btn pressable" id="party-leave">Leave party</button>
+      </div>
+      <h3 class="party-h">In the party</h3><ul class="party-members">${members}</ul>`;
+  }
+}
+
+function partyStatus(text) {
+  const s = $('#party-status');
+  if (s) s.textContent = text;
+}
+
+async function startParty() {
+  const name = ($('#party-name').value.trim() || 'Host').slice(0, 24);
+  settings.partyName = name;
+  save();
+  partyStatus('Setting up a private party…');
+  try {
+    const ctl = await party.host(name, {
+      getState: partyState,
+      onJoin: (g) => {
+        P.members = ctl.members();
+        renderPartyButton();
+        if ($('#party-dialog').open) renderPartyDialog();
+        audio.sfx('on', $('#btn-party'));
+        toast({ icon: '🎉', title: `${g.name} joined the party`, duration: 3000 });
+      },
+      onLeave: (g) => {
+        P.members = ctl.members();
+        renderPartyButton();
+        if ($('#party-dialog').open) renderPartyDialog();
+        toast({ icon: '👋', title: `${g.name} left`, duration: 2500 });
+      },
+      onRequest: onPartyRequest,
+      onSignal: () => {},
+    }, { private: $('#party-private').checked });
+    P = { role: 'host', ctl, code: ctl.code, hostName: name, members: ctl.members() };
+    renderPartyButton();
+    renderPartyDialog();
+    audio.fanfare();
+  } catch (err) {
+    partyStatus(PARTY_ERRORS[err.message] || PARTY_ERRORS.network);
+  }
+}
+
+async function joinParty(code) {
+  const name = ($('#party-name').value.trim() || 'Guest').slice(0, 24);
+  settings.partyName = name;
+  save();
+  audio.unlock();
+  partyStatus('Joining…');
+  const backup = {
+    timer: JSON.parse(JSON.stringify(timer)),
+    tasks: JSON.parse(JSON.stringify(tasks)),
+    activeTaskId,
+    settings: Object.fromEntries(PARTY_SETTINGS.map((k) => [k, settings[k]])),
+    mix: JSON.parse(JSON.stringify(sound.mix)),
+  };
+  try {
+    return await party.join(code, name, {
+      onWelcome: (msg, ctl) => {
+        P = { role: 'guest', ctl, code, hostName: String(msg.host || 'Host').slice(0, 24), members: Array.isArray(msg.members) ? msg.members : [], backup };
+        el.body.classList.add('is-guest');
+        applyPartyState(msg.state);
+        renderPartyButton();
+        renderPartyDialog();
+        toast({ icon: '🎉', title: `You joined ${P.hostName}'s party`, body: 'Your timer, sounds and tasks follow the host now.', duration: 4000 });
+      },
+      onState: applyPartyState,
+      onMembers: (m) => {
+        if (!P) return;
+        P.members = m;
+        renderPartyButton();
+        if ($('#party-dialog').open) renderPartyDialog();
+      },
+      onAnswer: (a) => toast({ icon: a.ok ? '👍' : '🙂', title: a.ok ? `${P.hostName} said yes` : `${P.hostName} said not now`, body: a.text, duration: 3000 }),
+      onEnd: (why) => leaveParty(why === 'ended' ? `${P ? P.hostName : 'The host'} ended the party` : 'Lost the connection to the party'),
+    }, { private: $('#party-private').checked });
+  } catch (err) {
+    partyStatus(PARTY_ERRORS[err.message] || PARTY_ERRORS.network);
+    return null;
+  }
+}
+
+// Leaving (or the party ending) gives a guest their own things back.
+function leaveParty(message) {
+  if (!P) return;
+  const was = P;
+  P = null;
+  el.body.classList.remove('is-guest');
+  if (was.role === 'host') was.ctl.end();
+  else {
+    was.ctl.leave();
+    const b = was.backup;
+    Object.keys(timer).forEach((k) => delete timer[k]);
+    Object.assign(timer, cleanTimer(b.timer));
+    tasks = cleanTasks(b.tasks);
+    activeTaskId = b.activeTaskId;
+    Object.assign(settings, b.settings);
+    activeKinds().forEach((k) => setSound(k, false));
+    for (const [k, m] of Object.entries(b.mix)) sound.mix[k] = { ...m, on: false };
+    save();
+    applyMode();
+    schedule();
+    renderTasks();
+    renderGoal();
+    afterSoundChange();
+  }
+  renderPartyButton();
+  if ($('#party-dialog').open) renderPartyDialog();
+  if (message) toast({ icon: '🎉', title: message, duration: 3500 });
+}
+
+// ----- Requests: what guests tap becomes a question for the host
+
+const REQUEST_TEXT = {
+  toggle: (d) => (d === 'pause' ? 'pause the timer' : 'start the timer'),
+  skip: () => 'skip to the next session',
+  reset: () => 'reset the timer',
+  mode: (d) => `switch to ${MODES[d] ? MODES[d].label.toLowerCase() : 'another mode'}`,
+  more: () => 'add 5 minutes',
+  break: () => 'take a break',
+  sound: (d) => `${d && d.on ? 'play' : 'stop'} ${SOUND_INFO[d && d.kind] ? SOUND_INFO[d.kind].name.toLowerCase() : 'a sound'}`,
+  mix: (d) => `play the ${d && d.name ? d.name : 'mix'} mix`,
+  task: (d) => `add the task “${String(d || '').slice(0, 60)}”`,
+  done: (d) => `tick off “${(tasks.find((t) => t.id === d) || { title: 'a task' }).title.slice(0, 60)}”`,
+  message: (d) => String(d || '').slice(0, 140),
+};
+
+function askHost(kind, data) {
+  if (!P || P.role !== 'guest') return;
+  P.ctl.request(kind, data);
+  const what = REQUEST_TEXT[kind] ? REQUEST_TEXT[kind](data) : kind;
+  audio.sfx('pop', el.toggle);
+  toast({ icon: '🙋', title: kind === 'message' ? 'Message sent to the host' : `Asked the host to ${what}`, duration: 2200 });
+}
+
+function doRequest(kind, data) {
+  if (kind === 'toggle') {
+    if ((data === 'pause') === timer.running) toggleTimer(el.toggle);
+  } else if (kind === 'skip') el.skip.click();
+  else if (kind === 'reset') el.reset.click();
+  else if (kind === 'mode' && MODES[data]) el.tabs[MODE_ORDER.indexOf(data)].click();
+  else if (kind === 'more') addTime(5 * 60000, el.extend);
+  else if (kind === 'break') {
+    if (timer.mode === 'focus') el.skip.click();
+  } else if (kind === 'sound' && data && audio.ambientKinds.includes(data.kind)) {
+    if (Boolean(data.on) !== Boolean(sound.mix[data.kind] && sound.mix[data.kind].on)) setSound(data.kind, Boolean(data.on));
+  } else if (kind === 'mix' && data) {
+    const m = allMixes().find((x) => x.id === data.id);
+    if (m) applyMix(m, el.mixes);
+  } else if (kind === 'task' && typeof data === 'string' && data.trim()) addTask(data.trim().slice(0, 120), 1);
+  else if (kind === 'done') $(`.task[data-id="${CSS.escape(String(data))}"] .task-check`)?.click();
+}
+
+function onPartyRequest(g, r) {
+  const what = REQUEST_TEXT[r.kind] ? REQUEST_TEXT[r.kind](r.data) : r.kind;
+  // A soft, friendly ding: noticeable, never alarming.
+  audio.softBell('half');
+  if (document.visibilityState !== 'visible') showNotice(`${g.name} ${r.kind === 'message' ? 'says' : 'asks'}`, what);
+  if (r.kind === 'message') {
+    toast({ icon: '💬', title: `${g.name} says`, body: what, duration: 9000 });
+    return;
+  }
+  toast({
+    icon: '🙋',
+    title: `${g.name} asks to ${what}`,
+    duration: 15000,
+    actions: [
+      { label: 'Not now', kind: 'ghost', onClick: () => P && P.ctl.answer(g.id, r.id, false) },
+      { label: 'Do it', onClick: () => {
+        doRequest(r.kind, r.data);
+        if (P) P.ctl.answer(g.id, r.id, true);
+      } },
+    ],
+  });
+}
+
+// Guests' taps on the controls turn into requests (capture phase, before the app's own handlers).
+document.addEventListener('click', (e) => {
+  if (!P || P.role !== 'guest') return;
+  const t = e.target.closest('#btn-toggle, #mini-toggle, #btn-skip, #btn-reset, .mode-tab, #btn-extend, .chip[data-sound], .mix-card, .task-check, .task-delete, .add-btn, #btn-flow-break');
+  if (!t) return;
+  e.preventDefault();
+  e.stopImmediatePropagation();
+  if (t.matches('#btn-toggle, #mini-toggle')) askHost('toggle', timer.running ? 'pause' : 'start');
+  else if (t.matches('#btn-skip, #btn-flow-break')) askHost('skip');
+  else if (t.matches('#btn-reset')) askHost('reset');
+  else if (t.matches('.mode-tab')) askHost('mode', t.dataset.mode);
+  else if (t.matches('#btn-extend')) askHost('more');
+  else if (t.matches('.chip[data-sound]')) {
+    const k = t.dataset.sound;
+    if (k !== 'off') askHost('sound', { kind: k, on: !(sound.mix[k] && sound.mix[k].on) });
+  } else if (t.matches('.mix-card')) {
+    const m = allMixes().find((x) => x.id === t.dataset.mix);
+    if (m && !m.custom) askHost('mix', { id: m.id, name: m.name });
+  } else if (t.matches('.task-check')) askHost('done', t.closest('.task').dataset.id);
+  else if (t.matches('.add-btn')) {
+    const title = el.taskInput.value.trim();
+    if (title) {
+      askHost('task', title);
+      el.taskInput.value = '';
+    }
+  }
+}, true);
+document.addEventListener('submit', (e) => {
+  if (!P || P.role !== 'guest' || e.target !== el.taskForm) return;
+  e.preventDefault();
+  e.stopImmediatePropagation();
+  const title = el.taskInput.value.trim();
+  if (title) {
+    askHost('task', title);
+    el.taskInput.value = '';
+  }
+}, true);
+window.addEventListener('keydown', (e) => {
+  if (!P || P.role !== 'guest' || e.metaKey || e.ctrlKey || e.altKey || $('dialog[open]')) return;
+  if (/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
+  const key = e.key.toLowerCase();
+  const map = { ' ': () => askHost('toggle', timer.running ? 'pause' : 'start'), s: () => askHost('skip'), r: () => askHost('reset'), 1: () => askHost('mode', 'focus'), 2: () => askHost('mode', 'short'), 3: () => askHost('mode', 'long'), '+': () => askHost('more'), '=': () => askHost('more') };
+  if (!map[key] || e.repeat) return;
+  e.preventDefault();
+  e.stopImmediatePropagation();
+  map[key]();
+}, true);
+
+$('#btn-party').addEventListener('click', (e) => {
+  if (!party.supported) {
+    toast({ icon: '🎉', title: "This browser can't join parties", body: 'Try a recent Chrome, Edge, Firefox or Safari.' });
+    return;
+  }
+  renderPartyDialog();
+  openSheet($('#party-dialog'), e.currentTarget);
+});
+$('#party-body').addEventListener('click', async (e) => {
+  const id = e.target.closest('button') && e.target.closest('button').id;
+  if (id === 'party-host') {
+    e.target.disabled = true;
+    await startParty();
+    if ($('#party-host')) $('#party-host').disabled = false;
+  } else if (id === 'party-copy') {
+    const url = `${window.location.origin}${window.location.pathname}#party=${P.code}`;
+    try {
+      if (navigator.share && phoneLayout.matches) await navigator.share({ title: 'Join my focus party', text: `Join my Tempo focus party (code ${party.formatCode(P.code)}):`, url });
+      else {
+        await navigator.clipboard.writeText(url);
+        toast({ icon: '🔗', title: 'Invite link copied', body: `Or share the code ${party.formatCode(P.code)}`, duration: 3500 });
+      }
+    } catch {
+      /* cancelled or blocked */
+    }
+  } else if (id === 'party-end') leaveParty('Party ended');
+  else if (id === 'party-leave') leaveParty('You left the party');
+  else if (id === 'party-break') askHost('break');
+});
+$('#party-body').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  if (e.target.id === 'party-msg-form') {
+    const text = $('#party-msg').value.trim();
+    if (text) askHost('message', text);
+    $('#party-msg').value = '';
+  } else if (e.target.id === 'party-join-form') {
+    const code = party.normalizeCode($('#party-code').value);
+    if (!code) {
+      partyStatus('Party codes have 8 letters and numbers, like K7QX-2M9P.');
+      return;
+    }
+    await joinParty(code);
+  }
+});
+window.addEventListener('beforeunload', () => {
+  if (P) (P.role === 'host' ? P.ctl.end() : P.ctl.leave());
+});
+// Opening an invite link: #party=K7QX2M9P
+function offerParty() {
+  const raw = new URLSearchParams(window.location.hash.replace(/^#/, '')).get('party');
+  if (!raw) return;
+  window.history.replaceState(null, '', window.location.pathname + window.location.search);
+  const code = party.normalizeCode(raw);
+  if (!code || P) return;
+  renderPartyDialog(party.formatCode(code));
+  openSheet($('#party-dialog'), $('#btn-party'));
+  setTimeout(() => $('#party-name')?.focus(), 80);
+}
+window.addEventListener('hashchange', offerParty);
 
 // ---------------------------------------------------------------------------
 // Elements
@@ -3915,6 +4326,7 @@ statTabs.forEach((t, i) => {
 
 // What's new: the newest first. Bump `id` when adding an entry.
 const CHANGES = [
+  { id: 23, icon: '🎉', text: 'Focus parties: tap Party to host, share the code, and everyone shares your timer, sounds and tasks live. Guests can ask for changes; you decide. Private by default: nobody sees anyone\'s IP address.' },
   { id: 22, icon: '👥', text: 'Focus together: while a session runs, tap Invite and send the link. Whoever opens it joins you, and your timers end at the same moment.' },
   { id: 21, icon: '🕒', text: 'In the search (Ctrl K), type a number like 40 to focus that long, or "until 3:30pm" to focus until then.' },
   { id: 20, icon: '🎲', text: 'Tap Surprise me in the mixes for a random mix that goes together. A session left paused for ten minutes now gets a gentle reminder.' },
@@ -3968,7 +4380,7 @@ function markChangesSeen() {
 // First visit: a short welcome.
 // Someone arriving through a shared link (a mix or an invite) sees that
 // offer first; the welcome waits for their next visit.
-const arrivedWithLink = /(?:^#|&)(mix|join)=/.test(window.location.hash);
+const arrivedWithLink = /(?:^#|&)(mix|join|party)=/.test(window.location.hash);
 
 function maybeWelcome() {
   if (arrivedWithLink) return;
@@ -4161,6 +4573,7 @@ document.addEventListener('visibilitychange', () => {
 // sound keeps playing. Ambient sound itself stays per tab.
 window.addEventListener('storage', (e) => {
   if (e.key !== STORE_KEY || !e.newValue) return;
+  if (P) return; // in a party, this tab follows the party instead
   let d;
   try {
     d = obj(JSON.parse(e.newValue));
@@ -4593,6 +5006,8 @@ document.addEventListener('keydown', (e) => {
 }
 offerSharedMix();
 offerJoin();
+offerParty();
+renderPartyButton();
 requestAnimationFrame(() => el.body.classList.add('is-ready'));
 selectStatTab(0, { animate: false });
 renderWhatsNew();
