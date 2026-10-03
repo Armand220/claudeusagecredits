@@ -1,10 +1,10 @@
-import * as audio from './audio.js?v=36';
-import * as fx from './fx.js?v=36';
-import { toast } from './toast.js?v=36';
-import * as effects from './effects.js?v=36';
-import * as scenery from './scenery.js?v=36';
-import * as pip from './pip.js?v=36';
-import { shareCard, makeCardFile } from './share.js?v=36';
+import * as audio from './audio.js?v=37';
+import * as fx from './fx.js?v=37';
+import { toast } from './toast.js?v=37';
+import * as effects from './effects.js?v=37';
+import * as scenery from './scenery.js?v=37';
+import * as pip from './pip.js?v=37';
+import { shareCard, makeCardFile } from './share.js?v=37';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -1894,6 +1894,8 @@ const SOUND_INFO = {
   binaural: { icon: '〰️', name: 'Binaural', fixed: true },
   wind: { icon: '🍃', name: 'Wind' },
   stream: { icon: '💧', name: 'Stream' },
+  chimes: { icon: '🎐', name: 'Wind chimes' },
+  cat: { icon: '🐈', name: 'Cat purring' },
 };
 const ROOM_R = 4; // metres from you to the edge of the room
 const ROOM_SPAN = 44; // % of the pad from its centre to that edge
@@ -2114,6 +2116,8 @@ const BUILT_IN_MIXES = [
   { id: 'stars', icon: '🌌', name: 'Starry beats', mix: { lofi: { vol: 0.6, x: 0, z: -2 }, night: { vol: 0.55, x: -2.2, z: 2 } } },
   { id: 'forest', icon: '🌲', name: 'Forest stream', mix: { stream: { vol: 0.8, x: -1.4, z: -2.6 }, wind: { vol: 0.45, x: 2.4, z: 2.2 }, night: { vol: 0.3, x: -2.4, z: 1.8 } } },
   { id: 'autumn', icon: '🍂', name: 'Autumn walk', mix: { wind: { vol: 0.7, x: 0, z: -2.4, orbit: true }, stream: { vol: 0.5, x: 2.2, z: -2 } } },
+  { id: 'catnap', icon: '🐈', name: 'Cat nap', mix: { cat: { vol: 0.75, x: 0, z: -0.9 }, rain: { vol: 0.5, x: -2.2, z: -1.6 }, fire: { vol: 0.55, x: 2, z: -1.4 } } },
+  { id: 'porch', icon: '🎐', name: 'Breezy porch', mix: { chimes: { vol: 0.7, x: -2.8, z: -2.6 }, wind: { vol: 0.45, x: 2.4, z: 2.2 }, night: { vol: 0.35, x: 0, z: 2.4 } } },
   { id: 'storm', icon: '⛈️', name: 'Stormy study', mix: { rain: { vol: 0.9, x: 0, z: -1 }, wind: { vol: 0.6, x: -2.4, z: 1.6 }, lofi: { vol: 0.45, x: 0, z: -2 } } },
 ];
 sound.presets = (Array.isArray(sound.presets) ? sound.presets : [])

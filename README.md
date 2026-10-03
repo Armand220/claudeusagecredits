@@ -24,10 +24,10 @@ installed as an app on your phone or computer.
 
 **3D sound** (best with headphones)
 - **Mixer**: layer as many sounds as you like, each with its own volume —
-  Rain, Waves, Fireplace, Wind, Stream, Night, Clock, **Lo-fi beats**,
-  Binaural, Brown noise, Fan
+  Rain, Waves, Fireplace, Wind, Stream, Wind chimes, Cat purring, Night,
+  Clock, **Lo-fi beats**, Binaural, Brown noise, Fan
 - **Ready-made mixes** (Cozy cabin, Seaside, Campfire night, Rainy café,
-  Forest stream, Stormy study…) and your own saved mixes
+  Forest stream, Cat nap, Breezy porch, Stormy study…) and your own saved mixes
 - **Sleep timer** that fades the sounds out after 15–90 minutes
 - **3D room**: you're in the middle; drag each sound around your head, or
   press orbit to make it circle you

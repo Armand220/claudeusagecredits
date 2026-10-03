@@ -1128,6 +1128,74 @@ const SCENES = {
     };
   },
 
+  chimes(S) {
+    // Porch wind chimes: tubes tuned to a pentatonic scale, struck by the
+    // breeze in little flurries, each tube hanging at its own spot.
+    const tubes = [523.25, 587.33, 659.25, 783.99, 880, 1046.5].map((f, i) => ({
+      f,
+      p: S.P(-0.45 + i * 0.18, 1.6 + Math.sin(i) * 0.08, Math.cos(i * 1.3) * 0.15, 0.6),
+    }));
+    tubes.forEach((t) => send(t.p, 0.35));
+    let next = ctx.currentTime + 0.4;
+
+    function strike(tube, t, vel) {
+      // Metal tubes ring with slightly inharmonic overtones.
+      [[1, 1, 3.2], [2.76, 0.35, 1.6], [5.4, 0.12, 0.8], [8.9, 0.05, 0.4]].forEach(([r, amp, dur]) => {
+        const o = osc('sine', tube.f * r);
+        const g = gain(0.0001, tube.p);
+        envelope(g, t, 0.002, vel * amp, dur);
+        o.connect(g);
+        o.start(t);
+        o.stop(t + dur + 0.05);
+      });
+    }
+
+    return (until, now = 0) => {
+      if (next < now) next = now;
+      while (next < until) {
+        // A gust sets off a little flurry of strikes.
+        const hits = 1 + Math.floor(Math.random() * 4);
+        let t = next;
+        for (let i = 0; i < hits; i++) {
+          strike(tubes[Math.floor(Math.random() * tubes.length)], t, rand(0.22, 0.5));
+          t += rand(0.08, 0.35);
+        }
+        next = t + (Math.random() < 0.25 ? rand(5, 11) : rand(1.2, 4));
+      }
+    };
+  },
+
+  cat(S) {
+    // A cat purring in your lap: a low rumble pulsing about 25 times a
+    // second, swelling as it breathes in and fading as it breathes out.
+    const lap = S.P(0, -0.7, -0.35, 1);
+    const breath = gain(0.05, lap);
+    breath.gain.setValueAtTime(0.05, ctx.currentTime);
+    const purr = gain(0.5, breath); // 0.5 ± 0.5 from the pulse below
+    noiseSource('brown').connect(filter('lowpass', 380, 0.9)).connect(purr);
+    const pulse = track(osc('sawtooth', 26));
+    pulse.connect(gain(0.5)).connect(purr.gain);
+    pulse.start();
+    let next = ctx.currentTime + 0.1;
+
+    return (until, now = 0) => {
+      if (next < now) next = now;
+      while (next < until) {
+        const inhale = rand(1.1, 1.5);
+        const exhale = rand(1.3, 1.8);
+        const pause = rand(0.05, 0.3);
+        breath.gain.setValueAtTime(0.05, next);
+        breath.gain.linearRampToValueAtTime(0.85, next + inhale * 0.3);
+        breath.gain.linearRampToValueAtTime(0.7, next + inhale);
+        breath.gain.linearRampToValueAtTime(0.45, next + inhale + exhale * 0.4);
+        breath.gain.linearRampToValueAtTime(0.05, next + inhale + exhale);
+        pulse.frequency.setValueAtTime(rand(24, 28), next);
+        pulse.frequency.linearRampToValueAtTime(rand(21, 24), next + inhale + exhale);
+        next += inhale + exhale + pause;
+      }
+    };
+  },
+
   brown(S) {
     for (const x of [-1.6, 1.6]) {
       noiseSource('brown').connect(filter('lowpass', 900)).connect(gain(0.6, S.P(x, 0, -0.3)));
@@ -1176,6 +1244,8 @@ const DEFAULT_ANCHORS = {
   lofi: [0, -2],
   wind: [2.4, 2.2],
   stream: [-1.4, -3.2],
+  chimes: [-2.8, -2.6],
+  cat: [0, -0.9],
 };
 export const defaultAnchor = (kind) => DEFAULT_ANCHORS[kind] || [0, 0];
 // Sounds keep their full volume up to this distance, then fade gently.
