@@ -23,7 +23,7 @@
   <!-- Fonts load without blocking the first paint. -->
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..700&family=Outfit:wght@200..700&display=swap" media="print" onload="this.media='all'">
   <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..700&family=Outfit:wght@200..700&display=swap"></noscript>
-  <link rel="stylesheet" href="styles.css?v=50">
+  <link rel="stylesheet" href="styles.css?v=51">
 </head>
 <body data-mode="focus">
   <div class="photo-bg" aria-hidden="true"></div>
@@ -52,6 +52,10 @@
         <button class="icon-btn pressable" id="btn-install" type="button" hidden aria-label="Install app" data-sfx="tap">
           <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0-4.5-4.5M12 15l4.5-4.5M5 19h14"/></svg>
           <span class="label">Install</span>
+        </button>
+        <button class="icon-btn pressable hide-sm palette-btn" id="btn-palette" type="button" aria-label="Search commands" aria-keyshortcuts="Control+K Meta+K" title="Search commands">
+          <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4 4"/></svg>
+          <kbd class="label" id="palette-kbd">Ctrl K</kbd>
         </button>
         <button class="icon-btn pressable hide-sm help-btn" id="btn-help" type="button" aria-label="Tips and shortcuts" title="Tips & shortcuts (?)">
           <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6v.4M12 17h.01"/></svg>
@@ -517,6 +521,15 @@
     </div>
   </dialog>
 
+  <dialog class="sheet palette" id="palette" aria-label="Search commands">
+    <div class="palette-search">
+      <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4 4"/></svg>
+      <input id="palette-input" type="text" role="combobox" aria-expanded="true" aria-controls="palette-list" aria-autocomplete="list" aria-label="Search commands, sounds and tasks" placeholder="Search commands, sounds and tasks…" autocomplete="off" spellcheck="false">
+    </div>
+    <ul class="palette-list" id="palette-list" role="listbox" aria-label="Results"></ul>
+    <p class="palette-foot" aria-hidden="true"><kbd>↑</kbd><kbd>↓</kbd> move · <kbd>Enter</kbd> run · <kbd>Esc</kbd> close</p>
+  </dialog>
+
   <dialog class="sheet note-sheet" id="note-dialog" aria-labelledby="note-title">
     <form class="sheet-inner" id="note-form" method="dialog" novalidate>
       <header class="sheet-head">
@@ -556,6 +569,7 @@
           <div><dt><kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd></dt><dd>Focus, short break, long break</dd></div>
           <div><dt><kbd>+</kbd> <kbd>−</kbd></dt><dd>Add or remove a minute</dd></div>
           <div><dt><kbd>[</kbd> <kbd>]</kbd></dt><dd>Ambient volume down / up</dd></div>
+          <div><dt><kbd>Ctrl</kbd> <kbd>K</kbd> or <kbd>/</kbd></dt><dd>Search commands, sounds and tasks</dd></div>
           <div><dt><kbd>I</kbd></dt><dd>Write today's intention</dd></div>
           <div><dt><kbd>D</kbd></dt><dd>Note a distraction during focus</dd></div>
           <div><dt><kbd>N</kbd></dt><dd>Add a task</dd></div>
@@ -585,6 +599,6 @@
     </div>
   </dialog>
 
-  <script type="module" src="js/app.js?v=50"></script>
+  <script type="module" src="js/app.js?v=51"></script>
 </body>
 </html>

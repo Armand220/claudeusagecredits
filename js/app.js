@@ -1,11 +1,11 @@
-import * as audio from './audio.js?v=50';
-import * as fx from './fx.js?v=50';
-import { toast } from './toast.js?v=50';
-import * as effects from './effects.js?v=50';
-import * as scenery from './scenery.js?v=50';
-import * as pip from './pip.js?v=50';
-import { shareCard, makeCardFile } from './share.js?v=50';
-import * as photo from './photo.js?v=50';
+import * as audio from './audio.js?v=51';
+import * as fx from './fx.js?v=51';
+import { toast } from './toast.js?v=51';
+import * as effects from './effects.js?v=51';
+import * as scenery from './scenery.js?v=51';
+import * as pip from './pip.js?v=51';
+import { shareCard, makeCardFile } from './share.js?v=51';
+import * as photo from './photo.js?v=51';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -3239,6 +3239,7 @@ statTabs.forEach((t, i) => {
 
 // What's new: the newest first. Bump `id` when adding an entry.
 const CHANGES = [
+  { id: 12, icon: '🔎', text: 'Press Ctrl K (⌘K on a Mac) or / to search and run anything: start, sounds, mixes, tasks, themes and more.' },
   { id: 11, icon: '🌱', text: 'Write today\'s intention under the timer, and jot down what you got done after each session (📝). Notes show in Stats.' },
   { id: 10, icon: '🐦', text: 'New sounds: Birdsong (a morning forest all around you) and Café (chatter, clinking cups and the espresso machine), with new mixes Morning walk and Coffee shop.' },
   { id: 9, icon: '🏷️', text: 'Add #tags to task names (like "Essay #school") to see focus by tag in Stats. Tap a day in the heatmap to see its sessions.' },
@@ -3401,6 +3402,9 @@ document.addEventListener('keydown', (e) => {
     setTimeout(() => el.taskInput.focus(), isZen() ? 500 : 0);
   } else if (['1', '2', '3'].includes(key)) {
     el.tabs[Number(key) - 1].click();
+  } else if (key === '/') {
+    e.preventDefault();
+    openPalette();
   } else if (key === 'i') {
     e.preventDefault();
     if (isZen()) setZen(false);
@@ -3562,6 +3566,246 @@ syncWakeLock();
 effects.initSpotlight();
 effects.initTilt($('.timer-card'));
 setView('timer', { scroll: false });
+
+// ---------------------------------------------------------------------------
+// Command palette: search everything you can do and run it from the keyboard.
+
+const palette = $('#palette');
+const palInput = $('#palette-input');
+const palList = $('#palette-list');
+let palItems = [];
+let palActive = 0;
+const isMac = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
+$('#palette-kbd').textContent = isMac ? '⌘K' : 'Ctrl K';
+$('#btn-palette').title = `Search commands (${isMac ? '⌘K' : 'Ctrl K'})`;
+
+function paletteCommands(query) {
+  const cmds = [];
+  const add = (c) => cmds.push(c);
+  const label = MODES[timer.mode].label.toLowerCase();
+  // Timer
+  add({ cat: 'Timer', top: true, icon: timer.running ? '⏸️' : '▶️', title: timer.running ? 'Pause' : isFresh() ? `Start ${isFlow() ? 'Flowtime' : label}` : 'Resume', keys: 'Space', run: () => toggleTimer(el.toggle) });
+  if (!isFresh()) add({ cat: 'Timer', top: true, icon: '↺', title: 'Reset this session', keys: 'R', run: () => el.reset.click() });
+  add({ cat: 'Timer', top: true, icon: '⏭️', title: timer.flow && !isFresh() ? 'Finish and take your break' : 'Skip to the next session', keys: 'S', run: () => el.skip.click() });
+  MODE_ORDER.forEach((m, i) => {
+    if (m !== timer.mode) add({ cat: 'Timer', icon: { focus: '🎯', short: '☕', long: '🌿' }[m], title: `Switch to ${MODES[m].label.toLowerCase()}`, keys: String(i + 1), run: () => el.tabs[i].click() });
+  });
+  if (!isFresh() && !timer.flow) add({ cat: 'Timer', icon: '➕', title: 'Add a minute', keys: '+', run: () => addTime(60000, el.extend) });
+  add({ cat: 'Timer', icon: '🌊', title: settings.flow ? 'Turn Flowtime off (count down)' : 'Turn Flowtime on (count up)', words: 'flow count up stopwatch', run: () => {
+    settings.flow = !settings.flow;
+    save();
+    applyMode();
+    renderSummary();
+    markPreset();
+    toast({ icon: '🌊', title: settings.flow ? 'Flowtime on' : 'Flowtime off', body: settings.flow ? 'Focus counts up; take a break when you\'re ready.' : `Focus counts down from ${settings.focus} minutes.`, duration: 2500 });
+  } });
+  for (const m of LENGTHS.focus) add({ cat: 'Timer', icon: '⏱️', title: `Focus for ${m} minutes`, words: 'length duration time', run: () => {
+    settings.focus = m;
+    settings.flow = false;
+    save();
+    if (timer.mode === 'focus' && isFresh()) applyMode();
+    renderSummary();
+    markPreset();
+    toast({ icon: '⏱️', title: `Focus sessions are now ${m} minutes`, duration: 2200 });
+  } });
+  add({ cat: 'Timer', top: true, icon: '🧘', title: isZen() ? 'Leave zen mode' : 'Zen mode', keys: 'F', run: () => setZen(!isZen()) });
+  if (pip.supported()) add({ cat: 'Timer', icon: '🪟', title: 'Floating mini timer', keys: 'P', run: togglePip });
+  if (timer.mode === 'focus' && !isFresh()) add({ cat: 'Timer', icon: '⚡', title: 'Note a distraction', keys: 'D', run: () => noteDistraction() });
+  // Sound
+  const playing = activeKinds();
+  for (const k of audio.ambientKinds) {
+    const on = playing.includes(k);
+    add({ cat: 'Sound', icon: SOUND_INFO[k].icon, title: `${on ? 'Stop' : 'Play'} ${SOUND_INFO[k].name.toLowerCase()}`, words: 'sound ambient noise', run: () => $(`.chip[data-sound="${k}"]`).click() });
+  }
+  for (const m of allMixes()) add({ cat: 'Mix', icon: m.icon, title: m.name, words: `mix soundscape ${Object.keys(m.mix).map((k) => SOUND_INFO[k]?.name || k).join(' ')}`, run: () => applyMix(m, el.mixes) });
+  if (playing.length) add({ cat: 'Sound', top: true, icon: '🔇', title: 'Turn all sounds off', keys: 'M', run: () => $('.chip[data-sound="off"]').click() });
+  else add({ cat: 'Sound', top: true, icon: '🔊', title: 'Bring sounds back', keys: 'M', run: toggleMute });
+  for (const m of [15, 30, 60, 90]) add({ cat: 'Sound', icon: '🌙', title: `Sleep timer: fade out in ${m} minutes`, words: 'sleep fade', run: () => setSleep(m) });
+  // Tasks
+  for (const t of tasks.filter((x) => !x.done)) {
+    const active = t.id === activeTaskId;
+    add({ cat: 'Task', top: !query && active, icon: active ? '⏹️' : '✅', title: `${active ? 'Stop working on' : 'Work on'}: ${splitTags(t.title).label}`, words: t.title, run: () => $(`.task[data-id="${CSS.escape(t.id)}"] .task-select`)?.click() });
+  }
+  add({ cat: 'Task', top: true, icon: '📝', title: 'New task', keys: 'N', run: () => {
+    setView('tasks');
+    setTimeout(() => el.taskInput.focus(), 50);
+  } });
+  if (tasks.some((t) => t.done)) add({ cat: 'Task', icon: '🧹', title: 'Clear finished tasks', run: () => el.clearDone.click() });
+  add({ cat: 'Today', top: true, icon: '🌱', title: intention.text ? 'Change today\'s intention' : 'Set today\'s intention', keys: 'I', run: () => {
+    setView('timer');
+    $('#intention-input').focus();
+  } });
+  const lastFocus = [...history].reverse().find((h) => h.s);
+  if (lastFocus) add({ cat: 'Today', icon: '🗒️', title: lastFocus.n ? 'Edit the note on your last session' : 'Note what you got done last session', run: () => openNote(lastFocus.t, el.toggle) });
+  // Go to
+  add({ cat: 'Open', top: true, icon: '📊', title: 'Stats', words: 'history heatmap achievements', run: () => $('#btn-stats').click() });
+  add({ cat: 'Open', icon: '🏆', title: 'Achievements', run: () => {
+    $('#btn-stats').click();
+    selectStatTab(2, { animate: false });
+  } });
+  add({ cat: 'Open', top: true, icon: '⚙️', title: 'Settings', words: 'preferences options', run: () => $('#btn-settings').click() });
+  add({ cat: 'Open', icon: '❓', title: 'Tips and keyboard shortcuts', keys: '?', words: 'help what\'s new', run: () => $('#btn-help').click() });
+  add({ cat: 'Open', icon: '💾', title: 'Export a backup', words: 'download save data', run: () => $('#btn-export').click() });
+  // Look
+  for (const [v, name] of [['light', 'Light theme'], ['dark', 'Dark theme'], ['auto', 'Theme: match my device']]) {
+    if (settings.theme !== v) add({ cat: 'Look', icon: v === 'dark' ? '🌙' : v === 'light' ? '☀️' : '🌗', title: name, words: 'appearance mode', run: () => {
+      settings.theme = v;
+      applyTheme();
+      save();
+    } });
+  }
+  for (const p of PALETTES) {
+    if (settings.palette !== p) add({ cat: 'Look', icon: '🎨', title: `${p[0].toUpperCase()}${p.slice(1)} colours`, words: 'palette colour color theme accent', run: () => {
+      settings.palette = p;
+      applyTheme();
+      save();
+    } });
+  }
+  return cmds;
+}
+
+// Higher is better; -1 when the text doesn't match at all. Whole words beat
+// word starts, which beat matches inside a word; `fuzzy` also allows the
+// letters to be spread out ("frt" finds "Fireplace") for titles.
+function palScore(query, text, fuzzy = true) {
+  const t = text.toLowerCase();
+  const i = t.indexOf(query);
+  if (i >= 0) {
+    const start = i === 0 || t[i - 1] === ' ';
+    const end = i + query.length === t.length || /[\s:“”,]/.test(t[i + query.length]);
+    return 100 - Math.min(i, 40) + (start ? 30 : 0) + (start && end ? 20 : 0);
+  }
+  if (!fuzzy) return -1;
+  let k = 0;
+  let gaps = 0;
+  for (let j = 0; j < t.length && k < query.length; j++) {
+    if (t[j] === query[k]) k += 1;
+    else if (k > 0) gaps += 1;
+  }
+  return k === query.length ? Math.max(1, 20 - gaps) : -1; // always below any real match
+}
+
+function renderPalette() {
+  const q = palInput.value.trim().toLowerCase();
+  let items = paletteCommands(q);
+  if (!q) items = items.filter((c) => c.top);
+  else {
+    items = items
+      .map((c) => {
+        const s = Math.max(palScore(q, c.title), palScore(q, c.words || '', false) - 15, palScore(q, c.cat, false) - 20);
+        return { c, s: s > 20 && c.top ? s + 8 : s }; // the everyday commands first
+      })
+      .filter((x) => x.s >= 0)
+      .sort((a, b) => b.s - a.s);
+    // Spread-out letter matches only show when nothing matches properly.
+    const real = items.some((x) => x.s > 20);
+    items = items
+      .filter((x) => !real || x.s > 20)
+      .slice(0, 40)
+      .map((x) => x.c);
+    const raw = palInput.value.trim();
+    const add = { cat: 'Task', icon: '➕', title: `Add task “${raw}”`, run: () => {
+      addTask(raw.slice(0, 120), 1);
+      toast({ icon: '✅', title: 'Task added', body: raw.slice(0, 120), duration: 2200 });
+    } };
+    if (items.length) items.push(add);
+    else items = [add];
+  }
+  palItems = items;
+  palActive = Math.min(palActive, Math.max(0, items.length - 1));
+  palList.replaceChildren(
+    ...items.map((c, i) => {
+      const li = document.createElement('li');
+      li.id = `pal-${i}`;
+      li.className = 'pal-item';
+      li.setAttribute('role', 'option');
+      li.dataset.i = String(i);
+      const icon = document.createElement('span');
+      icon.className = 'pal-icon';
+      icon.setAttribute('aria-hidden', 'true');
+      icon.textContent = c.icon;
+      const title = document.createElement('span');
+      title.className = 'pal-title';
+      title.textContent = c.title;
+      const hint = document.createElement('span');
+      hint.className = 'pal-hint';
+      hint.textContent = c.cat;
+      li.append(icon, title, hint);
+      if (c.keys) {
+        const k = document.createElement('kbd');
+        k.textContent = c.keys;
+        k.setAttribute('aria-hidden', 'true');
+        li.append(k);
+      }
+      return li;
+    }),
+  );
+  markPalActive(false);
+}
+
+function markPalActive(scroll = true) {
+  palList.querySelectorAll('.pal-item').forEach((li, i) => li.setAttribute('aria-selected', String(i === palActive)));
+  const cur = $(`#pal-${palActive}`);
+  if (cur) {
+    palInput.setAttribute('aria-activedescendant', cur.id);
+    if (scroll) cur.scrollIntoView({ block: 'nearest' });
+  } else {
+    palInput.removeAttribute('aria-activedescendant');
+  }
+}
+
+function openPalette() {
+  if (palette.open || $('dialog[open]')) return;
+  palInput.value = '';
+  palActive = 0;
+  renderPalette();
+  openSheet(palette, $('#btn-palette'));
+  palInput.focus();
+}
+
+function runPalette(i) {
+  const c = palItems[i];
+  if (!c) return;
+  palette.close();
+  audio.sfx('pop', el.toggle);
+  c.run();
+}
+
+palInput.addEventListener('input', () => {
+  palActive = 0;
+  renderPalette();
+  audio.sfx('key', palInput);
+});
+palInput.addEventListener('keydown', (e) => {
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    e.preventDefault();
+    if (!palItems.length) return;
+    palActive = (palActive + (e.key === 'ArrowDown' ? 1 : -1) + palItems.length) % palItems.length;
+    markPalActive();
+    audio.sfx('tick', $(`#pal-${palActive}`));
+  } else if (e.key === 'Enter') {
+    e.preventDefault();
+    runPalette(palActive);
+  }
+});
+palList.addEventListener('mousemove', (e) => {
+  const li = e.target.closest('.pal-item');
+  if (!li || Number(li.dataset.i) === palActive) return;
+  palActive = Number(li.dataset.i);
+  markPalActive(false);
+});
+palList.addEventListener('click', (e) => {
+  const li = e.target.closest('.pal-item');
+  if (li) runPalette(Number(li.dataset.i));
+});
+$('#btn-palette').addEventListener('click', openPalette);
+document.addEventListener('keydown', (e) => {
+  if ((e.metaKey || e.ctrlKey) && !e.altKey && e.key.toLowerCase() === 'k') {
+    e.preventDefault();
+    if (palette.open) closeSheet(palette);
+    else openPalette();
+  }
+});
 
 // App shortcuts (long-press the installed app icon): ?action=focus|break|zen
 {

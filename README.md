@@ -85,6 +85,9 @@ installed as an app on your phone or computer.
 - Glass cards, drifting aurora, springy buttons with ripples and confetti, a
   cursor spotlight and a gentle 3D tilt
 - Respects "reduce motion"; accessibility audit (axe) passes with no issues
+- **Command palette** (`Ctrl K`, `⌘K` or `/`): type to find and run
+  anything, from "play rain" and "focus for 50 minutes" to "dark theme";
+  type a new task's name to add it
 - Open in two tabs and they stay in sync
 - On phones: app-style Timer / Sounds / Tasks tabs with a mini timer bar;
   wide screens show all three side by side
@@ -106,6 +109,7 @@ installed as an app on your phone or computer.
 | `D` | Note a distraction |
 | `M` | Mute / unmute ambient sound |
 | `[` `]` | Ambient volume down / up |
+| `Ctrl` `K` / `⌘` `K` or `/` | Search and run any command, sound, mix or task |
 | `?` | Tips and shortcuts |
 
 ## How it's built

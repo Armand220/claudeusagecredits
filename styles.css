@@ -1873,6 +1873,49 @@ button.heat { padding: 0; border: 0; cursor: pointer; }
 @media (max-width: 420px) { .log-item { grid-template-columns: minmax(0, 1fr) auto auto; } .log-when { grid-column: 1 / -1; font-size: 12px; } .log-note { grid-column: 1 / -1; } }
 
 .note-sheet { width: min(440px, calc(100vw - 24px)); }
+
+.palette-btn kbd.label { font: inherit; font-size: 12px; font-weight: 600; color: var(--ink-3); }
+.palette { width: min(580px, calc(100vw - 24px)); margin-top: 11vh; margin-bottom: auto; }
+.palette-search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--line);
+  color: var(--ink-3);
+}
+.palette-search svg { flex: none; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+#palette-input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  font-size: 17px;
+  outline: none;
+}
+#palette-input::placeholder { color: var(--ink-3); }
+.palette-list { list-style: none; margin: 0; padding: 8px; max-height: min(52vh, 440px); overflow-y: auto; }
+.pal-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 12px;
+  border-radius: 12px;
+  cursor: pointer;
+  font-size: 14.5px;
+}
+.pal-item[aria-selected="true"] { background: var(--accent-soft); }
+.pal-item[aria-selected="true"] .pal-title { color: var(--accent-strong); }
+.pal-icon { flex: none; width: 24px; text-align: center; font-size: 16px; }
+.pal-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.pal-hint { flex: none; font-size: 12px; color: var(--ink-3); }
+.pal-item kbd { flex: none; }
+.palette-foot { margin: 0; padding: 10px 18px 12px; border-top: 1px solid var(--line); font-size: 12px; color: var(--ink-3); }
+.palette-foot kbd { margin-right: 2px; }
+.palette[open] { animation: palette-in .32s var(--spring); }
+@keyframes palette-in { from { opacity: 0; transform: translateY(-12px) scale(.97); } }
 .note-sheet .sheet-head { margin-bottom: 4px; }
 .note-sheet .sheet-note { margin: 0 0 12px; }
 #note-text {
