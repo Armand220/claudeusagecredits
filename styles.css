@@ -2179,6 +2179,22 @@ body.is-flow.is-running .time .colon { animation: flow-blink 2s ease-in-out infi
 .dial-actions { position: relative; }
 
 .timeline-section { margin-top: 20px; }
+.review-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 8px; }
+.review-list li {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-rows: auto auto;
+  column-gap: 10px;
+  align-items: center;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+}
+.sheet[open] .review-list li { animation: heat-in .45s var(--spring) backwards; animation-delay: var(--delay, 0ms); }
+.review-icon { grid-row: 1 / 3; font-size: 20px; }
+.review-label { font-size: 11.5px; font-weight: 600; letter-spacing: .03em; text-transform: uppercase; color: var(--ink-3); }
+.review-value { font-size: 14px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .timeline-section h3 { margin: 0 0 10px; font-size: 13px; font-weight: 600; color: var(--ink-2); }
 .timeline { position: relative; height: 26px; border-radius: 8px; background: var(--track); overflow: hidden; }
 .tl-block { position: absolute; top: 3px; bottom: 3px; border-radius: 5px; background: var(--accent); box-shadow: 0 0 0 1.5px var(--surface); }

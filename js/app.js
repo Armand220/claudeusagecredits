@@ -1,11 +1,11 @@
-import * as audio from './audio.js?v=52';
-import * as fx from './fx.js?v=52';
-import { toast } from './toast.js?v=52';
-import * as effects from './effects.js?v=52';
-import * as scenery from './scenery.js?v=52';
-import * as pip from './pip.js?v=52';
-import { shareCard, makeCardFile } from './share.js?v=52';
-import * as photo from './photo.js?v=52';
+import * as audio from './audio.js?v=53';
+import * as fx from './fx.js?v=53';
+import { toast } from './toast.js?v=53';
+import * as effects from './effects.js?v=53';
+import * as scenery from './scenery.js?v=53';
+import * as pip from './pip.js?v=53';
+import { shareCard, makeCardFile } from './share.js?v=53';
+import * as photo from './photo.js?v=53';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -129,8 +129,11 @@ function cleanIntention(raw) {
 }
 
 function cleanCounters(raw) {
-  const out = { tasksDone: 0, soundsTried: [], ...obj(raw) };
+  const out = { tasksDone: 0, soundsTried: [], intentionDays: [], paletteRuns: 0, ...obj(raw) };
   if (!Array.isArray(out.soundsTried)) out.soundsTried = [];
+  // Days (todayKey) when the intention was ticked off.
+  out.intentionDays = Array.isArray(out.intentionDays) ? out.intentionDays.filter((d) => typeof d === 'string').slice(-400) : [];
+  out.paletteRuns = clampInt(out.paletteRuns, 0, 1e6, 0);
   // Which colour each #tag got, so tags keep their colours.
   out.tagColors = Object.fromEntries(
     Object.entries(obj(out.tagColors))
@@ -1476,6 +1479,13 @@ const ACHIEVEMENTS = [
   { id: 'zen', icon: '🧘', name: 'Zen master', desc: 'Finish a focus session in zen mode' },
   { id: 'marathon', icon: '🏃', name: 'Marathon', desc: 'Four hours of focus in one day' },
   { id: 'flow', icon: '🌊', name: 'In the zone', desc: 'Stay in Flowtime for an hour' },
+  { id: 'scribe', icon: '📝', name: 'Note taker', desc: 'Write notes on five sessions' },
+  { id: 'keeper', icon: '🌱', name: 'Intention keeper', desc: 'Tick off your intention on three days' },
+  { id: 'tags', icon: '🏷️', name: 'Tag team', desc: 'Focus on three different #tags in a week' },
+  { id: 'commuter', icon: '🚆', name: 'Commuter', desc: 'Finish a focus session on the train ride' },
+  { id: 'bookworm', icon: '📚', name: 'Bookworm', desc: 'Finish a focus session in the study hall' },
+  { id: 'sharer', icon: '🔗', name: 'Pass it on', desc: 'Share a sound mix' },
+  { id: 'power', icon: '⌨️', name: 'Power user', desc: 'Run ten commands from the search' },
 ];
 const GOAL_C = 2 * Math.PI * 15;
 
@@ -1559,6 +1569,12 @@ function checkFocusAchievements(endedAt, next, opts = {}) {
   if (hour >= 4 && hour < 8) unlock('early', opts);
   if (hour >= 22 || hour < 4) unlock('night', opts);
   if (today.m >= 240) unlock('marathon', opts);
+  const playing = activeKinds();
+  if (playing.includes('train')) unlock('commuter', opts);
+  if (playing.includes('study')) unlock('bookworm', opts);
+  const weekTags = new Set();
+  for (const h of history) if (h.task && h.t > endedAt - 7 * DAY) splitTags(h.task).tags.forEach((t) => weekTags.add(t));
+  if (weekTags.size >= 3) unlock('tags', opts);
 }
 
 function renderBadges() {
@@ -1666,6 +1682,7 @@ function renderStats() {
   renderLog();
   renderTimeline();
   renderTopTasks();
+  renderWeekReview();
   renderBadges();
 }
 
@@ -1803,6 +1820,7 @@ $('#note-form').addEventListener('submit', (e) => {
     if (text) h.n = text;
     else delete h.n;
     save();
+    if (history.filter((x) => x.n).length >= 5) unlock('scribe', { delay: 900 });
     renderLog();
     renderDayDetail();
   }
@@ -1833,8 +1851,10 @@ function renderIntention() {
 $('#btn-intention-done').addEventListener('click', (e) => {
   const btn = e.currentTarget;
   intention.done = !intention.done;
+  if (intention.done && !counters.intentionDays.includes(intention.d)) counters.intentionDays.push(intention.d);
   save();
   renderIntention();
+  if (intention.done && counters.intentionDays.length >= 3) unlock('keeper', { delay: 2600 });
   fx.pop(btn, 1.25);
   if (intention.done) {
     const form = $('#intention-form');
@@ -1878,6 +1898,71 @@ document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible') renderIntention();
 });
 renderIntention();
+
+// This week (from Monday) at a glance.
+function renderWeekReview() {
+  const start = new Date();
+  start.setHours(0, 0, 0, 0);
+  start.setDate(start.getDate() - ((start.getDay() + 6) % 7));
+  const week = history.filter((h) => h.t >= start.getTime());
+  const box = $('#week-review');
+  box.hidden = week.length === 0;
+  if (!week.length) return;
+  const rows = [];
+  const focus = week.filter((h) => h.s);
+  const mins = week.reduce((n, h) => n + h.m, 0);
+  rows.push(['🎯', 'Focus', `${fmtMinutes(mins)} · ${focus.length} ${focus.length === 1 ? 'session' : 'sessions'}`]);
+  const byDay = new Map();
+  for (const h of week) {
+    const k = new Date(h.t).toDateString();
+    byDay.set(k, (byDay.get(k) || 0) + h.m);
+  }
+  const [bestDay, bestM] = [...byDay.entries()].sort((a, b) => b[1] - a[1])[0];
+  if (byDay.size > 1) rows.push(['📅', 'Best day', `${new Date(bestDay).toLocaleDateString([], { weekday: 'long' })} · ${fmtMinutes(bestM)}`]);
+  const tags = new Map();
+  for (const h of week) if (h.task) splitTags(h.task).tags.forEach((t) => tags.set(t, (tags.get(t) || 0) + h.m));
+  if (tags.size) {
+    const [tag, m] = [...tags.entries()].sort((a, b) => b[1] - a[1])[0];
+    rows.push(['🏷️', 'Top tag', `#${tag} · ${fmtMinutes(m)}`]);
+  }
+  const startKey = start.getTime();
+  const kept = counters.intentionDays.filter((d) => {
+    const [y, mo, da] = d.split('-').map(Number);
+    return new Date(y, mo, da).getTime() >= startKey;
+  }).length;
+  if (kept) rows.push(['🌱', 'Intentions kept', `${kept} ${kept === 1 ? 'day' : 'days'}`]);
+  const rated = focus.filter((h) => h.r);
+  if (rated.length) {
+    const avg = Math.round(rated.reduce((n, h) => n + h.r, 0) / rated.length);
+    rows.push([RATINGS[avg - 1], 'Felt', RATING_NAMES[avg - 1]]);
+  }
+  const flows = week.filter((h) => h.f);
+  if (flows.length) rows.push(['🌊', 'Longest flow', fmtMinutes(Math.max(...flows.map((h) => h.m)))]);
+  const notes = week.filter((h) => h.n).length;
+  if (notes) rows.push(['📝', 'Notes', `${notes} ${notes === 1 ? 'session' : 'sessions'}`]);
+  const end = new Date(start);
+  end.setDate(end.getDate() + 6);
+  const fmt = (d) => d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+  $('#week-range').textContent = `${fmt(start)} – ${fmt(end)}`;
+  $('#review-list').replaceChildren(
+    ...rows.map(([icon, label, value], i) => {
+      const li = document.createElement('li');
+      li.style.setProperty('--delay', `${i * 50}ms`);
+      const ic = document.createElement('span');
+      ic.className = 'review-icon';
+      ic.setAttribute('aria-hidden', 'true');
+      ic.textContent = icon;
+      const l = document.createElement('span');
+      l.className = 'review-label';
+      l.textContent = label;
+      const v = document.createElement('span');
+      v.className = 'review-value';
+      v.textContent = value;
+      li.append(ic, l, v);
+      return li;
+    }),
+  );
+}
 
 // A strip showing when today's sessions happened.
 function renderTimeline() {
@@ -2777,6 +2862,7 @@ $('#btn-share-mix').addEventListener('click', async (e) => {
   if (navigator.share && phoneLayout.matches) {
     try {
       await navigator.share({ title: 'A Tempo sound mix', text: `Focus with this mix: ${names}`, url });
+      unlock('sharer', { delay: 800 });
       return;
     } catch (err) {
       if (err && err.name === 'AbortError') return;
@@ -2785,6 +2871,7 @@ $('#btn-share-mix').addEventListener('click', async (e) => {
   try {
     await navigator.clipboard.writeText(url);
     audio.sfx('check', btn);
+    unlock('sharer', { delay: 1600 });
     toast({ icon: '🔗', title: 'Link copied', body: `Anyone who opens it hears ${names}, placed just like yours.`, duration: 4000 });
   } catch {
     window.prompt('Copy this link to share your mix:', url);
@@ -3239,7 +3326,28 @@ el.pip.hidden = !pip.supported();
 el.pip.addEventListener('click', togglePip);
 
 el.skip.addEventListener('click', () => {
+  const undoable = !timer.flow || isFresh();
+  const before = { timer: JSON.parse(JSON.stringify(timer)), historyLen: history.length, from: timer.mode };
   skip();
+  if (undoable) {
+    toast({
+      icon: '⏭️',
+      title: `Skipped to ${MODES[timer.mode].label.toLowerCase()}`,
+      duration: 5000,
+      action: { label: 'Undo', onClick: () => {
+        Object.keys(timer).forEach((k) => delete timer[k]);
+        Object.assign(timer, cleanTimer(before.timer));
+        history = history.slice(0, before.historyLen);
+        applyMode();
+        afterTimerChange();
+        renderGoal();
+        renderTasks();
+        audio.sfx('uncheck', el.skip);
+        fx.pop(el.dial, 1.03);
+        announce(`Back to ${MODES[timer.mode].label.toLowerCase()}`);
+      } },
+    });
+  }
   audio.sfx('pop', el.skip);
   fx.burst(el.skip, { count: 8, spread: 40, size: 5 });
 });
@@ -3400,6 +3508,7 @@ statTabs.forEach((t, i) => {
 
 // What's new: the newest first. Bump `id` when adding an entry.
 const CHANGES = [
+  { id: 14, icon: '🏆', text: 'Seven new achievements, a "This week" review in Stats, and Undo when you skip a session by accident.' },
   { id: 13, icon: '🔗', text: 'Share your sound mix as a link, get an idea for each break, and tick off today\'s intention when it\'s done.' },
   { id: 12, icon: '🔎', text: 'Press Ctrl K (⌘K on a Mac) or / to search and run anything: start, sounds, mixes, tasks, themes and more.' },
   { id: 11, icon: '🌱', text: 'Write today\'s intention under the timer, and jot down what you got done after each session (📝). Notes show in Stats.' },
@@ -3931,6 +4040,9 @@ function runPalette(i) {
   palette.close();
   audio.sfx('pop', el.toggle);
   c.run();
+  counters.paletteRuns += 1;
+  save();
+  if (counters.paletteRuns >= 10) unlock('power', { delay: 1200 });
 }
 
 palInput.addEventListener('input', () => {

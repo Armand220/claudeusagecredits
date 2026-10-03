@@ -79,7 +79,7 @@ installed as an app on your phone or computer.
 - Stats with Overview (today, streak, last 7 days vs the week before,
   12-week heatmap: tap a day to see its sessions), History (best focus hours,
   focus by task and by tag, recent sessions with ratings and distractions)
-  and Achievements (eighteen to unlock)
+  and Achievements (twenty-five to unlock), plus a "This week" review
 - **Share today**: a ready-to-post image of your day's focus
 - Export and import a backup file to move your data between devices
 
@@ -103,7 +103,7 @@ installed as an app on your phone or computer.
 | --- | --- |
 | `Space` | Start / pause |
 | `R` | Reset |
-| `S` | Skip to the next session (in Flowtime: finish and take your break) |
+| `S` | Skip to the next session, with Undo (in Flowtime: finish and take your break) |
 | `1` `2` `3` | Focus / short break / long break |
 | `+` `-` | Add / remove a minute |
 | `N` | New task |

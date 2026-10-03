@@ -23,7 +23,7 @@
   <!-- Fonts load without blocking the first paint. -->
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..700&family=Outfit:wght@200..700&display=swap" media="print" onload="this.media='all'">
   <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..700&family=Outfit:wght@200..700&display=swap"></noscript>
-  <link rel="stylesheet" href="styles.css?v=52">
+  <link rel="stylesheet" href="styles.css?v=53">
 </head>
 <body data-mode="focus">
   <div class="photo-bg" aria-hidden="true"></div>
@@ -355,6 +355,10 @@
         </section>
         <p class="sheet-note" id="stat-total"></p>
         <button type="button" class="preset share-btn pressable" id="btn-share"><strong>📤 Share today</strong><span>Make an image of today's focus</span></button>
+        <section class="heat-section week-review" id="week-review" aria-labelledby="week-title" hidden>
+          <h3 id="week-title">This week <span class="badge-count" id="week-range"></span></h3>
+          <ul class="review-list" id="review-list"></ul>
+        </section>
         <section class="heat-section" aria-labelledby="heat-title">
           <h3 id="heat-title">Last 12 weeks <span class="badge-count" id="heat-summary"></span></h3>
           <div class="heat-wrap">
@@ -612,6 +616,6 @@
     </div>
   </dialog>
 
-  <script type="module" src="js/app.js?v=52"></script>
+  <script type="module" src="js/app.js?v=53"></script>
 </body>
 </html>
