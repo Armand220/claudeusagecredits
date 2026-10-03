@@ -1,11 +1,11 @@
-import * as audio from './audio.js?v=41';
-import * as fx from './fx.js?v=41';
-import { toast } from './toast.js?v=41';
-import * as effects from './effects.js?v=41';
-import * as scenery from './scenery.js?v=41';
-import * as pip from './pip.js?v=41';
-import { shareCard, makeCardFile } from './share.js?v=41';
-import * as photo from './photo.js?v=41';
+import * as audio from './audio.js?v=42';
+import * as fx from './fx.js?v=42';
+import { toast } from './toast.js?v=42';
+import * as effects from './effects.js?v=42';
+import * as scenery from './scenery.js?v=42';
+import * as pip from './pip.js?v=42';
+import { shareCard, makeCardFile } from './share.js?v=42';
+import * as photo from './photo.js?v=42';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -2570,6 +2570,7 @@ function setView(view, { scroll = true } = {}) {
     else b.removeAttribute('aria-current');
   });
   $('#bottom-nav').style.setProperty('--i', String(VIEWS.indexOf(view)));
+  if (view === 'sounds') requestAnimationFrame(syncMixArrows);
   if (changed && phoneLayout.matches) {
     const target = view === 'timer' ? $('.timer-card') : view === 'sounds' ? $('.sounds-panel') : $('.tasks-panel');
     fx.enter(target);
@@ -2873,6 +2874,7 @@ function maybeWelcome() {
   }
   settings.welcomed = true;
   settings.seenChanges = LATEST_CHANGE;
+  renderWhatsNew();
   save();
   setTimeout(() => openSheet($('#welcome-dialog'), el.toggle), 700);
 }
@@ -3055,6 +3057,7 @@ window.addEventListener('storage', (e) => {
     renderMixes();
   }
   audio.setSfxEnabled(settings.sfx);
+  audio.setChimeVolume(settings.chimeVolume / 100);
   scenery.setEnabled(settings.scenery);
   applyTheme();
   applyMode();
@@ -3107,7 +3110,7 @@ if ('serviceWorker' in navigator && (location.protocol === 'https:' || ['localho
 
 audio.setSfxEnabled(settings.sfx);
 scenery.mount();
-document.addEventListener('pointerdown', () => audio.setChimeVolume(settings.chimeVolume / 100), { once: true });
+audio.setChimeVolume(settings.chimeVolume / 100);
 scenery.setEnabled(settings.scenery);
 applyTheme();
 applyMode();

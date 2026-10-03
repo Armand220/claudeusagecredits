@@ -47,6 +47,7 @@ async function shrink(file, max = 2400) {
 
 export async function save(file) {
   const blob = await shrink(file);
+  if (!blob || !blob.size) throw new Error("couldn't convert that picture");
   await tx('readwrite', (s) => s.put(blob, KEY));
   return blob;
 }

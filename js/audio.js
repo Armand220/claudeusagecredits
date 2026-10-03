@@ -12,6 +12,7 @@ const buffers = {};
 let sfxOn = true;
 let ambientLevel = 0.5;
 let ambientGate = 1;
+let chimeLevel = 0.7;
 let yaw = 0; // which way you're facing in the room, radians (right is positive)
 let tracked = null;
 let analyser = null;
@@ -34,7 +35,7 @@ function ensure() {
     master.gain.value = 0.9;
     master.connect(comp).connect(ctx.destination);
     sfxBus = gain(0.5, master);
-    chimeBus = gain(0.75, master);
+    chimeBus = gain(chimeGain(), master);
     ambientBus = gain(curve(ambientLevel) * ambientGate, master);
     analyser = ctx.createAnalyser();
     analyser.fftSize = 512;
@@ -105,11 +106,12 @@ export function setAmbientVolume(v) {
   if (ctx) ambientBus.gain.setTargetAtTime(curve(ambientLevel) * ambientGate, ctx.currentTime, 0.05);
 }
 
-/** Volume of the end-of-session chime, 0..1. */
+const chimeGain = () => 0.75 * Math.max(0, Math.min(1.4, chimeLevel * 1.4));
+
+/** Volume of the end-of-session chime, 0..1. Remembered until audio starts. */
 export function setChimeVolume(v) {
-  const c = ensure();
-  if (!c) return;
-  chimeBus.gain.setTargetAtTime(0.75 * Math.max(0, Math.min(1.4, v * 1.4)), c.currentTime, 0.03);
+  chimeLevel = Math.max(0, Math.min(1, v));
+  if (ctx) chimeBus.gain.setTargetAtTime(chimeGain(), ctx.currentTime, 0.03);
 }
 
 /** Fade all ambient sound out (false) or back in (true) without changing the mix. */
