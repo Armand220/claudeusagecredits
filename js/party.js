@@ -123,19 +123,24 @@ function openSignal(id, { onMessage, onClose }) {
     const { url, key } = config();
     let ws;
     try {
-      ws = new WebSocket(`${url}?key=${encodeURIComponent(key)}&id=${encodeURIComponent(id)}&token=${randomId()}`);
+      // Same query as the official PeerJS client, which the public server expects.
+      ws = new WebSocket(`${url}?key=${encodeURIComponent(key)}&id=${encodeURIComponent(id)}&token=${randomId()}&version=1.5.4`);
     } catch (err) {
       reject(new Error(`network:blocked (${err && err.name})`));
       return;
     }
     let opened = false;
+    let openedAt = 0;
     let closed = false;
     const heartbeat = setInterval(() => {
       if (ws.readyState === 1) ws.send(JSON.stringify({ type: 'HEARTBEAT' }));
     }, 5000);
     const api = {
-      send(type, dst, box) {
-        if (ws.readyState === 1) ws.send(JSON.stringify({ type, dst, payload: { box } }));
+      // The usual PeerJS data-connection fields ride along in the clear (they
+      // say nothing about you); everything that matters is inside the sealed box.
+      send(type, dst, box, connectionId) {
+        const payload = { box, type: 'data', connectionId: connectionId || 'tempo', label: 'party', serialization: 'json', reliable: true };
+        if (ws.readyState === 1) ws.send(JSON.stringify({ type, dst, payload }));
       },
       close() {
         closed = true;
@@ -163,6 +168,7 @@ function openSignal(id, { onMessage, onClose }) {
       if (!m || typeof m !== 'object') return;
       if (m.type === 'OPEN') {
         opened = true;
+        openedAt = Date.now();
         clearTimeout(timeout);
         resolve(api);
       } else if (m.type === 'ID-TAKEN' || m.type === 'INVALID-KEY' || m.type === 'ERROR') {
@@ -187,7 +193,7 @@ function openSignal(id, { onMessage, onClose }) {
         clearTimeout(timeout);
         reject(new Error(`network:closed (${e.code})`));
       } else if (!closed) {
-        onClose();
+        onClose({ code: e.code, reason: str(e.reason, 60), after: Math.round((Date.now() - openedAt) / 100) / 10 });
       }
     };
   });
@@ -273,7 +279,7 @@ export async function host(name, hooks, { private: privately = true } = {}) {
     const members = memberList();
     guests.forEach((g) => g.ready && send(g, { t: 'members', members }));
   };
-  const relay = async (type, dst, body) => signal?.send(type, dst, await seal(secrets.key, body));
+  const relay = async (type, dst, body) => signal?.send(type, dst, await seal(secrets.key, body), body.cid);
 
   function drop(g) {
     if (guests.get(g.id) !== g) return;
@@ -436,6 +442,21 @@ export async function host(name, hooks, { private: privately = true } = {}) {
  */
 export async function join(code, name, hooks, { private: privately = true } = {}) {
   const secrets = await secretsFor(code);
+  // If the relay connection drops mid-handshake, start over (a few times).
+  let last;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      return await joinOnce(secrets, name, hooks, privately);
+    } catch (err) {
+      last = err;
+      if (!/^network/.test(err.message)) throw err;
+      await new Promise((r) => setTimeout(r, 1500 * (attempt + 1)));
+    }
+  }
+  throw last;
+}
+
+function joinOnce(secrets, name, hooks, privately) {
   const cid = `c${randomId()}`;
   let signal = null;
   let link = null;
@@ -456,7 +477,7 @@ export async function join(code, name, hooks, { private: privately = true } = {}
       }
     }
   };
-  const relay = async (type, body) => signal?.send(type, secrets.id, await seal(secrets.key, { cid, ...body }));
+  const relay = async (type, body) => signal?.send(type, secrets.id, await seal(secrets.key, { cid, ...body }), cid);
   const cleanup = () => {
     clearInterval(pinger);
     signal?.close();
@@ -534,7 +555,12 @@ export async function join(code, name, hooks, { private: privately = true } = {}
       }
     };
 
-    openSignalRetry(`tempo-guest-${randomId()}`, { onMessage, onClose: () => { if (!settled) fail('network:closed'); } })
+    openSignalRetry(`tempo-guest-${randomId()}`, {
+      onMessage,
+      onClose: (e) => {
+        if (!settled) fail(`network:closed (code ${e.code}${e.reason ? ` ${e.reason}` : ''}, after ${e.after}s)`);
+      },
+    })
       .then(async (s) => {
         signal = s;
         link = peerLink(privately, (type, extra) => relay(type, extra), (state) => {
