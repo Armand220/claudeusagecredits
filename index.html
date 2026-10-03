@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Tempo · Focus Timer</title>
+  <meta name="description" content="A calm Pomodoro focus timer with tasks, ambient sounds and stats. Works offline.">
+  <meta name="theme-color" content="#e4643f">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body data-mode="focus">
+  <div class="app">
+    <header class="topbar">
+      <a class="brand" href="./" aria-label="Tempo home">
+        <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true">
+          <circle cx="16" cy="16" r="12" fill="none" stroke="currentColor" stroke-width="3" opacity=".25"/>
+          <path d="M16 4a12 12 0 0 1 12 12" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+          <circle cx="16" cy="16" r="3" fill="currentColor"/>
+        </svg>
+        <span>Tempo</span>
+      </a>
+      <nav class="topbar-actions">
+        <button class="icon-btn" id="btn-install" type="button" hidden aria-label="Install app">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0-4.5-4.5M12 15l4.5-4.5M5 19h14"/></svg>
+          <span class="label">Install</span>
+        </button>
+        <button class="icon-btn" id="btn-stats" type="button" aria-label="Stats">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20V11m7 9V5m7 15v-6"/></svg>
+          <span class="label">Stats</span>
+        </button>
+        <button class="icon-btn" id="btn-settings" type="button" aria-label="Settings">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10m4 0h2M4 17h4m4 0h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>
+          <span class="label">Settings</span>
+        </button>
+      </nav>
+    </header>
+
+    <main class="layout">
+      <section class="timer-card" aria-label="Timer">
+        <div class="modes" role="tablist" aria-label="Session type">
+          <button role="tab" type="button" class="mode-tab" data-mode="focus" aria-selected="true">Focus</button>
+          <button role="tab" type="button" class="mode-tab" data-mode="short" aria-selected="false">Short break</button>
+          <button role="tab" type="button" class="mode-tab" data-mode="long" aria-selected="false">Long break</button>
+        </div>
+
+        <div class="dial">
+          <svg class="ring" viewBox="0 0 220 220" aria-hidden="true">
+            <circle class="ring-track" cx="110" cy="110" r="100"/>
+            <circle class="ring-progress" id="ring-progress" cx="110" cy="110" r="100"/>
+          </svg>
+          <div class="dial-center">
+            <div class="time" id="time" role="timer" aria-live="off">25:00</div>
+            <div class="session-label" id="session-label">Session 1 · Time to focus</div>
+          </div>
+        </div>
+
+        <div class="controls">
+          <button class="round-btn" id="btn-reset" type="button" aria-label="Reset timer" title="Reset (R)">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a8 8 0 1 0 2.4-5.7M4 4v4.5h4.5"/></svg>
+          </button>
+          <button class="primary-btn" id="btn-toggle" type="button" title="Start / pause (Space)">
+            <span id="toggle-label">Start</span>
+          </button>
+          <button class="round-btn" id="btn-skip" type="button" aria-label="Skip to next session" title="Skip (S)">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 5l9 7-9 7V5zM18 5v14"/></svg>
+          </button>
+        </div>
+
+        <p class="current-task" id="current-task" hidden>
+          <span class="current-task-kicker">Working on</span>
+          <span class="current-task-title" id="current-task-title"></span>
+        </p>
+      </section>
+
+      <div class="side">
+        <section class="panel" aria-labelledby="sounds-heading">
+          <div class="panel-head">
+            <h2 id="sounds-heading">Ambient sound</h2>
+            <label class="volume" title="Volume">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9H4zM16.5 8.5a5 5 0 0 1 0 7"/></svg>
+              <span class="sr-only">Volume</span>
+              <input type="range" id="volume" min="0" max="100" value="50">
+            </label>
+          </div>
+          <div class="chips" role="radiogroup" aria-label="Ambient sound">
+            <button type="button" class="chip" role="radio" data-sound="off" aria-checked="true">Off</button>
+            <button type="button" class="chip" role="radio" data-sound="rain" aria-checked="false">Rain</button>
+            <button type="button" class="chip" role="radio" data-sound="waves" aria-checked="false">Waves</button>
+            <button type="button" class="chip" role="radio" data-sound="brown" aria-checked="false">Brown noise</button>
+            <button type="button" class="chip" role="radio" data-sound="white" aria-checked="false">Fan</button>
+          </div>
+        </section>
+
+        <section class="panel tasks-panel" aria-labelledby="tasks-heading">
+          <div class="panel-head">
+            <h2 id="tasks-heading">Tasks</h2>
+            <button type="button" class="text-btn" id="btn-clear-done" hidden>Clear finished</button>
+          </div>
+
+          <form class="task-form" id="task-form" autocomplete="off">
+            <label class="sr-only" for="task-input">New task</label>
+            <input id="task-input" type="text" maxlength="120" placeholder="What are you working on?" required>
+            <label class="est" title="Estimated pomodoros">
+              <span class="sr-only">Estimated pomodoros</span>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="13" r="7"/><path d="M12 6V3m-2 0h4M12 13V10"/></svg>
+              <input id="task-est" type="number" min="1" max="20" value="1" inputmode="numeric">
+            </label>
+            <button class="add-btn" type="submit" aria-label="Add task">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+            </button>
+          </form>
+
+          <ul class="task-list" id="task-list"></ul>
+          <div class="empty" id="tasks-empty">
+            <p>No tasks yet. Add one, then tap it to track pomodoros against it.</p>
+          </div>
+          <p class="task-summary" id="task-summary" hidden></p>
+        </section>
+
+        <p class="shortcuts-hint">
+          <kbd>Space</kbd> start/pause · <kbd>R</kbd> reset · <kbd>S</kbd> skip · <kbd>N</kbd> new task
+        </p>
+      </div>
+    </main>
+  </div>
+
+  <div class="sr-only" id="announcer" aria-live="polite"></div>
+
+  <dialog class="sheet" id="stats-dialog" aria-labelledby="stats-title">
+    <form method="dialog" class="sheet-inner">
+      <header class="sheet-head">
+        <h2 id="stats-title">Your focus</h2>
+        <button class="icon-btn close" value="close" aria-label="Close">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+        </button>
+      </header>
+      <div class="tiles">
+        <div class="tile"><span class="tile-label">Today</span><span class="tile-value" id="stat-today">0m</span></div>
+        <div class="tile"><span class="tile-label">Sessions today</span><span class="tile-value" id="stat-sessions">0</span></div>
+        <div class="tile"><span class="tile-label">Day streak</span><span class="tile-value" id="stat-streak">0</span></div>
+        <div class="tile"><span class="tile-label">Last 7 days</span><span class="tile-value" id="stat-week">0m</span></div>
+      </div>
+      <figure class="chart">
+        <figcaption>Focus minutes per day, last 7 days</figcaption>
+        <div class="chart-plot" id="chart"></div>
+        <div class="chart-tooltip" id="chart-tooltip" role="status" hidden></div>
+      </figure>
+      <table class="sr-only" id="chart-table">
+        <caption>Focus minutes per day</caption>
+        <thead><tr><th scope="col">Day</th><th scope="col">Minutes</th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <p class="sheet-note" id="stat-total"></p>
+    </form>
+  </dialog>
+
+  <dialog class="sheet" id="settings-dialog" aria-labelledby="settings-title">
+    <form method="dialog" class="sheet-inner" id="settings-form">
+      <header class="sheet-head">
+        <h2 id="settings-title">Settings</h2>
+        <button class="icon-btn close" value="close" aria-label="Close">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+        </button>
+      </header>
+
+      <fieldset>
+        <legend>Durations (minutes)</legend>
+        <div class="grid-3">
+          <label class="field"><span>Focus</span><input type="number" name="focus" min="1" max="180" inputmode="numeric"></label>
+          <label class="field"><span>Short break</span><input type="number" name="short" min="1" max="60" inputmode="numeric"></label>
+          <label class="field"><span>Long break</span><input type="number" name="long" min="1" max="90" inputmode="numeric"></label>
+        </div>
+        <label class="field row"><span>Long break after every</span>
+          <span class="inline"><input type="number" name="longEvery" min="2" max="12" inputmode="numeric"> focus sessions</span>
+        </label>
+      </fieldset>
+
+      <fieldset>
+        <legend>Behaviour</legend>
+        <label class="switch"><input type="checkbox" name="autoBreaks"><span>Start breaks automatically</span></label>
+        <label class="switch"><input type="checkbox" name="autoFocus"><span>Start focus automatically after a break</span></label>
+        <label class="switch"><input type="checkbox" name="chime"><span>Play a chime when a session ends</span></label>
+        <label class="switch"><input type="checkbox" name="notify"><span>Show a notification when a session ends</span></label>
+        <label class="switch" id="wake-row"><input type="checkbox" name="wakeLock"><span>Keep the screen awake while the timer runs</span></label>
+      </fieldset>
+
+      <fieldset>
+        <legend>Appearance</legend>
+        <div class="segmented" role="radiogroup" aria-label="Theme">
+          <label><input type="radio" name="theme" value="auto"><span>System</span></label>
+          <label><input type="radio" name="theme" value="light"><span>Light</span></label>
+          <label><input type="radio" name="theme" value="dark"><span>Dark</span></label>
+        </div>
+      </fieldset>
+
+      <div class="sheet-foot">
+        <button type="button" class="text-btn danger" id="btn-reset-data">Erase all data</button>
+        <button type="button" class="text-btn" id="btn-test-chime">Test chime</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="app.js" defer></script>
+</body>
+</html>
