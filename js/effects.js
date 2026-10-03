@@ -1,8 +1,8 @@
 // Ambient visual effects: watch-face ticks, cursor spotlight, 3D tilt
 // and a glow that pulses with the ambient sound.
 
-import * as audio from './audio.js?v=12';
-import { motionOK } from './fx.js?v=12';
+import * as audio from './audio.js?v=13';
+import { motionOK } from './fx.js?v=13';
 
 const finePointer = window.matchMedia('(hover: hover) and (pointer: fine)');
 const SVG_NS = 'http://www.w3.org/2000/svg';

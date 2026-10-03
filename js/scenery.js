@@ -1,0 +1,352 @@
+// Animated backgrounds that match the ambient sound: rain streaks, rolling
+// waves, rising embers, fireflies under the stars, drifting dust in a breeze.
+// One canvas behind the page; it only animates while a scene is showing.
+
+import * as audio from './audio.js?v=13';
+import { motionOK } from './fx.js?v=13';
+
+const canvas = document.createElement('canvas');
+canvas.className = 'scenery';
+canvas.setAttribute('aria-hidden', 'true');
+const g = canvas.getContext('2d');
+
+let W = 0;
+let H = 0;
+let enabled = true;
+let active = new Set();
+const layers = new Map();
+let raf = 0;
+let last = 0;
+let time = 0;
+let colors = {};
+let frameEMA = 1 / 60;
+let lastTick = 0;
+let halfRate = false;
+let skip = false;
+
+const rand = (a, b) => a + Math.random() * (b - a);
+
+function hexLum(hex) {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
+  if (!m) return 1;
+  const n = parseInt(m[1], 16);
+  return (0.2126 * ((n >> 16) & 255) + 0.7152 * ((n >> 8) & 255) + 0.0722 * (n & 255)) / 255;
+}
+
+function readColors() {
+  const cs = getComputedStyle(document.body);
+  const v = (name) => cs.getPropertyValue(name).trim();
+  const dark = hexLum(v('--bg')) < 0.35;
+  colors = {
+    dark,
+    rain: dark ? '#b9c9e6' : '#55657e',
+    accent: v('--accent'),
+    waves: dark ? ['#1d6fa8', '#2a9df4', '#5ec8ff'] : ['#7cc4ff', '#4cc3ff', '#2a9df4'],
+    star: dark ? '#fff8e8' : '#8c7d75',
+    dust: dark ? '#f2e8e0' : '#7a6a62',
+  };
+}
+
+function sprite(inner, outer, size = 64) {
+  const c = document.createElement('canvas');
+  c.width = c.height = size;
+  const s = c.getContext('2d');
+  const grd = s.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+  grd.addColorStop(0, inner);
+  grd.addColorStop(0.25, inner);
+  grd.addColorStop(0.45, outer);
+  grd.addColorStop(1, 'rgba(0,0,0,0)');
+  s.fillStyle = grd;
+  s.fillRect(0, 0, size, size);
+  return c;
+}
+
+const EMBER = sprite('rgba(255,230,150,1)', 'rgba(255,110,20,0.35)');
+const FIREFLY = sprite('rgba(240,255,170,1)', 'rgba(190,255,90,0.3)');
+
+// ---------------------------------------------------------------------------
+// Layers
+
+const FACTORIES = {
+  rain() {
+    let drops = [];
+    const make = (anywhere) => ({
+      x: rand(-120, W + 40),
+      y: anywhere ? rand(-40, H) : rand(-H * 0.3, -20),
+      len: rand(10, 30),
+      v: rand(650, 1150),
+      wide: Math.random() < 0.12,
+    });
+    return {
+      init() {
+        drops = Array.from({ length: Math.round((W * H) / 8000) }, () => make(true));
+      },
+      draw(dt, a) {
+        const wind = 0.14;
+        g.lineCap = 'round';
+        g.strokeStyle = colors.rain;
+        for (const pass of [false, true]) {
+          g.globalAlpha = a * (pass ? 0.4 : 0.26);
+          g.lineWidth = pass ? 1.8 : 1.1;
+          g.beginPath();
+          for (const d of drops) {
+            if (d.wide !== pass) continue;
+            g.moveTo(d.x, d.y);
+            g.lineTo(d.x - d.len * wind, d.y - d.len);
+          }
+          g.stroke();
+        }
+        for (const d of drops) {
+          d.y += d.v * dt;
+          d.x += d.v * dt * wind;
+          if (d.y > H + 30) Object.assign(d, make(false));
+        }
+      },
+    };
+  },
+
+  waves() {
+    let swell = 0;
+    return {
+      draw(dt, a, t) {
+        const level = Math.min(1, audio.meter() * 5);
+        swell += (level - swell) * Math.min(1, dt * 1.5);
+        for (let k = 0; k < 3; k++) {
+          const base = H * (0.8 + k * 0.065) - swell * 30 * (3 - k);
+          const amp = 12 + k * 7 + swell * 14;
+          const freq = 0.0042 - k * 0.0008;
+          const speed = 0.35 + k * 0.18;
+          g.beginPath();
+          g.moveTo(0, H);
+          for (let x = 0; x <= W + 16; x += 16) {
+            const y = base
+              + Math.sin(x * freq + t * speed + k * 1.9) * amp
+              + Math.sin(x * freq * 2.4 - t * speed * 0.8) * amp * 0.3;
+            g.lineTo(x, y);
+          }
+          g.lineTo(W, H);
+          g.closePath();
+          g.fillStyle = colors.waves[k] || colors.accent;
+          g.globalAlpha = a * (colors.dark ? 0.16 + k * 0.03 : 0.16 + k * 0.04);
+          g.fill();
+        }
+      },
+    };
+  },
+
+  fire() {
+    const embers = [];
+    let spawn = 0;
+    return {
+      draw(dt, a, t) {
+        const level = Math.min(1, audio.meter() * 5);
+        // warm glow from below
+        const glow = g.createRadialGradient(W / 2, H + 80, 0, W / 2, H + 80, Math.max(W, H) * 0.7);
+        glow.addColorStop(0, 'rgba(255,120,30,0.5)');
+        glow.addColorStop(1, 'rgba(255,120,30,0)');
+        g.globalAlpha = a * (0.16 + level * 0.25 + Math.sin(t * 7) * 0.02);
+        g.fillStyle = glow;
+        g.fillRect(0, 0, W, H);
+
+        spawn += dt * (W / 40);
+        while (spawn > 1) {
+          spawn -= 1;
+          embers.push({
+            x: W / 2 + rand(-0.35, 0.35) * W,
+            y: H + 10,
+            vx: rand(-15, 15),
+            vy: rand(-90, -35),
+            life: 0,
+            max: rand(3, 7),
+            size: rand(6, 16),
+            seed: Math.random() * 10,
+          });
+        }
+        if (colors.dark) g.globalCompositeOperation = 'lighter';
+        for (let i = embers.length - 1; i >= 0; i--) {
+          const e = embers[i];
+          e.life += dt;
+          if (e.life > e.max) {
+            embers.splice(i, 1);
+            continue;
+          }
+          e.x += (e.vx + Math.sin(t * 2 + e.seed) * 18) * dt;
+          e.y += e.vy * dt;
+          const fade = Math.sin((e.life / e.max) * Math.PI);
+          const flicker = 0.7 + Math.sin(t * 13 + e.seed * 7) * 0.3;
+          g.globalAlpha = a * fade * flicker * (colors.dark ? 0.9 : 0.75);
+          const s = e.size * (1 - (e.life / e.max) * 0.5);
+          g.drawImage(EMBER, e.x - s / 2, e.y - s / 2, s, s);
+        }
+      },
+    };
+  },
+
+  night() {
+    let stars = [];
+    let flies = [];
+    return {
+      init() {
+        stars = Array.from({ length: Math.round((W * H) / 14000) }, () => ({
+          x: Math.random() * W,
+          y: Math.random() * H * 0.65,
+          r: rand(0.5, 1.6),
+          phase: Math.random() * 6.28,
+          speed: rand(0.6, 2),
+        }));
+        flies = Array.from({ length: 16 }, () => ({
+          x: Math.random() * W,
+          y: rand(H * 0.35, H * 0.95),
+          vx: rand(-20, 20),
+          vy: rand(-10, 10),
+          phase: Math.random() * 6.28,
+          size: rand(10, 20),
+        }));
+      },
+      draw(dt, a, t) {
+        g.fillStyle = colors.star;
+        for (const s of stars) {
+          g.globalAlpha = a * (0.25 + 0.75 * (0.5 + 0.5 * Math.sin(t * s.speed + s.phase))) * (colors.dark ? 0.85 : 0.35);
+          g.beginPath();
+          g.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+          g.fill();
+        }
+        if (colors.dark) g.globalCompositeOperation = 'lighter';
+        for (const f of flies) {
+          f.vx += rand(-1, 1) * 60 * dt;
+          f.vy += rand(-1, 1) * 40 * dt;
+          f.vx *= 0.985;
+          f.vy *= 0.985;
+          f.x += f.vx * dt;
+          f.y += f.vy * dt;
+          if (f.x < -20) f.x = W + 20;
+          if (f.x > W + 20) f.x = -20;
+          if (f.y < H * 0.25) f.vy += 30 * dt;
+          if (f.y > H) f.vy -= 30 * dt;
+          const blink = Math.pow(0.5 + 0.5 * Math.sin(t * 1.4 + f.phase), 3);
+          g.globalAlpha = a * blink * (colors.dark ? 1 : 0.7);
+          g.drawImage(FIREFLY, f.x - f.size / 2, f.y - f.size / 2, f.size, f.size);
+        }
+      },
+    };
+  },
+
+  fan() {
+    let motes = [];
+    return {
+      init() {
+        motes = Array.from({ length: Math.round((W * H) / 22000) }, () => ({
+          x: Math.random() * W,
+          y: Math.random() * H,
+          v: rand(30, 110),
+          r: rand(0.8, 2.2),
+          phase: Math.random() * 6.28,
+        }));
+      },
+      draw(dt, a, t) {
+        g.fillStyle = colors.dust;
+        for (const m of motes) {
+          m.x += m.v * dt;
+          m.y += Math.sin(t * 1.3 + m.phase) * 12 * dt;
+          if (m.x > W + 10) {
+            m.x = -10;
+            m.y = Math.random() * H;
+          }
+          g.globalAlpha = a * (colors.dark ? 0.3 : 0.22);
+          g.beginPath();
+          g.arc(m.x, m.y, m.r, 0, Math.PI * 2);
+          g.fill();
+        }
+      },
+    };
+  },
+};
+
+// ---------------------------------------------------------------------------
+// Engine
+
+function resize() {
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  W = window.innerWidth;
+  H = window.innerHeight;
+  canvas.width = Math.round(W * dpr);
+  canvas.height = Math.round(H * dpr);
+  g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  layers.forEach((l) => l.init && l.init());
+}
+
+function frame(now) {
+  // On a device that can't keep up, draw every other frame to halve the work
+  // (with hysteresis so it doesn't flip back and forth).
+  const interval = lastTick ? Math.min(0.1, (now - lastTick) / 1000) : 1 / 60;
+  lastTick = now;
+  frameEMA += (interval - frameEMA) * 0.05;
+  if (!halfRate && frameEMA > 0.026) halfRate = true;
+  else if (halfRate && frameEMA < 0.018) halfRate = false;
+  if (halfRate) {
+    skip = !skip;
+    if (skip) {
+      raf = requestAnimationFrame(frame);
+      return;
+    }
+  }
+  const dt = Math.min(0.05, (now - last) / 1000 || 0.016);
+  last = now;
+  time += dt;
+  g.clearRect(0, 0, W, H);
+  for (const [kind, layer] of layers) {
+    const target = active.has(kind) ? 1 : 0;
+    layer.alpha += (target - layer.alpha) * Math.min(1, dt * 2);
+    if (target === 0 && layer.alpha < 0.01) {
+      layers.delete(kind);
+      continue;
+    }
+    g.save();
+    layer.draw(dt, layer.alpha, time);
+    g.restore();
+  }
+  if (layers.size && !document.hidden) raf = requestAnimationFrame(frame);
+  else {
+    raf = 0;
+    if (!layers.size) g.clearRect(0, 0, W, H);
+  }
+}
+
+function run() {
+  if (raf || !layers.size || document.hidden) return;
+  last = performance.now();
+  lastTick = 0;
+  raf = requestAnimationFrame(frame);
+}
+
+/** Show the scenes for these ambient sounds (others fade away). */
+export function setScenes(kinds) {
+  active = new Set(enabled && motionOK() ? kinds.filter((k) => FACTORIES[k]) : []);
+  for (const kind of active) {
+    if (layers.has(kind)) continue;
+    const layer = FACTORIES[kind]();
+    layer.alpha = 0;
+    if (layer.init) layer.init();
+    layers.set(kind, layer);
+  }
+  run();
+}
+
+export function setEnabled(on) {
+  enabled = Boolean(on);
+}
+
+/** Re-read colours after a theme, palette or mode change. */
+export function refresh() {
+  readColors();
+}
+
+export function mount() {
+  const aurora = document.querySelector('.aurora');
+  if (aurora) aurora.after(canvas);
+  else document.body.prepend(canvas);
+  readColors();
+  resize();
+  window.addEventListener('resize', resize);
+  document.addEventListener('visibilitychange', run);
+}

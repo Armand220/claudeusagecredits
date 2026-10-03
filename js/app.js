@@ -1,7 +1,8 @@
-import * as audio from './audio.js?v=12';
-import * as fx from './fx.js?v=12';
-import { toast } from './toast.js?v=12';
-import * as effects from './effects.js?v=12';
+import * as audio from './audio.js?v=13';
+import * as fx from './fx.js?v=13';
+import { toast } from './toast.js?v=13';
+import * as effects from './effects.js?v=13';
+import * as scenery from './scenery.js?v=13';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -29,6 +30,7 @@ const DEFAULTS = {
   wakeLock: false,
   theme: 'auto',
   palette: 'sunset',
+  scenery: true,
 };
 const PALETTES = ['sunset', 'ocean', 'forest', 'lavender', 'rose', 'mono'];
 const LIMITS = { focus: [1, 180], short: [1, 60], long: [1, 90], longEvery: [2, 12], goal: [1, 24] };
@@ -448,6 +450,7 @@ function updateThemeColor() {
   requestAnimationFrame(() => {
     const c = getComputedStyle(el.body).getPropertyValue('--bg').trim();
     if (c && el.metaTheme) el.metaTheme.content = c;
+    scenery.refresh();
   });
 }
 
@@ -1203,7 +1206,7 @@ $$('dialog.sheet').forEach((dialog) => {
 function fillSettings() {
   const f = el.settingsForm;
   for (const k of Object.keys(LIMITS)) f.elements[k].value = settings[k];
-  for (const k of ['autoBreaks', 'autoFocus', 'breathing', 'chime', 'sfx', 'notify', 'wakeLock']) f.elements[k].checked = settings[k];
+  for (const k of ['autoBreaks', 'autoFocus', 'breathing', 'chime', 'sfx', 'notify', 'wakeLock', 'scenery']) f.elements[k].checked = settings[k];
   f.elements.theme.value = settings.theme;
   f.elements.palette.value = settings.palette;
   markPreset();
@@ -1273,6 +1276,10 @@ el.settingsForm.addEventListener('change', async (e) => {
     }
     if (name === 'wakeLock') syncWakeLock();
     if (name === 'breathing') renderTimer(true);
+    if (name === 'scenery') {
+      scenery.setEnabled(settings.scenery);
+      scenery.setScenes([sound.kind]);
+    }
   }
   save();
 });
@@ -1333,6 +1340,7 @@ el.chips.forEach((chip) => {
     }
     ambientStarted = kind !== 'off';
     audio.setAmbient(kind);
+    scenery.setScenes([kind]);
     wakeGlow();
     renderChips();
     save();
@@ -1631,10 +1639,13 @@ if ('serviceWorker' in navigator && (location.protocol === 'https:' || ['localho
 // Boot
 
 audio.setSfxEnabled(settings.sfx);
+scenery.mount();
+scenery.setEnabled(settings.scenery);
 applyTheme();
 applyMode();
 renderTasks();
 renderChips();
+scenery.setScenes([sound.kind]);
 renderGoal();
 setInterval(renderGoal, 60000);
 initTaskDrag();
