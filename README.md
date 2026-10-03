@@ -2,44 +2,59 @@
 
 **Live site: https://armand220.github.io/claudeusagecredits/**
 
-Tempo is a Pomodoro focus timer with tasks, 3D ambient sound, stats and
+Tempo is a Pomodoro focus timer with tasks, a 3D sound mixer, stats and
 achievements. It runs entirely in your browser, works offline, and can be
 installed as an app on your phone or computer.
 
 ## Features
 
 **Timer**
-- Focus, short break and long break sessions, with a long break after every
-  few focus sessions (all adjustable in Settings)
-- Watch-face dial with a glowing progress ring and tick marks that light up as
-  time runs down
-- Keeps accurate time in background tabs, and picks up where it left off if you
-  reload
-- Chime, optional browser notification and optional auto-start when a session ends
-- Breathing guide during breaks (box breathing: in, hold, out, hold)
-- **Zen mode**: a fullscreen, distraction-free timer (button on the dial, or `F`)
+- Focus, short break and long break, with a long break after every few focus
+  sessions. One-tap presets: Classic 25/5, Deep 50/10, Sprint 15/3, Flow 90/20
+- Watch-face dial with a glowing progress ring, tick marks and session dots
+- **+1 min** (or `+` / `-`) to stretch or trim a running session
+- Keeps accurate time in background tabs and picks up where it left off after a reload
+- Chime, optional notification, optional auto-start; when a session ends the
+  toast offers **Start break / Start focus**
+- Breathing guide during breaks (box breathing)
+- **Zen mode**: a fullscreen, distraction-free timer (`F`)
+- **Floating mini timer** that stays on top of other windows (`P`)
+- The browser tab icon becomes a little progress ring
 
 **3D sound** (best with headphones)
-- Seven ambient scenes, all generated live in the browser and placed around you:
-  Rain, Waves, Fireplace, Night (crickets and a distant owl), Clock, Brown noise, Fan
-- Button clicks, pops and typing sounds come from where they happen on screen
-- The dial glows in time with the ambient sound
+- **Mixer**: layer as many sounds as you like, each with its own volume —
+  Rain, Waves, Fireplace, Night, Clock, **Lo-fi beats**, Binaural, Brown noise, Fan
+- **3D room**: you're in the middle; drag each sound around your head, or
+  press orbit to make it circle you
+- **Turn around**: drag your head in the room, or on a phone hold it up and
+  physically turn — the sounds stay where they are
+- **Lo-fi beats** are composed live: swung drums, bass, electric piano chords,
+  a bell melody, vinyl crackle and tape wobble, with the band placed around you
+- Everything is synthesised in the browser (no audio files)
+- Clicks, pops and typing sounds come from where they happen on screen
+- Option to play ambient sound only while the timer runs
+- Animated backgrounds match the sound: rain streaks, rising embers, fireflies
+  and stars, rolling waves, floating music notes
 
 **Tasks**
-- Add tasks with an estimate in pomodoros; tap one to track sessions against it
-- Edit inline, drag to reorder, tick off, delete with undo
-- "Finish around" estimate for everything left on your list
+- Add tasks with an estimate; tap one to count sessions towards it
+- Edit inline, drag to reorder, swipe on phones (right to tick off, left to
+  delete), undo deletes
+- "Finish around" estimate for what's left
 
 **Progress**
-- Daily goal meter in the header with a celebration when you hit it
-- Stats: today, streak, last 7 days chart and a 12-week heatmap
-- Twelve achievements to unlock
+- Daily goal meter with a celebration when you hit it
+- Stats with Overview (today, streak, last 7 days, 12-week heatmap),
+  History (best focus hours, recent sessions) and Achievements (twelve to unlock)
+- Export and import a backup file to move your data between devices
 
-**Feel**
-- Light and dark themes (follows your system, or choose one)
-- Glassy cards, drifting aurora background, springy buttons with ripples and
-  confetti, a cursor spotlight and a gentle 3D tilt
-- Respects "reduce motion" settings
+**Look and feel**
+- Light and dark themes, six colour palettes (Sunset, Ocean, Forest, Lavender,
+  Rose, Mono)
+- Glass cards, drifting aurora, springy buttons with ripples and confetti, a
+  cursor spotlight and a gentle 3D tilt
+- Respects "reduce motion"; accessibility audit (axe) passes with no issues
+- Open in two tabs and they stay in sync
 
 ## Keyboard shortcuts
 
@@ -48,9 +63,14 @@ installed as an app on your phone or computer.
 | `Space` | Start / pause |
 | `R` | Reset |
 | `S` | Skip to the next session |
-| `N` | New task |
 | `1` `2` `3` | Focus / short break / long break |
+| `+` `-` | Add / remove a minute |
+| `N` | New task |
 | `F` | Zen mode |
+| `P` | Floating mini timer |
+| `M` | Mute / unmute ambient sound |
+| `[` `]` | Ambient volume down / up |
+| `?` | Tips and shortcuts |
 
 ## How it's built
 
@@ -58,13 +78,14 @@ Plain HTML, CSS and JavaScript modules, with no build step and no dependencies.
 
 - `index.html`: page structure
 - `styles.css`: design, themes and animations
-- `js/app.js`: timer, tasks, stats, goals, achievements, settings
+- `js/app.js`: timer, tasks, stats, goals, achievements, settings, mixer UI
 - `js/audio.js`: the sound engine (Web Audio API with HRTF spatial panning)
+- `js/scenery.js`: animated backgrounds
 - `js/effects.js`, `js/fx.js`, `js/toast.js`: visual effects and notifications
+- `js/pip.js`: the floating mini timer
 - `sw.js`, `manifest.webmanifest`: offline support and app install
 
-Your data (tasks, stats, settings) is saved in your browser's local storage and
-never leaves your device.
+Your data is saved in your browser's local storage and never leaves your device.
 
 ## Run it locally
 
