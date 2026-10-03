@@ -53,6 +53,8 @@ export function unlock() { ensure(); }
 
 export function setSfxEnabled(on) { sfxOn = Boolean(on); }
 
+export const ambientPlaying = () => Boolean(scene);
+
 /** Current loudness (RMS) of the ambient scene, 0 when nothing is playing. */
 export function meter() {
   if (!analyser || !scene) return 0;

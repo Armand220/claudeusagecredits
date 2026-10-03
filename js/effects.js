@@ -1,8 +1,8 @@
 // Ambient visual effects: watch-face ticks, cursor spotlight, 3D tilt
 // and a glow that pulses with the ambient sound.
 
-import * as audio from './audio.js?v=9';
-import { motionOK } from './fx.js?v=9';
+import * as audio from './audio.js?v=10';
+import { motionOK } from './fx.js?v=10';
 
 const finePointer = window.matchMedia('(hover: hover) and (pointer: fine)');
 const SVG_NS = 'http://www.w3.org/2000/svg';
@@ -86,10 +86,15 @@ export function initTilt(card, maxDeg = 4) {
   });
 }
 
-/** Drive a --level custom property from the ambient sound's loudness. */
+/**
+ * Drive a --level custom property from the ambient sound's loudness.
+ * Returns wake(): call it when a sound starts. The loop stops by itself once
+ * the sound is off and the glow has faded, so it costs nothing when silent.
+ */
 export function initAudioGlow(target) {
   let level = 0;
   let shown = -1;
+  let running = false;
   const loop = () => {
     const raw = Math.min(1, audio.meter() * 5);
     level += (raw - level) * (raw > level ? 0.3 : 0.06);
@@ -97,7 +102,17 @@ export function initAudioGlow(target) {
       shown = level;
       target.style.setProperty('--level', level.toFixed(3));
     }
+    if (raw === 0 && level < 0.004 && !audio.ambientPlaying()) {
+      running = false;
+      target.style.setProperty('--level', '0');
+      shown = 0;
+      return;
+    }
     requestAnimationFrame(loop);
   };
-  requestAnimationFrame(loop);
+  return function wake() {
+    if (running) return;
+    running = true;
+    requestAnimationFrame(loop);
+  };
 }

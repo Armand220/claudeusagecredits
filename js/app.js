@@ -1,7 +1,7 @@
-import * as audio from './audio.js?v=9';
-import * as fx from './fx.js?v=9';
-import { toast } from './toast.js?v=9';
-import * as effects from './effects.js?v=9';
+import * as audio from './audio.js?v=10';
+import * as fx from './fx.js?v=10';
+import { toast } from './toast.js?v=10';
+import * as effects from './effects.js?v=10';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -130,6 +130,7 @@ const el = {
 };
 
 el.ring.style.strokeDasharray = `${RING_C}`;
+const wakeGlow = effects.initAudioGlow(el.dial);
 const updateTicks = effects.makeTicks($('.ring'));
 
 // ---------------------------------------------------------------------------
@@ -1216,6 +1217,7 @@ function startAmbientIfPending() {
   if (ambientStarted || sound.kind === 'off') return;
   ambientStarted = true;
   audio.setAmbient(sound.kind);
+  wakeGlow();
   renderChips();
 }
 
@@ -1232,6 +1234,7 @@ el.chips.forEach((chip) => {
     }
     ambientStarted = kind !== 'off';
     audio.setAmbient(kind);
+    wakeGlow();
     renderChips();
     save();
   });
@@ -1515,5 +1518,4 @@ if (timer.running) schedule();
 syncWakeLock();
 effects.initSpotlight();
 effects.initTilt($('.timer-card'));
-effects.initAudioGlow(el.dial);
 requestAnimationFrame(() => el.body.classList.add('is-ready'));

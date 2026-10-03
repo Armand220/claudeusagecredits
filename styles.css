@@ -1413,6 +1413,20 @@ body.is-zen .aurora span { --blob-opacity: .75; }
 .fx-particle.is-square { border-radius: 2px; }
 .fx-particle.is-strip { border-radius: 2px; }
 
+/* -------------------------------------------------------- Small phones */
+
+@media (max-width: 420px) {
+  .controls { gap: 14px; }
+  .round-btn { width: 50px; height: 50px; }
+  .primary-btn { min-width: 0; width: 150px; height: 58px; padding: 0 20px; font-size: 18px; }
+  .panel { padding: 18px 16px 20px; }
+  .panel h2 { white-space: nowrap; }
+  .volume input { width: 92px; }
+  .task { gap: 8px; padding-left: 10px; }
+  .task-select { flex-direction: column; align-items: flex-start; gap: 3px; }
+  .task-edit-btn, .task-delete { width: 32px; height: 32px; }
+}
+
 /* --------------------------------------------------------------- Motion */
 
 @media (prefers-reduced-motion: reduce) {
