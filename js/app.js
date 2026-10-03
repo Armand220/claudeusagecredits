@@ -1,9 +1,9 @@
-import * as audio from './audio.js?v=30';
-import * as fx from './fx.js?v=30';
-import { toast } from './toast.js?v=30';
-import * as effects from './effects.js?v=30';
-import * as scenery from './scenery.js?v=30';
-import * as pip from './pip.js?v=30';
+import * as audio from './audio.js?v=31';
+import * as fx from './fx.js?v=31';
+import { toast } from './toast.js?v=31';
+import * as effects from './effects.js?v=31';
+import * as scenery from './scenery.js?v=31';
+import * as pip from './pip.js?v=31';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -87,6 +87,7 @@ function cleanTasks(raw) {
       est: clampInt(t.est, 1, 20, 1),
       pomos: clampInt(t.pomos, 0, 999, 0),
       done: Boolean(t.done),
+      ...(t.counted ? { counted: true } : {}),
     }));
 }
 
@@ -693,8 +694,11 @@ async function syncWakeLock() {
   const want = settings.wakeLock && timer.running && document.visibilityState === 'visible' && 'wakeLock' in navigator;
   if (want && !wakeLock) {
     try {
-      wakeLock = await navigator.wakeLock.request('screen');
-      wakeLock.addEventListener('release', () => { wakeLock = null; });
+      const lock = await navigator.wakeLock.request('screen');
+      lock.addEventListener('release', () => { if (wakeLock === lock) wakeLock = null; });
+      wakeLock = lock;
+      // Paused (or hidden) while the request was pending? Let go again.
+      if (!(settings.wakeLock && timer.running && document.visibilityState === 'visible')) syncWakeLock();
     } catch {
       wakeLock = null;
     }
@@ -1800,6 +1804,9 @@ function setSound(kind, on) {
 }
 
 function afterSoundChange() {
+  // Remember the last thing that was playing, so M can bring it back.
+  const playing = activeKinds();
+  if (playing.length) sound.last = playing;
   renderMixes();
   syncSoundGate();
   syncOrbit();
@@ -1833,7 +1840,8 @@ function toggleMute() {
     on.forEach((k) => setSound(k, false));
     toast({ icon: '🔇', title: 'Ambient sound off', body: 'Press M to bring it back', duration: 2200 });
   } else {
-    const back = mutedKinds.length ? mutedKinds : ['rain'];
+    const remembered = (Array.isArray(sound.last) ? sound.last : []).filter((k) => audio.ambientKinds.includes(k));
+    const back = mutedKinds.length ? mutedKinds : remembered.length ? remembered : ['rain'];
     back.forEach((k) => setSound(k, true));
     toast({ icon: '🔊', title: `${back.map((k) => SOUND_INFO[k].name).join(' + ')} back on`, duration: 2000 });
   }
@@ -2457,8 +2465,11 @@ el.taskList.addEventListener('change', (e) => {
   if (!task) return;
   task.done = e.target.checked;
   if (task.done) {
-    counters.tasksDone += 1;
-    if (counters.tasksDone >= 5) unlock('finisher', { delay: 500 });
+    if (!task.counted) {
+      task.counted = true;
+      counters.tasksDone += 1;
+      if (counters.tasksDone >= 5) unlock('finisher', { delay: 500 });
+    }
     audio.sfx('check', e.target);
     fx.burst(e.target, { count: 12, spread: 34, size: 5 });
     if (activeTaskId === task.id) activeTaskId = tasks.find((t) => !t.done)?.id ?? null;

@@ -23,8 +23,6 @@ export const supported = Boolean(AC);
 function ensure() {
   if (!AC) return null;
   if (!ctx) {
-    // iPhone: play through the silent switch, like a music app would.
-    try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch { /* unsupported */ }
     ctx = new AC({ latencyHint: 'interactive' });
     const comp = ctx.createDynamicsCompressor();
     comp.threshold.value = -12;
@@ -1062,6 +1060,17 @@ const SCENES = {
 
 export const ambientKinds = Object.keys(SCENES);
 
+// iPhone: while ambient sound plays, keep playing through the silent switch
+// like a music app. Otherwise mix politely with other apps (so tapping a
+// button never pauses someone's music).
+function setAudioSession(playing) {
+  try {
+    if (navigator.audioSession) navigator.audioSession.type = playing ? 'playback' : 'auto';
+  } catch {
+    /* unsupported */
+  }
+}
+
 // Where each sound sits by default, as [x, z] in metres (-z is in front of you).
 const DEFAULT_ANCHORS = {
   rain: [-2.2, -1.6],
@@ -1126,6 +1135,7 @@ export function setLayer(kind, on, opts = {}) {
       return p;
     },
   };
+  setAudioSession(true);
   tracked = layer.nodes;
   layer.tick = SCENES[kind](S);
   tracked = null;
@@ -1169,6 +1179,7 @@ function stopLayer(kind) {
   if (!layers.size) {
     clearInterval(layerTimer);
     layerTimer = 0;
+    setTimeout(() => { if (!layers.size) setAudioSession(false); }, 800);
   }
   const t = ctx.currentTime;
   l.out.gain.cancelScheduledValues(t);
