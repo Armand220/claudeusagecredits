@@ -2271,6 +2271,21 @@ body.is-flow.is-running .time .colon { animation: flow-blink 2s ease-in-out infi
 }
 .toast-action.is-emoji:hover { background: var(--accent-soft); transform: scale(1.12); }
 .toast-action.is-ghost { background: var(--track); color: var(--ink); }
+
+/* Phones: keep the timer, its task, the break idea and the intention close
+   together so they fit above the tab bar. */
+@media (max-width: 760px) {
+  .dial { margin: 18px 0 14px; }
+  .current-task { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: center; gap: 2px 8px; margin-top: 16px; padding: 8px 14px; }
+  .current-task-kicker, .current-task-title { display: inline; }
+  .current-task-title .tag { margin-left: 4px; }
+  .break-idea { margin-top: 12px; padding: 6px 6px 6px 12px; font-size: 13.5px; }
+  .intention { margin-top: 10px; }
+}
+@media (max-width: 760px) and (max-height: 720px) {
+  .dial { width: min(300px, 70vw); margin: 12px 0 10px; }
+  .time { font-size: clamp(52px, 15vw, 76px); }
+}
 .toast:has(.is-emoji) { flex-wrap: wrap; }
 .toast:has(.is-emoji) .toast-text { flex-basis: calc(100% - 60px); }
 .toast:has(.is-emoji) .toast-actions { width: 100%; justify-content: flex-end; }
