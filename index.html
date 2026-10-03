@@ -23,7 +23,7 @@
   <!-- Fonts load without blocking the first paint. -->
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..700&family=Outfit:wght@200..700&display=swap" media="print" onload="this.media='all'">
   <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..700&family=Outfit:wght@200..700&display=swap"></noscript>
-  <link rel="stylesheet" href="styles.css?v=37">
+  <link rel="stylesheet" href="styles.css?v=38">
 </head>
 <body data-mode="focus">
   <div class="aurora" aria-hidden="true"><span></span><span></span><span></span></div>
@@ -157,22 +157,43 @@
               <input type="range" id="volume" min="0" max="100" value="50">
             </label>
           </div>
-          <div class="mixes" id="mixes" role="group" aria-label="Ready-made mixes"></div>
-          <div class="chips" role="group" aria-label="Ambient sounds (pick as many as you like)">
-            <button type="button" class="chip pressable" data-sound="off" aria-pressed="true">Off</button>
-            <button type="button" class="chip pressable" data-sound="rain" aria-pressed="false"><span class="eq" aria-hidden="true"><i></i><i></i><i></i></span>Rain</button>
-            <button type="button" class="chip pressable" data-sound="waves" aria-pressed="false"><span class="eq" aria-hidden="true"><i></i><i></i><i></i></span>Waves</button>
-            <button type="button" class="chip pressable" data-sound="fire" aria-pressed="false"><span class="eq" aria-hidden="true"><i></i><i></i><i></i></span>Fireplace</button>
-            <button type="button" class="chip pressable" data-sound="wind" aria-pressed="false"><span class="eq" aria-hidden="true"><i></i><i></i><i></i></span>Wind</button>
-            <button type="button" class="chip pressable" data-sound="stream" aria-pressed="false"><span class="eq" aria-hidden="true"><i></i><i></i><i></i></span>Stream</button>
-            <button type="button" class="chip pressable" data-sound="chimes" aria-pressed="false"><span class="eq" aria-hidden="true"><i></i><i></i><i></i></span>Wind chimes</button>
-            <button type="button" class="chip pressable" data-sound="cat" aria-pressed="false"><span class="eq" aria-hidden="true"><i></i><i></i><i></i></span>Cat purring</button>
-            <button type="button" class="chip pressable" data-sound="night" aria-pressed="false"><span class="eq" aria-hidden="true"><i></i><i></i><i></i></span>Night</button>
-            <button type="button" class="chip pressable" data-sound="clock" aria-pressed="false"><span class="eq" aria-hidden="true"><i></i><i></i><i></i></span>Clock</button>
-            <button type="button" class="chip pressable" data-sound="lofi" aria-pressed="false"><span class="eq" aria-hidden="true"><i></i><i></i><i></i></span>Lo-fi beats</button>
-            <button type="button" class="chip pressable" data-sound="binaural" aria-pressed="false" title="A gentle 10 Hz binaural beat. Needs headphones."><span class="eq" aria-hidden="true"><i></i><i></i><i></i></span>Binaural</button>
-            <button type="button" class="chip pressable" data-sound="brown" aria-pressed="false"><span class="eq" aria-hidden="true"><i></i><i></i><i></i></span>Brown noise</button>
-            <button type="button" class="chip pressable" data-sound="fan" aria-pressed="false"><span class="eq" aria-hidden="true"><i></i><i></i><i></i></span>Fan</button>
+          <div class="mixes-wrap">
+            <button type="button" class="mixes-arrow is-left pressable" id="mixes-left" aria-label="Scroll mixes left" hidden><svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button>
+            <div class="mixes" id="mixes" role="group" aria-label="Ready-made mixes"></div>
+            <button type="button" class="mixes-arrow is-right pressable" id="mixes-right" aria-label="Scroll mixes right" hidden><svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg></button>
+          </div>
+          <div class="sound-groups">
+            <div class="chips chips-off" role="group" aria-label="Turn all sounds off">
+              <button type="button" class="chip pressable" data-sound="off" aria-pressed="true">Off</button>
+            </div>
+            <div class="chip-group" role="group" aria-labelledby="group-nature">
+              <span class="chip-group-label" id="group-nature">Nature</span>
+              <div class="chips">
+                <button type="button" class="chip pressable" data-sound="rain" aria-pressed="false"><span class="eq" aria-hidden="true"><i></i><i></i><i></i></span>Rain</button>
+                <button type="button" class="chip pressable" data-sound="waves" aria-pressed="false"><span class="eq" aria-hidden="true"><i></i><i></i><i></i></span>Waves</button>
+                <button type="button" class="chip pressable" data-sound="wind" aria-pressed="false"><span class="eq" aria-hidden="true"><i></i><i></i><i></i></span>Wind</button>
+                <button type="button" class="chip pressable" data-sound="stream" aria-pressed="false"><span class="eq" aria-hidden="true"><i></i><i></i><i></i></span>Stream</button>
+                <button type="button" class="chip pressable" data-sound="fire" aria-pressed="false"><span class="eq" aria-hidden="true"><i></i><i></i><i></i></span>Fireplace</button>
+                <button type="button" class="chip pressable" data-sound="night" aria-pressed="false"><span class="eq" aria-hidden="true"><i></i><i></i><i></i></span>Night</button>
+              </div>
+            </div>
+            <div class="chip-group" role="group" aria-labelledby="group-cozy">
+              <span class="chip-group-label" id="group-cozy">Cozy</span>
+              <div class="chips">
+                <button type="button" class="chip pressable" data-sound="chimes" aria-pressed="false"><span class="eq" aria-hidden="true"><i></i><i></i><i></i></span>Wind chimes</button>
+                <button type="button" class="chip pressable" data-sound="cat" aria-pressed="false"><span class="eq" aria-hidden="true"><i></i><i></i><i></i></span>Cat purring</button>
+                <button type="button" class="chip pressable" data-sound="clock" aria-pressed="false"><span class="eq" aria-hidden="true"><i></i><i></i><i></i></span>Clock</button>
+              </div>
+            </div>
+            <div class="chip-group" role="group" aria-labelledby="group-focus">
+              <span class="chip-group-label" id="group-focus">Focus</span>
+              <div class="chips">
+                <button type="button" class="chip pressable" data-sound="lofi" aria-pressed="false"><span class="eq" aria-hidden="true"><i></i><i></i><i></i></span>Lo-fi beats</button>
+                <button type="button" class="chip pressable" data-sound="binaural" aria-pressed="false" title="A gentle 10 Hz binaural beat. Needs headphones."><span class="eq" aria-hidden="true"><i></i><i></i><i></i></span>Binaural</button>
+                <button type="button" class="chip pressable" data-sound="brown" aria-pressed="false"><span class="eq" aria-hidden="true"><i></i><i></i><i></i></span>Brown noise</button>
+                <button type="button" class="chip pressable" data-sound="fan" aria-pressed="false"><span class="eq" aria-hidden="true"><i></i><i></i><i></i></span>Fan</button>
+              </div>
+            </div>
           </div>
           <div class="mixer" id="mixer" hidden>
             <div class="mix-list" id="mix-list"></div>
@@ -382,6 +403,9 @@
         <legend>Sound</legend>
         <label class="switch"><input type="checkbox" name="sfx"><span>Interface sounds &amp; haptics</span></label>
         <label class="switch"><input type="checkbox" name="chime"><span>Chime when a session ends</span></label>
+        <label class="field row chime-row"><span>Chime volume</span>
+          <span class="inline"><input type="range" name="chimeVolume" min="0" max="100" class="mix-vol chime-vol" aria-label="Chime volume"></span>
+        </label>
         <label class="field row chime-row"><span>Chime sound</span>
           <span class="inline">
             <select name="chimeStyle">
@@ -494,6 +518,6 @@
     </div>
   </dialog>
 
-  <script type="module" src="js/app.js?v=37"></script>
+  <script type="module" src="js/app.js?v=38"></script>
 </body>
 </html>

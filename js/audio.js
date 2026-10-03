@@ -105,6 +105,13 @@ export function setAmbientVolume(v) {
   if (ctx) ambientBus.gain.setTargetAtTime(curve(ambientLevel) * ambientGate, ctx.currentTime, 0.05);
 }
 
+/** Volume of the end-of-session chime, 0..1. */
+export function setChimeVolume(v) {
+  const c = ensure();
+  if (!c) return;
+  chimeBus.gain.setTargetAtTime(0.75 * Math.max(0, Math.min(1.4, v * 1.4)), c.currentTime, 0.03);
+}
+
 /** Fade all ambient sound out (false) or back in (true) without changing the mix. */
 export function setAmbientGate(open) {
   ambientGate = open ? 1 : 0;
@@ -1245,7 +1252,7 @@ const DEFAULT_ANCHORS = {
   wind: [2.4, 2.2],
   stream: [-1.4, -3.2],
   chimes: [-2.8, -2.6],
-  cat: [0, -0.9],
+  cat: [0.8, -1.4],
 };
 export const defaultAnchor = (kind) => DEFAULT_ANCHORS[kind] || [0, 0];
 // Sounds keep their full volume up to this distance, then fade gently.

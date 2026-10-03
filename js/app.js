@@ -1,10 +1,10 @@
-import * as audio from './audio.js?v=37';
-import * as fx from './fx.js?v=37';
-import { toast } from './toast.js?v=37';
-import * as effects from './effects.js?v=37';
-import * as scenery from './scenery.js?v=37';
-import * as pip from './pip.js?v=37';
-import { shareCard, makeCardFile } from './share.js?v=37';
+import * as audio from './audio.js?v=38';
+import * as fx from './fx.js?v=38';
+import { toast } from './toast.js?v=38';
+import * as effects from './effects.js?v=38';
+import * as scenery from './scenery.js?v=38';
+import * as pip from './pip.js?v=38';
+import { shareCard, makeCardFile } from './share.js?v=38';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -35,9 +35,10 @@ const DEFAULTS = {
   scenery: true,
   soundsWithTimer: false,
   chimeStyle: 'bells',
+  chimeVolume: 70,
 };
 const PALETTES = ['sunset', 'ocean', 'forest', 'lavender', 'rose', 'mono'];
-const LIMITS = { focus: [1, 180], short: [1, 60], long: [1, 90], longEvery: [2, 12], goal: [1, 24] };
+const LIMITS = { focus: [1, 180], short: [1, 60], long: [1, 90], longEvery: [2, 12], goal: [1, 24], chimeVolume: [0, 100] };
 const RING_C = 2 * Math.PI * 100;
 
 // ---------------------------------------------------------------------------
@@ -1741,6 +1742,7 @@ function fillSettings() {
   f.elements.theme.value = settings.theme;
   f.elements.palette.value = settings.palette;
   f.elements.chimeStyle.value = settings.chimeStyle;
+  f.elements.chimeVolume.style.setProperty('--fill', `${settings.chimeVolume}%`);
   markPreset();
 }
 
@@ -1775,7 +1777,12 @@ el.settingsForm.addEventListener('submit', (e) => {
 el.settingsForm.addEventListener('change', async (e) => {
   const input = e.target;
   const name = input.name;
-  if (name in LIMITS) {
+  if (name === 'chimeVolume') {
+    settings.chimeVolume = clampInt(input.value, 0, 100, 70);
+    input.style.setProperty('--fill', `${settings.chimeVolume}%`);
+    audio.setChimeVolume(settings.chimeVolume / 100);
+    audio.chime('break', settings.chimeStyle);
+  } else if (name in LIMITS) {
     const [min, max] = LIMITS[name];
     settings[name] = clampInt(input.value, min, max, settings[name]);
     input.value = settings[name];
@@ -1881,6 +1888,27 @@ $('#btn-reset-data').addEventListener('click', () => {
 
 // ---------------------------------------------------------------------------
 // Ambient sound: a mixer of layers you can place around you in a 3D room
+
+// Scroll the mixes strip with arrows, or with a normal mouse wheel.
+function syncMixArrows() {
+  const m = el.mixes;
+  const over = m.scrollWidth > m.clientWidth + 4;
+  $('#mixes-left').hidden = !over || m.scrollLeft < 8;
+  $('#mixes-right').hidden = !over || m.scrollLeft + m.clientWidth > m.scrollWidth - 8;
+}
+$('#mixes-left').addEventListener('click', () => el.mixes.scrollBy({ left: -el.mixes.clientWidth * 0.7, behavior: 'smooth' }));
+$('#mixes-right').addEventListener('click', () => el.mixes.scrollBy({ left: el.mixes.clientWidth * 0.7, behavior: 'smooth' }));
+el.mixes.addEventListener('scroll', syncMixArrows, { passive: true });
+window.addEventListener('resize', syncMixArrows);
+el.mixes.addEventListener(
+  'wheel',
+  (e) => {
+    if (Math.abs(e.deltaY) <= Math.abs(e.deltaX) || el.mixes.scrollWidth <= el.mixes.clientWidth) return;
+    e.preventDefault();
+    el.mixes.scrollLeft += e.deltaY;
+  },
+  { passive: false },
+);
 
 const SOUND_INFO = {
   rain: { icon: '🌧️', name: 'Rain' },
@@ -2116,7 +2144,7 @@ const BUILT_IN_MIXES = [
   { id: 'stars', icon: '🌌', name: 'Starry beats', mix: { lofi: { vol: 0.6, x: 0, z: -2 }, night: { vol: 0.55, x: -2.2, z: 2 } } },
   { id: 'forest', icon: '🌲', name: 'Forest stream', mix: { stream: { vol: 0.8, x: -1.4, z: -2.6 }, wind: { vol: 0.45, x: 2.4, z: 2.2 }, night: { vol: 0.3, x: -2.4, z: 1.8 } } },
   { id: 'autumn', icon: '🍂', name: 'Autumn walk', mix: { wind: { vol: 0.7, x: 0, z: -2.4, orbit: true }, stream: { vol: 0.5, x: 2.2, z: -2 } } },
-  { id: 'catnap', icon: '🐈', name: 'Cat nap', mix: { cat: { vol: 0.75, x: 0, z: -0.9 }, rain: { vol: 0.5, x: -2.2, z: -1.6 }, fire: { vol: 0.55, x: 2, z: -1.4 } } },
+  { id: 'catnap', icon: '🐈', name: 'Cat nap', mix: { cat: { vol: 0.75, x: 0.8, z: -1.4 }, rain: { vol: 0.5, x: -2.2, z: -1.6 }, fire: { vol: 0.55, x: 2, z: -1.4 } } },
   { id: 'porch', icon: '🎐', name: 'Breezy porch', mix: { chimes: { vol: 0.7, x: -2.8, z: -2.6 }, wind: { vol: 0.45, x: 2.4, z: 2.2 }, night: { vol: 0.35, x: 0, z: 2.4 } } },
   { id: 'storm', icon: '⛈️', name: 'Stormy study', mix: { rain: { vol: 0.9, x: 0, z: -1 }, wind: { vol: 0.6, x: -2.4, z: 1.6 }, lofi: { vol: 0.45, x: 0, z: -2 } } },
 ];
@@ -2132,6 +2160,7 @@ function mixMatches(m) {
 }
 
 function renderMixes() {
+  requestAnimationFrame(syncMixArrows);
   el.mixes.replaceChildren(
     ...allMixes().map((m) => {
       const b = document.createElement('button');
@@ -2995,6 +3024,7 @@ if ('serviceWorker' in navigator && (location.protocol === 'https:' || ['localho
 
 audio.setSfxEnabled(settings.sfx);
 scenery.mount();
+document.addEventListener('pointerdown', () => audio.setChimeVolume(settings.chimeVolume / 100), { once: true });
 scenery.setEnabled(settings.scenery);
 applyTheme();
 applyMode();
