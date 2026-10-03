@@ -12,6 +12,7 @@ const buffers = {};
 let sfxOn = true;
 let ambientLevel = 0.5;
 let ambientGate = 1;
+let yaw = 0; // which way you're facing in the room, radians (right is positive)
 let tracked = null;
 let analyser = null;
 let meterBuf = null;
@@ -41,6 +42,7 @@ function ensure() {
     analyser.fftSize = 512;
     meterBuf = new Float32Array(analyser.fftSize);
     ambientBus.connect(analyser);
+    applyYaw(0);
     reverb = ctx.createConvolver();
     reverb.buffer = roomImpulse(2.2, 3.2);
     reverb.connect(gain(0.45, master));
@@ -53,6 +55,41 @@ function ensure() {
 export function unlock() { ensure(); }
 
 export function setSfxEnabled(on) { sfxOn = Boolean(on); }
+
+/** Turn to face a direction in the room (radians, clockwise from straight ahead). */
+export function setListenerYaw(rad) {
+  yaw = rad;
+  if (ctx) applyYaw(0.04);
+}
+
+function applyYaw(tau) {
+  const L = ctx.listener;
+  const fx = Math.sin(yaw);
+  const fz = -Math.cos(yaw);
+  if (L.forwardX) {
+    const t = ctx.currentTime;
+    if (tau) {
+      L.forwardX.setTargetAtTime(fx, t, tau);
+      L.forwardZ.setTargetAtTime(fz, t, tau);
+    } else {
+      L.forwardX.value = fx;
+      L.forwardZ.value = fz;
+    }
+    L.forwardY.value = 0;
+    L.upX.value = 0;
+    L.upY.value = 1;
+    L.upZ.value = 0;
+  } else {
+    L.setOrientation(fx, 0, fz, 0, 1, 0);
+  }
+}
+
+/** Interface sounds stay relative to your head, so rotate them with it. */
+function headRelative(x, y, z) {
+  const c = Math.cos(yaw);
+  const s = Math.sin(yaw);
+  return [x * c - z * s, y, x * s + z * c];
+}
 
 export const ambientPlaying = () => layers.size > 0;
 
@@ -418,7 +455,7 @@ export function sfx(name, source) {
   if (!sfxOn || !SFX[name]) return;
   const c = ensure();
   if (!c) return;
-  const [x, y, z] = screenToSpace(source);
+  const [x, y, z] = headRelative(...screenToSpace(source));
   const p = panner(x, y, z, 0);
   p.connect(sfxBus);
   SFX[name](c.currentTime + 0.005, p);
@@ -447,7 +484,7 @@ export function chime(kind) {
     ? [[659.25, -1.6], [830.61, -0.5], [987.77, 0.5], [1318.51, 1.6]]
     : [[987.77, 1.4], [783.99, 0], [659.25, -1.4]];
   notes.forEach(([f, x], i) => {
-    const p = panner(x, 0.4, -1.4, 0);
+    const p = panner(...headRelative(x, 0.4, -1.4), 0);
     p.connect(chimeBus);
     send(p, 0.28);
     bell(t + i * 0.16, f, p, 0.32);
@@ -463,7 +500,7 @@ export function fanfare() {
   const notes = [783.99, 987.77, 1174.66, 1567.98, 1975.53, 2349.32];
   notes.forEach((f, i) => {
     const a = (i / notes.length) * Math.PI * 2;
-    const p = panner(Math.sin(a) * 1.6, 0.2 + i * 0.12, -Math.cos(a) * 1.6, 0);
+    const p = panner(...headRelative(Math.sin(a) * 1.6, 0.2 + i * 0.12, -Math.cos(a) * 1.6), 0);
     p.connect(chimeBus);
     send(p, 0.2);
     bell(t + i * 0.085, f, p, 0.16);

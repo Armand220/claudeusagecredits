@@ -703,8 +703,32 @@ body.sounds-gated .mixer { opacity: .6; }
   justify-items: center;
   transform: translate(-50%, -42%);
   color: var(--ink-2);
-  pointer-events: none;
+  cursor: grab;
+  touch-action: none;
+  border-radius: 12px;
+  z-index: 1;
 }
+.room-you svg { transform: rotate(var(--yaw, 0deg)); transition: transform .25s var(--ease-out); }
+.room-you.is-turning { cursor: grabbing; }
+.room-you.is-turning svg { transition: none; }
+.room-you:hover svg { filter: drop-shadow(0 0 6px color-mix(in srgb, var(--accent) 50%, transparent)); }
+.room.is-tracking .room-you svg { transition: none; }
+.room-track {
+  position: absolute;
+  right: 4%;
+  top: 4%;
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--ink-2);
+  display: grid;
+  place-items: center;
+  z-index: 2;
+}
+.room-track svg { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linejoin: round; }
+.room-track[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); border-color: transparent; }
 .room-you svg { fill: var(--surface); stroke: var(--ink-3); stroke-width: 1.6; }
 .room-you path { fill: var(--accent); stroke: none; }
 .room-you span { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--ink-3); }

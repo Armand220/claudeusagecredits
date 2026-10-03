@@ -12,7 +12,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..700&family=Outfit:wght@200..700&display=swap">
-  <link rel="stylesheet" href="styles.css?v=22">
+  <link rel="stylesheet" href="styles.css?v=23">
 </head>
 <body data-mode="focus">
   <div class="aurora" aria-hidden="true"><span></span><span></span><span></span></div>
@@ -144,10 +144,14 @@
           <div class="mixer" id="mixer" hidden>
             <div class="mix-list" id="mix-list"></div>
             <div class="room" id="room" role="group" aria-label="3D room. You are in the middle; drag sounds around you.">
-              <div class="room-you" aria-hidden="true">
+              <div class="room-you" id="room-you" role="slider" tabindex="0" aria-label="Which way you're facing" aria-valuemin="-180" aria-valuemax="180" aria-valuenow="0" aria-valuetext="straight ahead" title="Drag to turn around; double-click to face front">
                 <svg width="34" height="34" viewBox="0 0 34 34"><path d="M17 3l4 6h-8z"/><circle cx="17" cy="19" r="10"/><rect x="4.5" y="15" width="4" height="8" rx="2"/><rect x="25.5" y="15" width="4" height="8" rx="2"/></svg>
                 <span>You</span>
               </div>
+              <button type="button" class="room-track pressable" id="btn-track" aria-pressed="false" title="Turn with your phone" hidden>
+                <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M15.5 8.5l-2 5-5 2 2-5z"/></svg>
+                <span class="sr-only">Turn with your phone</span>
+              </button>
               <span class="room-label room-front" aria-hidden="true">Front</span>
               <span class="room-label room-back" aria-hidden="true">Behind</span>
             </div>
@@ -394,6 +398,6 @@
     </div>
   </dialog>
 
-  <script type="module" src="js/app.js?v=22"></script>
+  <script type="module" src="js/app.js?v=23"></script>
 </body>
 </html>

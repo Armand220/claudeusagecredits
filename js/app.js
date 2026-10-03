@@ -1,9 +1,9 @@
-import * as audio from './audio.js?v=22';
-import * as fx from './fx.js?v=22';
-import { toast } from './toast.js?v=22';
-import * as effects from './effects.js?v=22';
-import * as scenery from './scenery.js?v=22';
-import * as pip from './pip.js?v=22';
+import * as audio from './audio.js?v=23';
+import * as fx from './fx.js?v=23';
+import { toast } from './toast.js?v=23';
+import * as effects from './effects.js?v=23';
+import * as scenery from './scenery.js?v=23';
+import * as pip from './pip.js?v=23';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -1912,6 +1912,103 @@ el.room.addEventListener('keydown', (e) => {
   moveSound(orb.dataset.kind, m.x + step[0], m.z + step[1]);
   audio.sfx('tick', orb);
   save();
+});
+
+// ----- Turning around in the room ------------------------------------------
+
+let yaw = 0;
+const youEl = $('#room-you');
+const trackBtn = $('#btn-track');
+
+function setYaw(rad, { announce: say = false } = {}) {
+  yaw = Math.atan2(Math.sin(rad), Math.cos(rad)); // keep within -π..π
+  audio.setListenerYaw(yaw);
+  const deg = Math.round((yaw * 180) / Math.PI);
+  youEl.style.setProperty('--yaw', `${deg}deg`);
+  youEl.setAttribute('aria-valuenow', String(deg));
+  const text = Math.abs(deg) < 8 ? 'straight ahead' : `${Math.abs(deg)} degrees to the ${deg > 0 ? 'right' : 'left'}`;
+  youEl.setAttribute('aria-valuetext', text);
+  if (say) announce(`Facing ${text}`);
+}
+
+youEl.addEventListener('pointerdown', (e) => {
+  if (e.button > 0) return;
+  e.preventDefault();
+  e.stopPropagation();
+  youEl.setPointerCapture(e.pointerId);
+  youEl.classList.add('is-turning');
+  audio.unlock();
+  startAmbientIfPending();
+  const rect = el.room.getBoundingClientRect();
+  const cx = rect.left + rect.width / 2;
+  const cy = rect.top + rect.height / 2;
+  const move = (ev) => setYaw(Math.atan2(ev.clientX - cx, -(ev.clientY - cy)));
+  const up = () => {
+    youEl.removeEventListener('pointermove', move);
+    youEl.removeEventListener('pointerup', up);
+    youEl.removeEventListener('pointercancel', up);
+    youEl.classList.remove('is-turning');
+  };
+  youEl.addEventListener('pointermove', move);
+  youEl.addEventListener('pointerup', up);
+  youEl.addEventListener('pointercancel', up);
+});
+youEl.addEventListener('dblclick', () => {
+  setYaw(0, { announce: true });
+  audio.sfx('pop', youEl);
+});
+youEl.addEventListener('keydown', (e) => {
+  const step = { ArrowLeft: -15, ArrowRight: 15, ArrowDown: 15, ArrowUp: -15 }[e.key];
+  if (e.key === 'Home') setYaw(0, { announce: true });
+  else if (step) setYaw(yaw + (step * Math.PI) / 180, { announce: true });
+  else return;
+  e.preventDefault();
+  audio.sfx('tick', youEl);
+});
+
+// Phones: turn with the phone and the sounds stay put in the room.
+let tracking = false;
+let alpha0 = null;
+let trackRaf = 0;
+let latestAlpha = null;
+
+function onOrientation(e) {
+  if (e.alpha == null) return;
+  latestAlpha = e.alpha;
+  if (alpha0 == null) alpha0 = e.alpha;
+  if (trackRaf) return;
+  trackRaf = requestAnimationFrame(() => {
+    trackRaf = 0;
+    // Turning left raises alpha; facing right is a positive yaw.
+    setYaw((-(latestAlpha - alpha0) * Math.PI) / 180);
+  });
+}
+
+async function setTracking(on) {
+  if (on && typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+    try {
+      if ((await DeviceOrientationEvent.requestPermission()) !== 'granted') on = false;
+    } catch {
+      on = false;
+    }
+  }
+  tracking = on;
+  alpha0 = null;
+  trackBtn.setAttribute('aria-pressed', String(on));
+  el.room.classList.toggle('is-tracking', on);
+  if (on) {
+    window.addEventListener('deviceorientation', onOrientation);
+    toast({ icon: '🧭', title: 'Turn with your phone', body: 'Hold it in front of you and turn around. The sounds stay where they are.' });
+  } else {
+    window.removeEventListener('deviceorientation', onOrientation);
+    setYaw(0);
+  }
+}
+
+if ('DeviceOrientationEvent' in window && window.matchMedia('(pointer: coarse)').matches) trackBtn.hidden = false;
+trackBtn.addEventListener('click', () => {
+  audio.sfx(tracking ? 'off' : 'on', trackBtn);
+  setTracking(!tracking);
 });
 
 el.volume.value = String(sound.volume);
