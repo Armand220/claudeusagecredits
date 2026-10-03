@@ -23,7 +23,7 @@
   <!-- Fonts load without blocking the first paint. -->
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..700&family=Outfit:wght@200..700&display=swap" media="print" onload="this.media='all'">
   <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..700&family=Outfit:wght@200..700&display=swap"></noscript>
-  <link rel="stylesheet" href="styles.css?v=54">
+  <link rel="stylesheet" href="styles.css?v=55">
 </head>
 <body data-mode="focus">
   <div class="photo-bg" aria-hidden="true"></div>
@@ -467,6 +467,7 @@
         <legend>Sound</legend>
         <label class="switch"><input type="checkbox" name="sfx"><span>Interface sounds &amp; haptics</span></label>
         <label class="switch"><input type="checkbox" name="chime"><span>Chime when a session ends</span></label>
+        <label class="switch"><input type="checkbox" name="bells"><span>Soft bells at the halfway point and with a minute to go</span></label>
         <label class="field row chime-row"><span>Chime volume</span>
           <span class="inline"><input type="range" name="chimeVolume" min="0" max="100" class="mix-vol chime-vol" aria-label="Chime volume"></span>
         </label>
@@ -624,6 +625,6 @@
     </div>
   </dialog>
 
-  <script type="module" src="js/app.js?v=54"></script>
+  <script type="module" src="js/app.js?v=55"></script>
 </body>
 </html>

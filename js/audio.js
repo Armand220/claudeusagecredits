@@ -594,6 +594,24 @@ export function chime(kind, style = 'bells') {
   (CHIMES[style] || CHIMES.bells)(c.currentTime + 0.06, kind === 'break');
 }
 
+/**
+ * A single soft bell for checkpoints within a session: 'half' (halfway) or
+ * 'last' (one minute left, two quiet strikes). Slightly to one side, so it
+ * reads as a nudge rather than the end.
+ */
+export function softBell(kind = 'half') {
+  const c = ensure();
+  if (!c || chimeLevel <= 0) return;
+  const t = c.currentTime + 0.05;
+  const p = chimeAt(kind === 'half' ? 1.4 : -1.4, 0.6, -1.6, 0.4);
+  if (kind === 'half') {
+    bell(t, 783.99, p, 0.14);
+  } else {
+    bell(t, 987.77, p, 0.1);
+    bell(t + 0.42, 987.77, p, 0.08);
+  }
+}
+
 /** Achievement fanfare: a sparkling arpeggio whose notes circle your head. */
 export function fanfare() {
   if (!sfxOn) return;

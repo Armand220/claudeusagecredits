@@ -17,6 +17,9 @@ installed as an app on your phone or computer.
   worked (adjustable in Settings). A gentle nudge after 90 minutes
 - **+1 min** (or `+` / `-`) to stretch or trim a running session
 - Keeps accurate time in background tabs and picks up where it left off after a reload
+- Optional soft bells at the halfway point and with a minute to go
+- Media keys and lock-screen controls start, pause and skip; the installed
+  app's icon shows the minutes left
 - Chime, optional notification, optional auto-start; when a session ends the
   toast offers **Start break / Start focus** and a one-tap rating of how it went
 - **Distracted** button (`D`) to tally wandering thoughts during focus

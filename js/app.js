@@ -1,11 +1,11 @@
-import * as audio from './audio.js?v=54';
-import * as fx from './fx.js?v=54';
-import { toast } from './toast.js?v=54';
-import * as effects from './effects.js?v=54';
-import * as scenery from './scenery.js?v=54';
-import * as pip from './pip.js?v=54';
-import { shareCard, makeCardFile } from './share.js?v=54';
-import * as photo from './photo.js?v=54';
+import * as audio from './audio.js?v=55';
+import * as fx from './fx.js?v=55';
+import { toast } from './toast.js?v=55';
+import * as effects from './effects.js?v=55';
+import * as scenery from './scenery.js?v=55';
+import * as pip from './pip.js?v=55';
+import { shareCard, makeCardFile } from './share.js?v=55';
+import * as photo from './photo.js?v=55';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -41,6 +41,7 @@ const DEFAULTS = {
   flowRatio: 5,
   goalType: 'sessions',
   goalMinutes: 120,
+  bells: false,
 };
 const PALETTES = ['sunset', 'ocean', 'forest', 'lavender', 'rose', 'mono'];
 const LIMITS = { focus: [1, 180], short: [1, 60], long: [1, 90], longEvery: [2, 12], goal: [1, 24], chimeVolume: [0, 100], flowRatio: [2, 6], goalMinutes: [15, 720] };
@@ -85,6 +86,7 @@ function cleanTimer(raw) {
   out.distractions = clampInt(out.distractions, 0, 99, 0);
   out.flow = Boolean(out.flow) && out.mode === 'focus';
   out.nudged = Boolean(out.nudged);
+  out.rung = clampInt(out.rung, 0, 2, 0); // soft bells already rung this session
   if (!Number.isFinite(out.startAt)) out.startAt = 0;
   out.earned = out.mode !== 'focus' && Number.isFinite(out.earned) && out.earned >= 60000 ? Math.min(out.earned, 90 * 60000) : null;
   out.running = Boolean(out.running) && Number.isFinite(out.flow ? out.startAt : out.endAt);
@@ -296,6 +298,7 @@ function onTick() {
     return;
   }
   if (timer.running && timer.flow && !timer.nudged && flowElapsed() >= FLOW_NUDGE && flowElapsed() < FLOW_MAX) nudgeFlow();
+  if (timer.running && !timer.flow) ringCheckpoints();
   renderTimer();
   schedule();
 }
@@ -316,6 +319,30 @@ function capFlow() {
       { label: 'Take my break', onClick: () => finishFlow() },
     ],
   });
+}
+
+// Optional soft bells: halfway through a session, and with a minute to go.
+// Sessions too short for them to help stay quiet; a bell that was missed
+// (the tab was asleep) isn't rung late.
+function ringCheckpoints() {
+  const total = totalMs();
+  const rem = remainingMs();
+  const elapsed = total - rem;
+  let ring = null;
+  if (timer.rung < 1 && total >= 10 * 60000 && elapsed >= total / 2) {
+    timer.rung = 1;
+    if (elapsed - total / 2 < 5000) ring = 'half';
+  }
+  if (timer.rung < 2 && total >= 5 * 60000 && rem <= 60000) {
+    timer.rung = 2;
+    if (rem > 55000) ring = 'last';
+  }
+  if (!ring) return;
+  save();
+  if (!settings.bells) return;
+  audio.softBell(ring);
+  fx.pop(el.time, 1.04);
+  if (ring === 'last') announce('One minute left.');
 }
 
 // A long stretch in Flowtime gets one gentle reminder to rest.
@@ -493,6 +520,7 @@ function clearSession() {
   timer.flow = false;
   timer.startAt = 0;
   timer.nudged = false;
+  timer.rung = 0;
 }
 
 function reset() {
@@ -727,6 +755,57 @@ function renderTimer(force = false) {
   renderLength();
   el.toggle.setAttribute('aria-pressed', String(timer.running));
   el.toggleLabel.textContent = timer.running ? 'Pause' : isFresh() ? 'Start' : 'Resume';
+  syncSystemStatus(flow ? Math.floor(elapsed / 60000) : Math.ceil(rem / 60000), flow);
+}
+
+// Outside the page: minutes on the installed app's icon, and the session in
+// the system's media controls (lock screen, media keys).
+let systemKey = '';
+function syncSystemStatus(mins, flow) {
+  const fresh = isFresh();
+  const key = `${fresh}:${timer.running}:${timer.mode}:${mins}:${flow}`;
+  if (key === systemKey) return;
+  systemKey = key;
+  try {
+    if ('setAppBadge' in navigator) {
+      if (fresh) navigator.clearAppBadge().catch(() => {});
+      else navigator.setAppBadge(Math.max(0, mins)).catch(() => {});
+    }
+  } catch {
+    /* not installed */
+  }
+  if (!('mediaSession' in navigator) || typeof MediaMetadata === 'undefined') return;
+  try {
+    const label = flow ? 'Flowtime' : MODES[timer.mode].label;
+    const title = fresh ? `Ready: ${label.toLowerCase()}` : flow ? `${label} · ${mins} min so far` : `${label} · ${mins} min left`;
+    const playing = activeKinds().map((k) => SOUND_INFO[k].name).join(' + ');
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title: `${title}${timer.running || fresh ? '' : ' (paused)'}`,
+      artist: 'Tempo',
+      album: playing || 'Focus timer',
+      artwork: [
+        { src: 'icons/icon-192.png', sizes: '192x192', type: 'image/png' },
+        { src: 'icons/icon-512.png', sizes: '512x512', type: 'image/png' },
+      ],
+    });
+    navigator.mediaSession.playbackState = timer.running ? 'playing' : 'paused';
+  } catch {
+    /* unsupported */
+  }
+}
+
+if ('mediaSession' in navigator) {
+  const handle = (action, fn) => {
+    try {
+      navigator.mediaSession.setActionHandler(action, fn);
+    } catch {
+      /* this action isn't supported */
+    }
+  };
+  handle('play', () => { if (!timer.running) toggleTimer(el.toggle); });
+  handle('pause', () => { if (timer.running) toggleTimer(el.toggle); });
+  handle('nexttrack', () => el.skip.click());
+  handle('stop', () => { if (activeKinds().length) $('.chip[data-sound="off"]').click(); });
 }
 
 // Box breathing during breaks: 4s in, 4s hold, 4s out, 4s hold.
@@ -2293,7 +2372,7 @@ $$('dialog.sheet').forEach((dialog) => {
 function fillSettings() {
   const f = el.settingsForm;
   for (const k of Object.keys(LIMITS)) f.elements[k].value = settings[k];
-  for (const k of ['autoBreaks', 'autoFocus', 'breathing', 'chime', 'sfx', 'notify', 'wakeLock', 'scenery', 'soundsWithTimer', 'flow']) f.elements[k].checked = settings[k];
+  for (const k of ['autoBreaks', 'autoFocus', 'breathing', 'chime', 'sfx', 'notify', 'wakeLock', 'scenery', 'soundsWithTimer', 'flow', 'bells']) f.elements[k].checked = settings[k];
   $('#flow-ratio-row').hidden = !settings.flow;
   f.elements.goalType.value = settings.goalType;
   syncGoalInputs();
@@ -3562,6 +3641,7 @@ statTabs.forEach((t, i) => {
 
 // What's new: the newest first. Bump `id` when adding an entry.
 const CHANGES = [
+  { id: 16, icon: '🔔', text: 'Optional soft bells halfway through a session and with a minute to go (Settings > Sound). Media keys and your lock screen can now start, pause and skip.' },
   { id: 15, icon: '🎯', text: 'Set your daily goal in minutes instead of sessions (great with Flowtime), and export your sessions as a spreadsheet.' },
   { id: 14, icon: '🏆', text: 'Seven new achievements, a "This week" review in Stats, and Undo when you skip a session by accident.' },
   { id: 13, icon: '🔗', text: 'Share your sound mix as a link, get an idea for each break, and tick off today\'s intention when it\'s done.' },
