@@ -1,9 +1,9 @@
-import * as audio from './audio.js?v=28';
-import * as fx from './fx.js?v=28';
-import { toast } from './toast.js?v=28';
-import * as effects from './effects.js?v=28';
-import * as scenery from './scenery.js?v=28';
-import * as pip from './pip.js?v=28';
+import * as audio from './audio.js?v=29';
+import * as fx from './fx.js?v=29';
+import { toast } from './toast.js?v=29';
+import * as effects from './effects.js?v=29';
+import * as scenery from './scenery.js?v=29';
+import * as pip from './pip.js?v=29';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -1375,8 +1375,11 @@ function renderLog() {
     const avg = Math.round(rated.reduce((n, h) => n + h.r, 0) / rated.length);
     parts.push(`Sessions feel ${RATING_NAMES[avg - 1].toLowerCase()} on average ${RATINGS[avg - 1]}`);
   }
-  if (lastFocus.length >= 3) {
-    const per = lastFocus.reduce((n, h) => n + (h.d || 0), 0) / lastFocus.length;
+  // Average only over sessions since you started noting distractions.
+  const firstNoted = lastFocus.findIndex((h) => h.d);
+  const tracked = firstNoted >= 0 ? lastFocus.slice(firstNoted) : [];
+  if (tracked.length >= 3) {
+    const per = tracked.reduce((n, h) => n + (h.d || 0), 0) / tracked.length;
     parts.push(`${per.toFixed(1)} distractions per session`);
   }
   $('#log-summary').textContent = parts.join(' · ');
@@ -2594,6 +2597,8 @@ document.addEventListener('keydown', (e) => {
   const t = e.target;
   if (/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName) || t.isContentEditable) return;
   const key = e.key.toLowerCase();
+  // Holding a key down repeats it; only the "adjust" keys should repeat.
+  if (e.repeat && !['+', '=', '-', '_', '[', ']'].includes(key)) return;
   if (key === ' ') {
     if (t.tagName === 'BUTTON' || t.getAttribute('role') === 'radio') return;
     e.preventDefault();
