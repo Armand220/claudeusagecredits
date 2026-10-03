@@ -124,8 +124,8 @@ function openSignal(id, { onMessage, onClose }) {
     let ws;
     try {
       ws = new WebSocket(`${url}?key=${encodeURIComponent(key)}&id=${encodeURIComponent(id)}&token=${randomId()}`);
-    } catch {
-      reject(new Error('network'));
+    } catch (err) {
+      reject(new Error(`network:blocked (${err && err.name})`));
       return;
     }
     let opened = false;
@@ -147,11 +147,12 @@ function openSignal(id, { onMessage, onClose }) {
         }
       },
     };
+    // Slow mobile networks can take a while to say hello.
     const timeout = setTimeout(() => {
       if (opened) return;
-      reject(new Error('network'));
+      reject(new Error('network:timeout'));
       api.close();
-    }, 10000);
+    }, 20000);
     ws.onmessage = (e) => {
       let m;
       try {
@@ -167,7 +168,7 @@ function openSignal(id, { onMessage, onClose }) {
       } else if (m.type === 'ID-TAKEN' || m.type === 'INVALID-KEY' || m.type === 'ERROR') {
         if (!opened) {
           clearTimeout(timeout);
-          reject(new Error(m.type === 'ID-TAKEN' ? 'taken' : 'network'));
+          reject(new Error(m.type === 'ID-TAKEN' ? 'taken' : `network:server (${str(m.payload && m.payload.msg, 80) || m.type})`));
           api.close();
         }
       } else {
@@ -177,19 +178,34 @@ function openSignal(id, { onMessage, onClose }) {
     ws.onerror = () => {
       if (!opened) {
         clearTimeout(timeout);
-        reject(new Error('network'));
+        reject(new Error('network:error'));
       }
     };
-    ws.onclose = () => {
+    ws.onclose = (e) => {
       clearInterval(heartbeat);
       if (!opened) {
         clearTimeout(timeout);
-        reject(new Error('network'));
+        reject(new Error(`network:closed (${e.code})`));
       } else if (!closed) {
         onClose();
       }
     };
   });
+}
+
+/** openSignal, trying again a couple of times if the network hiccups. */
+async function openSignalRetry(id, handlers, tries = 3) {
+  let last;
+  for (let i = 0; i < tries; i++) {
+    try {
+      return await openSignal(id, handlers);
+    } catch (err) {
+      last = err;
+      if (err.message === 'taken') throw err;
+      await new Promise((r) => setTimeout(r, 1500 * (i + 1)));
+    }
+  }
+  throw last;
 }
 
 /** An RTCPeerConnection that trickles its (sealed) candidates through the relay. */
@@ -335,22 +351,36 @@ export async function host(name, hooks, { private: privately = true } = {}) {
   // Keep the relay connection open so new guests can find us; if it drops,
   // guests already here stay connected while we quietly reconnect.
   const connect = async () => {
-    signal = await openSignal(secrets.id, { onMessage, onClose: reconnect });
+    signal = await openSignalRetry(secrets.id, { onMessage, onClose: reconnect });
   };
   let retry = 0;
-  function reconnect() {
+  let reconnecting = false;
+  function reconnect(delay = 1500) {
     signal = null;
-    if (ended) return;
+    if (ended || reconnecting) return;
+    reconnecting = true;
     hooks.onSignal(false);
+    clearTimeout(retry);
     retry = setTimeout(async () => {
       try {
         await connect();
+        reconnecting = false;
         hooks.onSignal(true);
       } catch {
-        reconnect();
+        reconnecting = false;
+        reconnect(4000);
       }
-    }, 3000);
+    }, delay);
   }
+  // Phones pause pages in the background, which drops the relay connection;
+  // reconnect the moment the host comes back so guests can find the party.
+  const onVisible = () => {
+    if (!document.hidden && !signal && !ended) {
+      reconnecting = false;
+      reconnect(0);
+    }
+  };
+  document.addEventListener('visibilitychange', onVisible);
 
   for (let tries = 0; tries < 4 && !signal; tries++) {
     code = makeCode();
@@ -383,6 +413,7 @@ export async function host(name, hooks, { private: privately = true } = {}) {
       ended = true;
       clearInterval(heartbeat);
       clearTimeout(retry);
+      document.removeEventListener('visibilitychange', onVisible);
       guests.forEach((g) => {
         send(g, { t: 'end' });
         // Give the goodbye a moment to arrive before hanging up.
@@ -451,7 +482,7 @@ export async function join(code, name, hooks, { private: privately = true } = {}
       cleanup();
       hooks.onEnd('lost');
     };
-    const timer = setTimeout(() => fail('unreachable'), 25000);
+    const timer = setTimeout(() => fail('unreachable'), 45000);
 
     const controller = {
       private: privately,
@@ -470,9 +501,18 @@ export async function join(code, name, hooks, { private: privately = true } = {}
       },
     };
 
+    // If the host is briefly away (a phone switching apps), knock again.
+    let offerBody = null;
+    let knocks = 0;
+    const knock = () => relay('OFFER', offerBody);
     const onMessage = async (m) => {
       if (m.type === 'EXPIRE') {
-        fail('not-found');
+        if (knocks < 4 && offerBody) {
+          knocks += 1;
+          setTimeout(() => !settled && knock(), 2500);
+        } else {
+          fail('not-found');
+        }
         return;
       }
       if (!m.payload) return;
@@ -494,7 +534,7 @@ export async function join(code, name, hooks, { private: privately = true } = {}
       }
     };
 
-    openSignal(`tempo-guest-${randomId()}`, { onMessage, onClose: () => { if (!settled) fail('network'); } })
+    openSignalRetry(`tempo-guest-${randomId()}`, { onMessage, onClose: () => { if (!settled) fail('network:closed'); } })
       .then(async (s) => {
         signal = s;
         link = peerLink(privately, (type, extra) => relay(type, extra), (state) => {
@@ -543,8 +583,9 @@ export async function join(code, name, hooks, { private: privately = true } = {}
           }
         };
         await link.pc.setLocalDescription(await link.pc.createOffer());
-        await relay('OFFER', { sdp: link.pc.localDescription.toJSON() });
+        offerBody = { sdp: link.pc.localDescription.toJSON() };
+        await knock();
       })
-      .catch(() => fail('network'));
+      .catch((err) => fail(err && /^network/.test(err.message) ? err.message : `setup:${err && (err.name || err.message)}`));
   });
 }

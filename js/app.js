@@ -1,12 +1,12 @@
-import * as audio from './audio.js?v=64';
-import * as fx from './fx.js?v=64';
-import { toast } from './toast.js?v=64';
-import * as effects from './effects.js?v=64';
-import * as scenery from './scenery.js?v=64';
-import * as pip from './pip.js?v=64';
-import { shareCard, makeCardFile } from './share.js?v=64';
-import * as party from './party.js?v=64';
-import * as photo from './photo.js?v=64';
+import * as audio from './audio.js?v=65';
+import * as fx from './fx.js?v=65';
+import { toast } from './toast.js?v=65';
+import * as effects from './effects.js?v=65';
+import * as scenery from './scenery.js?v=65';
+import * as pip from './pip.js?v=65';
+import { shareCard, makeCardFile } from './share.js?v=65';
+import * as party from './party.js?v=65';
+import * as photo from './photo.js?v=65';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -268,10 +268,18 @@ function renderPartyButton() {
 }
 
 const PARTY_ERRORS = {
-  'not-found': "Couldn't find that party. Check the code, and that the host still has Tempo open.",
+  'not-found': "Couldn't find that party. Check the code, and ask the host to keep Tempo open on screen (phones pause it in the background).",
   full: 'That party is full (12 guests).',
-  unreachable: "Couldn't connect. Try turning off 'Private connection', or another network.",
-  network: "Couldn't reach the party service. Check your internet connection.",
+  unreachable: "Found the party but couldn't connect. Try turning off 'Private connection' on both phones, or switch between Wi-Fi and mobile data.",
+  network: "Couldn't reach the party service (0.peerjs.com). Check your internet, and turn off any ad or tracker blocker or VPN for this site.",
+  setup: "This browser couldn't set up the connection. Try Chrome or Safari, and not inside another app's built-in browser.",
+};
+// The friendly message, plus the technical reason so problems can be reported.
+const partyError = (err) => {
+  const msg = String((err && err.message) || 'network');
+  const [kind, ...detail] = msg.split(':');
+  const base = PARTY_ERRORS[kind] || PARTY_ERRORS.network;
+  return detail.length ? `${base} (Details: ${detail.join(':').trim()})` : base;
 };
 
 function renderPartyDialog(prefill = '') {
@@ -304,6 +312,7 @@ function renderPartyDialog(prefill = '') {
         <button type="button" class="text-btn pressable" id="party-end">End party</button>
       </div>
       <h3 class="party-h">In the party</h3><ul class="party-members">${members}</ul>
+      <p class="field-note">📱 Keep Tempo open on screen while people join: phones pause pages in the background.</p>
       <p class="field-note">${P.ctl.private ? '🔒 Private: everyone connects through a relay, so nobody sees anyone\'s IP address. Connection details are end-to-end encrypted with the code.' : 'Direct connections: faster, but members can see each other\'s IP address.'}</p>`;
   } else {
     body.innerHTML = `
@@ -355,7 +364,7 @@ async function startParty() {
     renderPartyDialog();
     audio.fanfare();
   } catch (err) {
-    partyStatus(PARTY_ERRORS[err.message] || PARTY_ERRORS.network);
+    partyStatus(partyError(err));
   }
 }
 
@@ -393,7 +402,7 @@ async function joinParty(code) {
       onEnd: (why) => leaveParty(why === 'ended' ? `${P ? P.hostName : 'The host'} ended the party` : 'Lost the connection to the party'),
     }, { private: $('#party-private').checked });
   } catch (err) {
-    partyStatus(PARTY_ERRORS[err.message] || PARTY_ERRORS.network);
+    partyStatus(partyError(err));
     return null;
   }
 }
