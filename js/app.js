@@ -1,11 +1,11 @@
-import * as audio from './audio.js?v=45';
-import * as fx from './fx.js?v=45';
-import { toast } from './toast.js?v=45';
-import * as effects from './effects.js?v=45';
-import * as scenery from './scenery.js?v=45';
-import * as pip from './pip.js?v=45';
-import { shareCard, makeCardFile } from './share.js?v=45';
-import * as photo from './photo.js?v=45';
+import * as audio from './audio.js?v=46';
+import * as fx from './fx.js?v=46';
+import { toast } from './toast.js?v=46';
+import * as effects from './effects.js?v=46';
+import * as scenery from './scenery.js?v=46';
+import * as pip from './pip.js?v=46';
+import { shareCard, makeCardFile } from './share.js?v=46';
+import * as photo from './photo.js?v=46';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -118,6 +118,12 @@ function cleanHistory(raw) {
 function cleanCounters(raw) {
   const out = { tasksDone: 0, soundsTried: [], ...obj(raw) };
   if (!Array.isArray(out.soundsTried)) out.soundsTried = [];
+  // Which colour each #tag got, so tags keep their colours.
+  out.tagColors = Object.fromEntries(
+    Object.entries(obj(out.tagColors))
+      .filter(([k, v]) => k.length <= 24 && Number.isInteger(v) && v >= 0 && v < 8)
+      .slice(0, 300),
+  );
   return out;
 }
 
@@ -230,6 +236,7 @@ const isFresh = () => !timer.running && timer.total == null && timer.paused == n
 // proportion to how long you worked.
 const FLOW_LAP = 3600e3; // the ring goes round once an hour, like a clock
 const FLOW_NUDGE = 90 * 60000;
+const FLOW_MAX = 3 * 3600e3; // a forgotten Flowtime session pauses itself here
 const isFlow = () => timer.mode === 'focus' && (isFresh() ? settings.flow : timer.flow);
 const flowElapsed = () => (timer.running ? Math.max(0, Date.now() - timer.startAt) : timer.paused ?? 0);
 const elapsedMs = () => (timer.flow ? flowElapsed() : totalMs() - remainingMs());
@@ -243,7 +250,13 @@ function schedule() {
   clearTimeout(endTimer);
   if (!timer.running) return;
   if (timer.flow) {
-    tickTimer = setTimeout(onTick, 1000 - (flowElapsed() % 1000) + 15);
+    const elapsed = flowElapsed();
+    if (elapsed >= FLOW_MAX) {
+      capFlow();
+      return;
+    }
+    endTimer = setTimeout(onTick, FLOW_MAX - elapsed + 20);
+    tickTimer = setTimeout(onTick, 1000 - (elapsed % 1000) + 15);
     return;
   }
   const rem = timer.endAt - Date.now();
@@ -262,9 +275,27 @@ function onTick() {
     complete({ late: Date.now() - timer.endAt });
     return;
   }
-  if (timer.running && timer.flow && !timer.nudged && flowElapsed() >= FLOW_NUDGE) nudgeFlow();
+  if (timer.running && timer.flow && !timer.nudged && flowElapsed() >= FLOW_NUDGE && flowElapsed() < FLOW_MAX) nudgeFlow();
   renderTimer();
   schedule();
+}
+
+// Three hours without stopping usually means the timer was forgotten: pause
+// there, keep the time, and let the person decide.
+function capFlow() {
+  timer.paused = FLOW_MAX;
+  timer.running = false;
+  afterTimerChange();
+  toast({
+    icon: '🌊',
+    title: 'Flowtime paused at 3 hours',
+    body: 'Still there? Take your break to log it, or reset if you stepped away.',
+    duration: 15000,
+    actions: [
+      { label: 'Reset', kind: 'ghost', onClick: () => reset() },
+      { label: 'Take my break', onClick: () => finishFlow() },
+    ],
+  });
 }
 
 // A long stretch in Flowtime gets one gentle reminder to rest.
@@ -905,6 +936,60 @@ const ICON_EDIT = '<svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="
 const ICON_ORBIT = '<svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.3-5.6"/><path d="M20 4v4h-4"/><circle cx="12" cy="12" r="2.2"/></svg>';
 const ICON_X = '<svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7l10 10M17 7 7 17"/></svg>';
 
+// "#work" or "#study" in a task's name becomes a coloured tag.
+const TAG_RE = /(^|\s)#([\p{L}\p{N}_-]{1,24})/gu;
+const TAG_COLORS = 8; // --tag-0 … --tag-7 in the stylesheet
+
+function splitTags(title = '') {
+  const tags = [];
+  const name = title
+    .replace(TAG_RE, (_, pre, tag) => {
+      const t = tag.toLowerCase();
+      if (!tags.includes(t)) tags.push(t);
+      return pre;
+    })
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+  // label: the name, or the tags themselves for a name that is only tags.
+  return { name, tags, label: name || (tags.length ? tags.map((t) => `#${t}`).join(' ') : title) };
+}
+
+// Each new tag takes the next colour, so the first eight never clash.
+let tagSaveQueued = false;
+function tagColor(tag) {
+  const map = counters.tagColors;
+  if (!(tag in map)) {
+    map[tag] = Object.keys(map).length % TAG_COLORS;
+    if (!tagSaveQueued) {
+      tagSaveQueued = true;
+      queueMicrotask(() => {
+        tagSaveQueued = false;
+        save();
+      });
+    }
+  }
+  return `var(--tag-${map[tag]})`;
+}
+
+function tagPill(tag) {
+  const s = document.createElement('span');
+  s.className = 'tag';
+  s.style.setProperty('--tag', tagColor(tag));
+  s.textContent = tag;
+  return s;
+}
+
+/** A task's name followed by its tag pills. */
+function nameWithTags(title, nameClass) {
+  const { name, tags } = splitTags(title);
+  const pills = tags.map(tagPill);
+  if (!name) return pills;
+  const n = document.createElement('span');
+  n.className = nameClass;
+  n.textContent = name;
+  return [n, ...pills];
+}
+
 function taskRow(task) {
   const li = document.createElement('li');
   li.className = 'task';
@@ -924,8 +1009,8 @@ function taskRow(task) {
   select.setAttribute('aria-pressed', String(task.id === activeTaskId));
   select.title = task.id === activeTaskId ? 'Current task' : 'Work on this task';
   const title = document.createElement('span');
-  title.className = 'task-title';
-  title.textContent = task.title;
+  title.className = 'task-name';
+  title.append(...nameWithTags(task.title, 'task-title'));
   const count = document.createElement('span');
   count.className = 'task-count';
   count.textContent = `${task.pomos}/${task.est}`;
@@ -1198,7 +1283,7 @@ function renderTasks({ entering } = {}) {
 
   const active = tasks.find((t) => t.id === activeTaskId);
   el.currentTask.hidden = !active;
-  if (active) el.currentTaskTitle.textContent = active.title;
+  if (active) el.currentTaskTitle.replaceChildren(...nameWithTags(active.title, 'current-task-name'));
   el.clearDone.hidden = !tasks.some((t) => t.done);
   renderSummary();
 }
@@ -1564,30 +1649,31 @@ function renderLog() {
     list.replaceChildren(li);
     return;
   }
-  list.replaceChildren(
-    ...recent.map((h) => {
-      const li = document.createElement('li');
-      li.className = `log-item${h.s ? '' : ' is-partial'}`;
-      const when = document.createElement('span');
-      when.className = 'log-when';
-      when.textContent = fmtWhen(h.t);
-      const what = document.createElement('span');
-      what.className = 'log-what';
-      what.textContent = h.task || (h.f ? 'Flow session' : h.s ? 'Focus session' : 'Focus (ended early)');
-      if (h.r || h.d || h.f) {
-        const meta = document.createElement('span');
-        meta.className = 'log-meta';
-        meta.textContent = [h.f ? '🌊' : '', h.r ? RATINGS[h.r - 1] : '', h.d ? `⚡${h.d}` : ''].filter(Boolean).join(' ');
-        meta.title = [h.f ? 'Flowtime' : '', h.r ? `Felt ${RATING_NAMES[h.r - 1].toLowerCase()}` : '', h.d ? `${h.d} distraction${h.d === 1 ? '' : 's'}` : ''].filter(Boolean).join(', ');
-        what.append(' ', meta);
-      }
-      const dur = document.createElement('span');
-      dur.className = 'log-dur';
-      dur.textContent = fmtMinutes(h.m);
-      li.append(when, what, dur);
-      return li;
-    }),
-  );
+  list.replaceChildren(...recent.map((h) => logItem(h, fmtWhen(h.t))));
+}
+
+function logItem(h, whenText) {
+  const li = document.createElement('li');
+  li.className = `log-item${h.s ? '' : ' is-partial'}`;
+  const when = document.createElement('span');
+  when.className = 'log-when';
+  when.textContent = whenText;
+  const what = document.createElement('span');
+  what.className = 'log-what';
+  if (h.task) what.append(...nameWithTags(h.task, 'log-name'));
+  else what.textContent = h.f ? 'Flow session' : h.s ? 'Focus session' : 'Focus (ended early)';
+  if (h.r || h.d || h.f) {
+    const meta = document.createElement('span');
+    meta.className = 'log-meta';
+    meta.textContent = [h.f ? '🌊' : '', h.r ? RATINGS[h.r - 1] : '', h.d ? `⚡${h.d}` : ''].filter(Boolean).join(' ');
+    meta.title = [h.f ? 'Flowtime' : '', h.r ? `Felt ${RATING_NAMES[h.r - 1].toLowerCase()}` : '', h.d ? `${h.d} distraction${h.d === 1 ? '' : 's'}` : ''].filter(Boolean).join(', ');
+    what.append(' ', meta);
+  }
+  const dur = document.createElement('span');
+  dur.className = 'log-dur';
+  dur.textContent = fmtMinutes(h.m);
+  li.append(when, what, dur);
+  return li;
 }
 
 // A strip showing when today's sessions happened.
@@ -1635,9 +1721,10 @@ function renderTopTasks() {
   const by = new Map();
   for (const h of history) {
     if (h.t < since) continue;
-    const k = h.task || 'Focus without a task';
+    const k = h.task ? splitTags(h.task).label : 'Focus without a task';
     by.set(k, (by.get(k) || 0) + h.m);
   }
+  renderTagBars(since);
   const rows = [...by.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6);
   const max = rows.length ? rows[0][1] : 0;
   const list = $('#top-tasks');
@@ -1669,6 +1756,66 @@ function renderTopTasks() {
   );
 }
 
+// Minutes per #tag over the last 7 days (a session counts for each of its tags).
+function renderTagBars(since) {
+  const by = new Map();
+  for (const h of history) {
+    if (h.t < since || !h.task) continue;
+    for (const t of splitTags(h.task).tags) by.set(t, (by.get(t) || 0) + h.m);
+  }
+  const rows = [...by.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8);
+  $('#tags-section').hidden = rows.length === 0;
+  if (!rows.length) return;
+  const max = rows[0][1];
+  $('#tag-bars').replaceChildren(
+    ...rows.map(([tag, m], i) => {
+      const li = document.createElement('li');
+      li.className = 'top-row';
+      li.style.setProperty('--w', `${Math.max(4, (m / max) * 100)}%`);
+      li.style.setProperty('--delay', `${i * 40}ms`);
+      li.style.setProperty('--tag', tagColor(tag));
+      const n = document.createElement('span');
+      n.className = 'top-name';
+      n.append(tagPill(tag));
+      const v = document.createElement('span');
+      v.className = 'top-val';
+      v.textContent = fmtMinutes(m);
+      const bar = document.createElement('span');
+      bar.className = 'top-bar is-tag';
+      bar.setAttribute('aria-hidden', 'true');
+      li.append(n, v, bar);
+      return li;
+    }),
+  );
+}
+
+// Tap a day in the heatmap to see its sessions.
+let selectedDay = null;
+
+function renderDayDetail() {
+  const box = $('#day-detail');
+  $$('#heatmap .heat.is-selected').forEach((c) => c.classList.remove('is-selected'));
+  if (!selectedDay) {
+    box.hidden = true;
+    return;
+  }
+  const start = new Date(selectedDay);
+  const end = new Date(start);
+  end.setDate(end.getDate() + 1);
+  const items = history.filter((h) => h.t >= start.getTime() && h.t < end.getTime()).sort((a, b) => a.t - b.t);
+  if (!items.length) {
+    selectedDay = null;
+    box.hidden = true;
+    return;
+  }
+  $(`#heatmap .heat[data-day="${start.getTime()}"]`)?.classList.add('is-selected');
+  const m = items.reduce((n, h) => n + h.m, 0);
+  const s = items.filter((h) => h.s).length;
+  $('#day-title').textContent = `${start.toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' })} · ${fmtMinutes(m)} · ${s} ${s === 1 ? 'session' : 'sessions'}`;
+  $('#day-log').replaceChildren(...items.map((h) => logItem(h, new Date(h.t - h.m * 60000).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }))));
+  box.hidden = false;
+}
+
 function heatLevel(m) {
   if (m <= 0) return 0;
   if (m < 30) return 1;
@@ -1689,23 +1836,31 @@ function renderHeatmap(byDay) {
   for (let i = 0; i < 84; i++) {
     const d = new Date(start);
     d.setDate(start.getDate() + i);
-    const cell = document.createElement('span');
     if (d > today) {
+      const cell = document.createElement('span');
       cell.className = 'heat is-future';
       cells.push(cell);
       continue;
     }
     const m = (byDay.get(dayKey(d)) || { m: 0 }).m;
     if (m > 0) activeDays += 1;
+    const cell = document.createElement(m > 0 ? 'button' : 'span');
     cell.className = `heat l${heatLevel(m)}${d.getTime() === today.getTime() ? ' is-today' : ''}`;
     cell.style.setProperty('--delay', `${Math.floor(i / 7) * 25}ms`);
     const label = `${d.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })}: ${fmtMinutes(m)}`;
     cell.title = label;
-    cell.setAttribute('role', 'img');
-    cell.setAttribute('aria-label', label);
+    if (m > 0) {
+      cell.type = 'button';
+      cell.dataset.day = String(d.getTime());
+      cell.setAttribute('aria-label', `${label}. Show sessions`);
+    } else {
+      cell.setAttribute('role', 'img');
+      cell.setAttribute('aria-label', label);
+    }
     cells.push(cell);
   }
   grid.replaceChildren(...cells);
+  renderDayDetail();
   $('#heat-summary').textContent = `${activeDays} active ${activeDays === 1 ? 'day' : 'days'}`;
 }
 
@@ -2777,6 +2932,23 @@ document.addEventListener('pointerdown', (e) => {
   if (!el.lengthPop.hidden && !e.target.closest('#length-pop, #btn-length')) closeLengthPop();
 });
 el.distract.addEventListener('click', () => noteDistraction(el.distract));
+$('#heatmap').addEventListener('click', (e) => {
+  const cell = e.target.closest('.heat[data-day]');
+  if (!cell) return;
+  const day = Number(cell.dataset.day);
+  selectedDay = selectedDay === day ? null : day;
+  audio.sfx(selectedDay ? 'open' : 'close', cell);
+  fx.pop(cell, 1.3);
+  renderDayDetail();
+  if (selectedDay) $('#day-detail').scrollIntoView({ block: 'nearest', behavior: fx.motionOK() ? 'smooth' : 'auto' });
+});
+$('#btn-day-close').addEventListener('click', () => {
+  const cell = $('#heatmap .heat.is-selected');
+  selectedDay = null;
+  audio.sfx('close', $('#btn-day-close'));
+  renderDayDetail();
+  cell?.focus();
+});
 el.pip.hidden = !pip.supported();
 el.pip.addEventListener('click', togglePip);
 
@@ -2882,7 +3054,7 @@ el.taskList.addEventListener('click', (e) => {
 
 el.taskList.addEventListener('dblclick', (e) => {
   const li = e.target.closest('.task');
-  if (li && e.target.closest('.task-title')) startEdit(li);
+  if (li && e.target.closest('.task-name')) startEdit(li);
 });
 
 el.clearDone.addEventListener('click', () => {
@@ -2890,6 +3062,7 @@ el.clearDone.addEventListener('click', () => {
 });
 
 el.goal.addEventListener('click', (e) => {
+  selectedDay = null;
   renderStats();
   prepareShareCard();
   openSheet(el.statsDialog, e.currentTarget);
@@ -2941,6 +3114,7 @@ statTabs.forEach((t, i) => {
 
 // What's new: the newest first. Bump `id` when adding an entry.
 const CHANGES = [
+  { id: 9, icon: '🏷️', text: 'Add #tags to task names (like "Essay #school") to see focus by tag in Stats. Tap a day in the heatmap to see its sessions.' },
   { id: 8, icon: '🚆', text: 'Two new 3D sounds: a Study hall full of quiet typing and page turns, and a Train ride with hills rolling past. Ambient sound now dips while the chime plays.' },
   { id: 7, icon: '🌊', text: 'Flowtime: tap the length under the timer and pick ∞ to count up, then take a break you\'ve earned when you\'re ready.' },
   { id: 6, icon: '🖼️', text: 'Set your own background photo in Settings > Appearance.' },
@@ -3045,6 +3219,7 @@ $('#btn-share').addEventListener('click', async (e) => {
 });
 
 $('#btn-stats').addEventListener('click', (e) => {
+  selectedDay = null;
   renderStats();
   prepareShareCard();
   openSheet(el.statsDialog, e.currentTarget);

@@ -1070,7 +1070,31 @@ body.sounds-gated .mixer { opacity: .6; }
   padding: 9px 0;
   border-radius: 8px;
 }
+.task-name { display: flex; flex-wrap: wrap; align-items: center; gap: 3px 6px; min-width: 0; }
 .task-title { overflow-wrap: anywhere; font-weight: 500; transition: color .3s; }
+.task.is-done .tag { opacity: .6; }
+:root { --tag-0: #e5512f; --tag-1: #1f6fd1; --tag-2: #2f8a4c; --tag-3: #8a4fd8; --tag-4: #d6336c; --tag-5: #c08a00; --tag-6: #0b8a8a; --tag-7: #7a6a62; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --tag-0: #ff7a55; --tag-1: #5aa9ff; --tag-2: #5fd08a; --tag-3: #b98cff; --tag-4: #ff6b9a; --tag-5: #f0b429; --tag-6: #3fd3c6; --tag-7: #b8aaa0; }
+}
+:root[data-theme="dark"] { --tag-0: #ff7a55; --tag-1: #5aa9ff; --tag-2: #5fd08a; --tag-3: #b98cff; --tag-4: #ff6b9a; --tag-5: #f0b429; --tag-6: #3fd3c6; --tag-7: #b8aaa0; }
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 1px 8px 1px 7px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--tag) 15%, transparent);
+  color: var(--ink-2);
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 1.5;
+  white-space: nowrap;
+  vertical-align: 1px;
+}
+.tag::before { content: ""; flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--tag); }
+.current-task-title .tag, .log-what .tag { margin-left: 6px; }
+.top-bar.is-tag::after { background: var(--tag); }
 .task.is-done .task-title { color: var(--ink-3); text-decoration: line-through; text-decoration-color: var(--ink-3); }
 .task-count {
   flex: none;
@@ -1758,6 +1782,16 @@ body.is-zen .aurora span { --blob-opacity: .75; }
 .heat.l4 { background: var(--accent); }
 .heat.is-future { background: transparent; }
 .heat.is-today { box-shadow: 0 0 0 2px var(--surface), 0 0 0 3.5px var(--ink-3); }
+button.heat { padding: 0; border: 0; cursor: pointer; }
+.heat.is-selected { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--accent-strong); position: relative; z-index: 1; }
+.day-detail { margin-top: 14px; padding: 12px; border-radius: 16px; background: var(--track); }
+.sheet[open] .day-detail:not([hidden]) { animation: day-in .35s var(--spring) backwards; }
+@keyframes day-in { from { opacity: 0; transform: translateY(-6px); } }
+.day-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+.day-head h4 { margin: 0; font-size: 13.5px; font-weight: 700; }
+.day-detail .session-log { max-height: 220px; }
+.icon-btn.small { min-height: 32px; width: 32px; padding: 0; justify-content: center; box-shadow: none; }
+.icon-btn.small svg { fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; }
 .heatmap .heat:not(.is-future):hover { transform: scale(1.35); position: relative; z-index: 1; }
 .sheet[open] .heatmap .heat { animation: heat-in .45s var(--spring) backwards; animation-delay: var(--delay, 0ms); }
 @keyframes heat-in { from { opacity: 0; transform: scale(.3); } }
@@ -2005,6 +2039,7 @@ body.is-flow.is-running .time .colon { animation: flow-blink 2s ease-in-out infi
   line-height: 1;
 }
 .toast-action.is-emoji:hover { background: var(--accent-soft); transform: scale(1.12); }
+.toast-action.is-ghost { background: var(--track); color: var(--ink); }
 .toast:has(.is-emoji) { flex-wrap: wrap; }
 .toast:has(.is-emoji) .toast-text { flex-basis: calc(100% - 60px); }
 .toast:has(.is-emoji) .toast-actions { width: 100%; justify-content: flex-end; }

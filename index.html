@@ -23,7 +23,7 @@
   <!-- Fonts load without blocking the first paint. -->
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..700&family=Outfit:wght@200..700&display=swap" media="print" onload="this.media='all'">
   <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..700&family=Outfit:wght@200..700&display=swap"></noscript>
-  <link rel="stylesheet" href="styles.css?v=45">
+  <link rel="stylesheet" href="styles.css?v=46">
 </head>
 <body data-mode="focus">
   <div class="photo-bg" aria-hidden="true"></div>
@@ -338,6 +338,15 @@
             <div class="heatmap" id="heatmap"></div>
           </div>
           <div class="heat-legend" aria-hidden="true">Less <span class="heat l0"></span><span class="heat l1"></span><span class="heat l2"></span><span class="heat l3"></span><span class="heat l4"></span> More</div>
+          <div class="day-detail" id="day-detail" hidden>
+            <div class="day-head">
+              <h4 id="day-title"></h4>
+              <button type="button" class="icon-btn small pressable" id="btn-day-close" aria-label="Close day view">
+                <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7l10 10M17 7 7 17"/></svg>
+              </button>
+            </div>
+            <ol class="session-log" id="day-log" aria-labelledby="day-title"></ol>
+          </div>
         </section>
       </div>
 
@@ -351,6 +360,10 @@
         <section class="heat-section" aria-labelledby="top-title">
           <h3 id="top-title">Where your focus went · last 7 days</h3>
           <ol class="top-tasks" id="top-tasks"></ol>
+        </section>
+        <section class="heat-section" id="tags-section" aria-labelledby="tags-title" hidden>
+          <h3 id="tags-title">Focus by tag · last 7 days</h3>
+          <ol class="top-tasks" id="tag-bars"></ol>
         </section>
         <section class="heat-section" aria-labelledby="log-title">
           <h3 id="log-title">Recent sessions</h3>
@@ -530,6 +543,7 @@
         <h3>Good to know</h3>
         <ul class="tips">
           <li><span aria-hidden="true">🎧</span><span>Wear headphones. Every sound is placed in 3D around you, and button clicks come from where you tap.</span></li>
+          <li><span aria-hidden="true">🏷️</span><span>Add #tags to task names, like "Read chapter 3 #school". Stats then shows how your focus splits between them. Tap any day in the heatmap to see its sessions.</span></li>
           <li><span aria-hidden="true">👆</span><span>Tap a task to count focus sessions towards it. Drag the grip to reorder, double-click a name to rename it. On a phone, swipe a task right to tick it off or left to delete it.</span></li>
           <li><span aria-hidden="true">🎛️</span><span>Tap several sounds to mix them, or pick a ready-made mix. In the room, drag each sound around you, press orbit to send it circling, or drag your own head to turn around.</span></li>
           <li><span aria-hidden="true">🪟</span><span>Pop the timer out (P) into a small window that stays on top while you work in other apps.</span></li>
@@ -544,6 +558,6 @@
     </div>
   </dialog>
 
-  <script type="module" src="js/app.js?v=45"></script>
+  <script type="module" src="js/app.js?v=46"></script>
 </body>
 </html>

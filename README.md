@@ -54,6 +54,8 @@ installed as an app on your phone or computer.
 
 **Tasks**
 - Add tasks with an estimate; tap one to count sessions towards it
+- Add **#tags** to task names (`Essay #school`) and they become coloured
+  pills; Stats shows how your focus splits between tags
 - Edit inline, drag to reorder, swipe on phones (right to tick off, left to
   delete), undo deletes
 - "Finish around" estimate for what's left
@@ -61,8 +63,9 @@ installed as an app on your phone or computer.
 **Progress**
 - Daily goal meter with a celebration when you hit it
 - Stats with Overview (today, streak, last 7 days vs the week before,
-  12-week heatmap), History (best focus hours, recent sessions with ratings
-  and distractions) and Achievements (eighteen to unlock)
+  12-week heatmap: tap a day to see its sessions), History (best focus hours,
+  focus by task and by tag, recent sessions with ratings and distractions)
+  and Achievements (eighteen to unlock)
 - **Share today**: a ready-to-post image of your day's focus
 - Export and import a backup file to move your data between devices
 
