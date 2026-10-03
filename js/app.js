@@ -1,11 +1,11 @@
-import * as audio from './audio.js?v=40';
-import * as fx from './fx.js?v=40';
-import { toast } from './toast.js?v=40';
-import * as effects from './effects.js?v=40';
-import * as scenery from './scenery.js?v=40';
-import * as pip from './pip.js?v=40';
-import { shareCard, makeCardFile } from './share.js?v=40';
-import * as photo from './photo.js?v=40';
+import * as audio from './audio.js?v=41';
+import * as fx from './fx.js?v=41';
+import { toast } from './toast.js?v=41';
+import * as effects from './effects.js?v=41';
+import * as scenery from './scenery.js?v=41';
+import * as pip from './pip.js?v=41';
+import { shareCard, makeCardFile } from './share.js?v=41';
+import * as photo from './photo.js?v=41';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -2773,6 +2773,7 @@ el.goal.addEventListener('click', (e) => {
 });
 
 $('#btn-help').addEventListener('click', (e) => openSheet(el.helpDialog, e.currentTarget));
+el.helpDialog.addEventListener('close', markChangesSeen);
 $('#btn-open-help').addEventListener('click', (e) => {
   closeSheet(el.settingsDialog);
   setTimeout(() => openSheet(el.helpDialog, e.target), 220);
@@ -2815,10 +2816,63 @@ statTabs.forEach((t, i) => {
   });
 });
 
+// What's new: the newest first. Bump `id` when adding an entry.
+const CHANGES = [
+  { id: 6, icon: '🖼️', text: 'Set your own background photo in Settings > Appearance.' },
+  { id: 5, icon: '🐈', text: 'New sounds: Wind, Stream, Wind chimes and a purring cat, plus new mixes like Cat nap and Forest stream.' },
+  { id: 4, icon: '⏱️', text: 'Tap the length under the timer to change it quickly. Stats now show today\'s timeline and where your focus went.' },
+  { id: 3, icon: '⚡', text: 'Tap Distracted (D) when your mind wanders, and rate each session when it ends.' },
+  { id: 2, icon: '📤', text: 'Share an image of your day from Stats, and pick a chime sound in Settings.' },
+  { id: 1, icon: '🎛️', text: 'Mix sounds, place them around you in the 3D room, or pick a ready-made mix.' },
+];
+const LATEST_CHANGE = CHANGES[0].id;
+
+function renderWhatsNew() {
+  const seen = Number(settings.seenChanges) || 0;
+  $('#whats-new').replaceChildren(
+    ...CHANGES.slice(0, 4).map((c) => {
+      const li = document.createElement('li');
+      if (c.id > seen) li.className = 'is-new';
+      const i = document.createElement('span');
+      i.setAttribute('aria-hidden', 'true');
+      i.textContent = c.icon;
+      const t = document.createElement('span');
+      t.textContent = c.text;
+      li.append(i, t);
+      return li;
+    }),
+  );
+  $('#btn-help').classList.toggle('has-news', seen < LATEST_CHANGE);
+}
+
+function markChangesSeen() {
+  if ((Number(settings.seenChanges) || 0) >= LATEST_CHANGE) return;
+  settings.seenChanges = LATEST_CHANGE;
+  save();
+  setTimeout(renderWhatsNew, 1500); // let the "new" highlights show first
+}
+
 // First visit: a short welcome.
 function maybeWelcome() {
-  if (settings.welcomed) return;
+  if (settings.welcomed) {
+    // Returning visitors hear about new things once.
+    const seen = Number(settings.seenChanges) || 0;
+    if (seen < LATEST_CHANGE) {
+      const fresh = CHANGES.filter((c) => c.id > seen);
+      setTimeout(() => {
+        toast({
+          icon: '✨',
+          title: fresh.length === 1 ? "There's something new" : `${fresh.length} new things to try`,
+          body: fresh[0].text,
+          duration: 9000,
+          action: { label: "What's new", onClick: () => openSheet(el.helpDialog, $('#btn-help')) },
+        });
+      }, 1200);
+    }
+    return;
+  }
   settings.welcomed = true;
+  settings.seenChanges = LATEST_CHANGE;
   save();
   setTimeout(() => openSheet($('#welcome-dialog'), el.toggle), 700);
 }
@@ -3102,6 +3156,7 @@ setView('timer', { scroll: false });
 }
 requestAnimationFrame(() => el.body.classList.add('is-ready'));
 selectStatTab(0, { animate: false });
+renderWhatsNew();
 // Someone who already used an earlier version doesn't need the welcome.
 if (!settings.welcomed && (tasks.length || history.length)) settings.welcomed = true;
 maybeWelcome();
