@@ -1,9 +1,9 @@
-import * as audio from './audio.js?v=24';
-import * as fx from './fx.js?v=24';
-import { toast } from './toast.js?v=24';
-import * as effects from './effects.js?v=24';
-import * as scenery from './scenery.js?v=24';
-import * as pip from './pip.js?v=24';
+import * as audio from './audio.js?v=25';
+import * as fx from './fx.js?v=25';
+import { toast } from './toast.js?v=25';
+import * as effects from './effects.js?v=25';
+import * as scenery from './scenery.js?v=25';
+import * as pip from './pip.js?v=25';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -321,6 +321,7 @@ function complete({ late = 0 } = {}) {
   }
 
   if (settings.chime) audio.chime(next === 'focus' ? 'focus' : 'break');
+  if (settings.sfx) fx.haptic([140, 90, 140, 90, 260]);
   notify(ended, next);
   if (ended === 'focus') fx.celebrate(el.dial);
   else fx.burst(el.dial, { count: 18, spread: 150, size: 8 });
@@ -1221,10 +1222,10 @@ function renderStats() {
   const total = history.reduce((n, h) => n + h.m, 0);
   const sessions = history.reduce((n, h) => n + (h.s ? 1 : 0), 0);
 
-  $('#stat-today').textContent = fmtMinutes(todayStats.m);
-  $('#stat-sessions').textContent = String(todayStats.s);
-  $('#stat-streak').textContent = `${streak} ${streak === 1 ? 'day' : 'days'}`;
-  $('#stat-week').textContent = fmtMinutes(week);
+  fx.countUp($('#stat-today'), fmtMinutes(todayStats.m));
+  fx.countUp($('#stat-sessions'), String(todayStats.s));
+  fx.countUp($('#stat-streak'), `${streak} ${streak === 1 ? 'day' : 'days'}`);
+  fx.countUp($('#stat-week'), fmtMinutes(week));
   $('#stat-total').textContent = sessions
     ? `All time: ${fmtMinutes(total)} of focus across ${sessions} ${sessions === 1 ? 'session' : 'sessions'}.`
     : 'Finish a focus session to start filling this in.';
@@ -2533,8 +2534,23 @@ el.install.addEventListener('click', async () => {
 window.addEventListener('appinstalled', () => { el.install.hidden = true; });
 
 if ('serviceWorker' in navigator && (location.protocol === 'https:' || ['localhost', '127.0.0.1'].includes(location.hostname))) {
+  // If a new version goes live while Tempo is open, offer a quick reload.
+  const hadController = Boolean(navigator.serviceWorker.controller);
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!hadController) return;
+    toast({
+      icon: '✨',
+      title: 'Tempo has been updated',
+      body: 'Reload to get the newest version. Your timer keeps going.',
+      duration: 12000,
+      action: { label: 'Reload', onClick: () => window.location.reload() },
+    });
+  });
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('sw.js').catch(() => {});
+    navigator.serviceWorker
+      .register('sw.js')
+      .then((reg) => setInterval(() => reg.update().catch(() => {}), 60 * 60 * 1000))
+      .catch(() => {});
   });
 }
 

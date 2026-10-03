@@ -160,6 +160,22 @@ export function enter(el) {
   );
 }
 
+/** Count every number in an element's text up from zero to its final value. */
+export function countUp(el, text, duration = 750) {
+  if (!motionOK() || !/\d/.test(text)) {
+    el.textContent = text;
+    return;
+  }
+  const start = performance.now();
+  const frame = (now) => {
+    const p = Math.min(1, (now - start) / duration);
+    const eased = 1 - (1 - p) ** 3;
+    el.textContent = p >= 1 ? text : text.replace(/\d+/g, (n) => String(Math.round(Number(n) * eased)));
+    if (p < 1) requestAnimationFrame(frame);
+  };
+  requestAnimationFrame(frame);
+}
+
 /** Light haptic tap on phones that support it. */
 export function haptic(ms = 8) {
   try { if (navigator.vibrate) navigator.vibrate(ms); } catch { /* not supported */ }
