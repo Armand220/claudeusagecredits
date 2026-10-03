@@ -12,7 +12,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..700&family=Outfit:wght@200..700&display=swap">
-  <link rel="stylesheet" href="styles.css?v=6">
+  <link rel="stylesheet" href="styles.css?v=7">
 </head>
 <body data-mode="focus">
   <div class="aurora" aria-hidden="true"><span></span><span></span><span></span></div>
@@ -194,6 +194,14 @@
         <tbody></tbody>
       </table>
       <p class="sheet-note" id="stat-total"></p>
+      <section class="heat-section" aria-labelledby="heat-title">
+        <h3 id="heat-title">Last 12 weeks <span class="badge-count" id="heat-summary"></span></h3>
+        <div class="heat-wrap">
+          <div class="heat-days" aria-hidden="true"><span>Mon</span><span></span><span>Wed</span><span></span><span>Fri</span><span></span><span>Sun</span></div>
+          <div class="heatmap" id="heatmap"></div>
+        </div>
+        <div class="heat-legend" aria-hidden="true">Less <span class="heat l0"></span><span class="heat l1"></span><span class="heat l2"></span><span class="heat l3"></span><span class="heat l4"></span> More</div>
+      </section>
       <section class="badges" aria-labelledby="badges-title">
         <h3 id="badges-title">Achievements <span class="badge-count" id="badge-count"></span></h3>
         <ul class="badge-grid" id="badge-grid"></ul>
@@ -256,6 +264,6 @@
     </form>
   </dialog>
 
-  <script type="module" src="js/app.js?v=6"></script>
+  <script type="module" src="js/app.js?v=7"></script>
 </body>
 </html>

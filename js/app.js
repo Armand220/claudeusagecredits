@@ -1,7 +1,7 @@
-import * as audio from './audio.js?v=6';
-import * as fx from './fx.js?v=6';
-import { toast } from './toast.js?v=6';
-import * as effects from './effects.js?v=6';
+import * as audio from './audio.js?v=7';
+import * as fx from './fx.js?v=7';
+import { toast } from './toast.js?v=7';
+import * as effects from './effects.js?v=7';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -466,6 +466,8 @@ async function notify(ended, next) {
 
 const newId = () => (crypto.randomUUID ? crypto.randomUUID() : `${Date.now().toString(36)}${Math.random().toString(36).slice(2)}`);
 
+const ICON_GRIP = '<svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/></svg>';
+const ICON_EDIT = '<svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4zM13.5 6.5l4 4"/></svg>';
 const ICON_X = '<svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7l10 10M17 7 7 17"/></svg>';
 
 function taskRow(task) {
@@ -495,14 +497,184 @@ function taskRow(task) {
   count.setAttribute('aria-label', `${task.pomos} of ${task.est} pomodoros`);
   select.append(title, count);
 
+  const grip = document.createElement('button');
+  grip.type = 'button';
+  grip.className = 'task-grip';
+  grip.setAttribute('aria-label', `Reorder "${task.title}". Use the up and down arrow keys.`);
+  grip.title = 'Drag to reorder';
+  grip.innerHTML = ICON_GRIP;
+
+  const edit = document.createElement('button');
+  edit.type = 'button';
+  edit.className = 'task-edit-btn pressable';
+  edit.setAttribute('aria-label', `Edit "${task.title}"`);
+  edit.title = 'Edit';
+  edit.innerHTML = ICON_EDIT;
+
   const del = document.createElement('button');
   del.type = 'button';
   del.className = 'task-delete pressable';
   del.setAttribute('aria-label', `Delete "${task.title}"`);
+  del.title = 'Delete';
   del.innerHTML = ICON_X;
 
-  li.append(check, select, del);
+  li.append(grip, check, select, edit, del);
   return li;
+}
+
+// Inline editing of a task's name and estimate.
+function startEdit(li) {
+  const task = tasks.find((t) => t.id === li.dataset.id);
+  const select = li.querySelector('.task-select');
+  if (!task || !select) return;
+
+  const form = document.createElement('div');
+  form.className = 'task-edit';
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.maxLength = 120;
+  input.value = task.title;
+  input.setAttribute('aria-label', 'Task name');
+  const est = document.createElement('input');
+  est.type = 'number';
+  est.min = '1';
+  est.max = '20';
+  est.inputMode = 'numeric';
+  est.value = String(task.est);
+  est.setAttribute('aria-label', 'Estimated pomodoros');
+  form.append(input, est);
+  select.replaceWith(form);
+  li.classList.add('is-editing');
+  input.focus();
+  input.select();
+  audio.sfx('open', li);
+
+  let done = false;
+  const finish = (commit) => {
+    if (done) return;
+    done = true;
+    if (commit) {
+      const title = input.value.trim();
+      if (title) task.title = title.slice(0, 120);
+      task.est = clampInt(est.value, 1, 20, task.est);
+      save();
+      audio.sfx('on', li);
+    } else {
+      audio.sfx('off', li);
+    }
+    renderTasks();
+    const row = el.taskList.querySelector(`[data-id="${CSS.escape(task.id)}"]`);
+    if (row) {
+      fx.pop(row, 1.02);
+      row.querySelector('.task-edit-btn')?.focus();
+    }
+  };
+  form.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      finish(true);
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      e.stopPropagation();
+      finish(false);
+    }
+  });
+  form.addEventListener('focusout', (e) => {
+    if (!form.contains(e.relatedTarget)) finish(true);
+  });
+}
+
+function moveTask(from, to) {
+  if (to < 0 || to >= tasks.length || to === from) return false;
+  const [t] = tasks.splice(from, 1);
+  tasks.splice(to, 0, t);
+  save();
+  return true;
+}
+
+// Drag to reorder with the grip (mouse and touch). Rows slide out of the way.
+function initTaskDrag() {
+  el.taskList.addEventListener('pointerdown', (e) => {
+    const grip = e.target.closest('.task-grip');
+    if (!grip || e.button > 0) return;
+    e.preventDefault();
+    const li = grip.closest('.task');
+    const rows = [...el.taskList.children];
+    const from = rows.indexOf(li);
+    const rects = rows.map((r) => r.getBoundingClientRect());
+    const step = rects[from].height + 6;
+    const startY = e.clientY;
+    let to = from;
+
+    li.classList.add('is-dragging');
+    el.taskList.classList.add('is-sorting');
+    grip.setPointerCapture(e.pointerId);
+    audio.sfx('tap', grip);
+    fx.haptic(10);
+
+    const move = (ev) => {
+      const min = rects[0].top - rects[from].top;
+      const max = rects[rects.length - 1].bottom - rects[from].bottom;
+      const dy = Math.max(min - 12, Math.min(max + 12, ev.clientY - startY));
+      li.style.transform = `translateY(${dy}px) scale(1.03)`;
+      const center = rects[from].top + rects[from].height / 2 + dy;
+      let idx = from;
+      rows.forEach((r, i) => {
+        const mid = rects[i].top + rects[i].height / 2;
+        if (i < from && center < mid) idx = Math.min(idx, i);
+        if (i > from && center > mid) idx = Math.max(idx, i);
+      });
+      if (idx === to) return;
+      to = idx;
+      audio.sfx('tick', li);
+      fx.haptic(4);
+      rows.forEach((r, i) => {
+        if (i === from) return;
+        let shift = 0;
+        if (from < to && i > from && i <= to) shift = -step;
+        if (from > to && i >= to && i < from) shift = step;
+        r.style.transform = shift ? `translateY(${shift}px)` : '';
+      });
+    };
+
+    const up = () => {
+      grip.removeEventListener('pointermove', move);
+      grip.removeEventListener('pointerup', up);
+      grip.removeEventListener('pointercancel', up);
+      const before = li.getBoundingClientRect();
+      rows.forEach((r) => { r.style.transform = ''; });
+      li.classList.remove('is-dragging');
+      el.taskList.classList.remove('is-sorting');
+      if (!moveTask(from, to)) return;
+      renderTasks();
+      audio.sfx('pop', grip);
+      const row = el.taskList.querySelector(`[data-id="${CSS.escape(li.dataset.id)}"]`);
+      if (row && row.animate && fx.motionOK()) {
+        const after = row.getBoundingClientRect();
+        row.animate(
+          [{ transform: `translateY(${before.top - after.top}px) scale(1.03)` }, { transform: 'none' }],
+          { duration: 380, easing: 'cubic-bezier(.3,1.4,.5,1)' },
+        );
+      }
+    };
+
+    grip.addEventListener('pointermove', move);
+    grip.addEventListener('pointerup', up);
+    grip.addEventListener('pointercancel', up);
+  });
+
+  // Keyboard: arrow keys on the grip move the task.
+  el.taskList.addEventListener('keydown', (e) => {
+    const grip = e.target.closest('.task-grip');
+    if (!grip || (e.key !== 'ArrowUp' && e.key !== 'ArrowDown')) return;
+    e.preventDefault();
+    const id = grip.closest('.task').dataset.id;
+    const from = tasks.findIndex((t) => t.id === id);
+    if (!moveTask(from, from + (e.key === 'ArrowUp' ? -1 : 1))) return;
+    renderTasks();
+    audio.sfx('tick', grip);
+    el.taskList.querySelector(`[data-id="${CSS.escape(id)}"] .task-grip`)?.focus();
+  });
 }
 
 function renderTasks({ entering } = {}) {
@@ -789,7 +961,48 @@ function renderStats() {
     : 'Finish a focus session to start filling this in.';
 
   renderChart(days);
+  renderHeatmap(byDay);
   renderBadges();
+}
+
+function heatLevel(m) {
+  if (m <= 0) return 0;
+  if (m < 30) return 1;
+  if (m < 60) return 2;
+  if (m < 120) return 3;
+  return 4;
+}
+
+function renderHeatmap(byDay) {
+  const grid = $('#heatmap');
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const weekday = (today.getDay() + 6) % 7; // Monday = 0
+  const start = new Date(today);
+  start.setDate(start.getDate() - (7 * 11 + weekday));
+  const cells = [];
+  let activeDays = 0;
+  for (let i = 0; i < 84; i++) {
+    const d = new Date(start);
+    d.setDate(start.getDate() + i);
+    const cell = document.createElement('span');
+    if (d > today) {
+      cell.className = 'heat is-future';
+      cells.push(cell);
+      continue;
+    }
+    const m = (byDay.get(dayKey(d)) || { m: 0 }).m;
+    if (m > 0) activeDays += 1;
+    cell.className = `heat l${heatLevel(m)}${d.getTime() === today.getTime() ? ' is-today' : ''}`;
+    cell.style.setProperty('--delay', `${Math.floor(i / 7) * 25}ms`);
+    const label = `${d.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })}: ${fmtMinutes(m)}`;
+    cell.title = label;
+    cell.setAttribute('role', 'img');
+    cell.setAttribute('aria-label', label);
+    cells.push(cell);
+  }
+  grid.replaceChildren(...cells);
+  $('#heat-summary').textContent = `${activeDays} active ${activeDays === 1 ? 'day' : 'days'}`;
 }
 
 function renderChart(days) {
@@ -1142,6 +1355,10 @@ el.taskList.addEventListener('click', (e) => {
     removeTasks([id], e.target.closest('.task-delete'));
     return;
   }
+  if (e.target.closest('.task-edit-btn')) {
+    startEdit(li);
+    return;
+  }
   const select = e.target.closest('.task-select');
   if (select) {
     activeTaskId = activeTaskId === id ? null : id;
@@ -1154,6 +1371,11 @@ el.taskList.addEventListener('click', (e) => {
       row.querySelector('.task-select').focus();
     }
   }
+});
+
+el.taskList.addEventListener('dblclick', (e) => {
+  const li = e.target.closest('.task');
+  if (li && e.target.closest('.task-title')) startEdit(li);
 });
 
 el.clearDone.addEventListener('click', () => {
@@ -1265,6 +1487,7 @@ renderTasks();
 renderChips();
 renderGoal();
 setInterval(renderGoal, 60000);
+initTaskDrag();
 if (timer.running) schedule();
 syncWakeLock();
 effects.initSpotlight();

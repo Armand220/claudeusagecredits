@@ -752,6 +752,71 @@ body.is-running .time .colon { animation: blink 1s steps(1) infinite; }
   font-variant-numeric: tabular-nums;
 }
 .task.is-active .task-count { background: var(--accent); color: var(--on-accent); }
+.task-grip {
+  flex: none;
+  width: 22px;
+  height: 34px;
+  margin-left: -6px;
+  margin-right: -4px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--ink-3);
+  display: grid;
+  place-items: center;
+  cursor: grab;
+  touch-action: none;
+  opacity: .35;
+  transition: opacity .2s, color .2s;
+}
+.task-grip svg { fill: currentColor; }
+.task:hover .task-grip, .task-grip:focus-visible { opacity: 1; }
+.task-grip:hover { color: var(--ink); }
+.task.is-dragging {
+  position: relative;
+  z-index: 5;
+  cursor: grabbing;
+  transition: none;
+  box-shadow: 0 18px 40px -10px rgb(0 0 0 / 35%);
+  background: var(--surface);
+}
+.task.is-dragging .task-grip { cursor: grabbing; opacity: 1; color: var(--accent); }
+.task-list.is-sorting .task:not(.is-dragging) { transition: transform .3s var(--ease-out); }
+.task-list.is-sorting { -webkit-user-select: none; user-select: none; }
+
+.task-edit-btn {
+  width: 34px;
+  height: 34px;
+  flex: none;
+  border: 0;
+  background: none;
+  border-radius: 10px;
+  color: var(--ink-3);
+  display: grid;
+  place-items: center;
+  opacity: 0;
+}
+.task:hover .task-edit-btn, .task-edit-btn:focus-visible { opacity: 1; }
+@media (hover: none) { .task-edit-btn, .task-grip { opacity: .6; } }
+.task-edit-btn:hover { color: var(--accent-strong); background: var(--line); }
+.task-edit-btn svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+.task-edit { flex: 1; min-width: 0; display: flex; gap: 6px; padding: 4px 0; }
+.task-edit input {
+  min-width: 0;
+  height: 36px;
+  padding: 0 10px;
+  border: 1px solid var(--accent);
+  border-radius: 10px;
+  background: var(--surface);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+  outline: none;
+  font-weight: 500;
+}
+.task-edit input[type="text"] { flex: 1; }
+.task-edit input[type="number"] { width: 56px; text-align: center; }
+
 .task-delete {
   width: 34px;
   height: 34px;
@@ -1236,6 +1301,63 @@ body.is-zen .aurora span { --blob-opacity: .75; }
 .toast.is-gold .toast-timer { background: #f5b301; }
 .toast.is-paused .toast-timer { animation-play-state: paused; }
 @keyframes toast-timer { to { transform: scaleX(0); } }
+
+/* -------------------------------------------------------------- Heatmap */
+
+.heat-section { margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--line); }
+.heat-section h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+.heat-wrap { display: flex; gap: 8px; max-width: 380px; }
+.heat-days {
+  display: grid;
+  grid-template-rows: repeat(7, 1fr);
+  gap: 4px;
+  font-size: 10px;
+  line-height: 1;
+  color: var(--ink-3);
+}
+.heat-days span { display: flex; align-items: center; }
+.heatmap {
+  flex: 1;
+  display: grid;
+  grid-template-rows: repeat(7, 1fr);
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: 4px;
+}
+.heat {
+  display: block;
+  aspect-ratio: 1;
+  border-radius: 4px;
+  background: var(--track);
+  transition: transform .3s var(--spring-strong);
+}
+.heat.l1 { background: color-mix(in srgb, var(--accent) 28%, var(--surface)); }
+.heat.l2 { background: color-mix(in srgb, var(--accent) 50%, var(--surface)); }
+.heat.l3 { background: color-mix(in srgb, var(--accent) 75%, var(--surface)); }
+.heat.l4 { background: var(--accent); }
+.heat.is-future { background: transparent; }
+.heat.is-today { box-shadow: 0 0 0 2px var(--surface), 0 0 0 3.5px var(--ink-3); }
+.heatmap .heat:not(.is-future):hover { transform: scale(1.35); position: relative; z-index: 1; }
+.sheet[open] .heatmap .heat { animation: heat-in .45s var(--spring) backwards; animation-delay: var(--delay, 0ms); }
+@keyframes heat-in { from { opacity: 0; transform: scale(.3); } }
+.heat-legend {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  margin-top: 10px;
+  font-size: 11px;
+  color: var(--ink-3);
+}
+.heat-legend .heat { width: 11px; height: 11px; aspect-ratio: auto; }
 
 /* --------------------------------------------------------------- Badges */
 
