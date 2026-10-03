@@ -14,6 +14,8 @@ let ambientLevel = 0.5;
 let scene = null;
 let sceneTimer = 0;
 let tracked = null;
+let analyser = null;
+let meterBuf = null;
 
 export const supported = Boolean(AC);
 
@@ -33,6 +35,10 @@ function ensure() {
     sfxBus = gain(0.5, master);
     chimeBus = gain(0.75, master);
     ambientBus = gain(curve(ambientLevel), master);
+    analyser = ctx.createAnalyser();
+    analyser.fftSize = 512;
+    meterBuf = new Float32Array(analyser.fftSize);
+    ambientBus.connect(analyser);
   }
   if (ctx.state === 'suspended') ctx.resume().catch(() => {});
   return ctx;
@@ -42,6 +48,15 @@ function ensure() {
 export function unlock() { ensure(); }
 
 export function setSfxEnabled(on) { sfxOn = Boolean(on); }
+
+/** Current loudness (RMS) of the ambient scene, 0 when nothing is playing. */
+export function meter() {
+  if (!analyser || !scene) return 0;
+  analyser.getFloatTimeDomainData(meterBuf);
+  let sum = 0;
+  for (let i = 0; i < meterBuf.length; i++) sum += meterBuf[i] * meterBuf[i];
+  return Math.sqrt(sum / meterBuf.length);
+}
 
 export function setAmbientVolume(v) {
   ambientLevel = Math.max(0, Math.min(1, v));

@@ -1,6 +1,7 @@
-import * as audio from './audio.js?v=4';
-import * as fx from './fx.js?v=4';
-import { toast } from './toast.js?v=4';
+import * as audio from './audio.js?v=5';
+import * as fx from './fx.js?v=5';
+import { toast } from './toast.js?v=5';
+import * as effects from './effects.js?v=5';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -127,6 +128,7 @@ const el = {
 };
 
 el.ring.style.strokeDasharray = `${RING_C}`;
+const updateTicks = effects.makeTicks($('.ring'));
 
 // ---------------------------------------------------------------------------
 // Timer
@@ -319,6 +321,7 @@ function renderTimer(force = false) {
 
   const f = Math.max(0, Math.min(1, rem / totalMs()));
   el.ring.style.strokeDashoffset = `${RING_C * (1 - f)}`;
+  updateTicks(f);
   const a = f * Math.PI * 2;
   el.head.setAttribute('cx', `${110 + 100 * Math.cos(a)}`);
   el.head.setAttribute('cy', `${110 + 100 * Math.sin(a)}`);
@@ -1197,4 +1200,8 @@ renderGoal();
 setInterval(renderGoal, 60000);
 if (timer.running) schedule();
 syncWakeLock();
+effects.initSpotlight();
+effects.initTilt($('.timer-card'));
+effects.initMagnet(el.toggle);
+effects.initAudioGlow(el.dial);
 requestAnimationFrame(() => el.body.classList.add('is-ready'));

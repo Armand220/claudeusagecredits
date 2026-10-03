@@ -17,6 +17,7 @@
   --blob-opacity: .55;
   --pill: #ffffff;
   --track: rgb(60 35 20 / 16%);
+  --spot: rgb(255 255 255 / 55%);
 
   --accent: #e5512f;
   --accent-strong: #c73d1d;
@@ -76,6 +77,7 @@ body[data-mode="long"] {
     --blob-opacity: .26;
     --pill: rgb(255 255 255 / 13%);
     --track: rgb(255 255 255 / 16%);
+    --spot: rgb(255 255 255 / 7%);
     color-scheme: dark;
   }
   :root:not([data-theme="light"]) body { --accent: #ff7a55; --accent-strong: #ff9b7a; --accent-2: #ffb36b; --accent-soft: rgb(255 122 85 / 14%); --on-accent: #1d0d07; }
@@ -99,6 +101,7 @@ body[data-mode="long"] {
   --blob-opacity: .26;
   --pill: rgb(255 255 255 / 13%);
   --track: rgb(255 255 255 / 16%);
+  --spot: rgb(255 255 255 / 7%);
   color-scheme: dark;
 }
 :root[data-theme="dark"] body { --accent: #ff7a55; --accent-strong: #ff9b7a; --accent-2: #ffb36b; --accent-soft: rgb(255 122 85 / 14%); --on-accent: #1d0d07; }
@@ -171,7 +174,7 @@ svg { display: block; }
   position: relative;
   overflow: hidden;
   isolation: isolate;
-  transition: transform .5s var(--spring-strong), background-color .2s, color .2s, border-color .2s, box-shadow .25s;
+  transition: transform .5s var(--spring-strong), translate .45s var(--spring), background-color .2s, color .2s, border-color .2s, box-shadow .25s;
 }
 .pressable:active {
   transform: scale(.92);
@@ -248,11 +251,12 @@ body.is-running .brand-mark path { transform-origin: 16px 16px; animation: spin 
 .layout { display: grid; gap: 20px; }
 @media (min-width: 920px) {
   .layout { grid-template-columns: minmax(0, 1.08fr) minmax(0, 1fr); align-items: start; gap: 24px; }
-  .timer-card { position: sticky; top: 20px; }
+  .layout > .timer-card { position: sticky; top: 20px; }
 }
 .side { display: grid; gap: 20px; min-width: 0; }
 
 .card {
+  position: relative;
   background: var(--glass);
   -webkit-backdrop-filter: blur(28px) saturate(170%);
   backdrop-filter: blur(28px) saturate(170%);
@@ -261,6 +265,21 @@ body.is-running .brand-mark path { transform-origin: 16px 16px; animation: spin 
   box-shadow: var(--shadow);
   min-width: 0;
 }
+
+/* Cursor spotlight */
+.card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  border-radius: inherit;
+  background: radial-gradient(420px circle at var(--spot-x, 50%) var(--spot-y, 50%), var(--spot), transparent 45%);
+  opacity: 0;
+  transition: opacity .4s ease;
+  pointer-events: none;
+}
+.card:hover::before { opacity: 1; }
+.card > * { position: relative; z-index: 1; }
 
 /* Load-in */
 body:not(.is-ready) .card,
@@ -272,6 +291,8 @@ body:not(.is-ready) .topbar { opacity: 0; transform: translateY(14px) scale(.985
 /* ----------------------------------------------------------- Timer card */
 
 .timer-card {
+  transform: perspective(1400px) rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg));
+  transition: opacity .7s var(--ease-out), transform .9s var(--spring);
   padding: 22px 22px 30px;
   display: flex;
   flex-direction: column;
@@ -336,6 +357,24 @@ body:not(.is-ready) .topbar { opacity: 0; transform: translateY(14px) scale(.985
   transition: opacity .8s ease, background .8s ease;
 }
 body.is-running .dial-glow { animation: breathe 4.5s ease-in-out infinite; }
+.timer-card.is-tilting { transition: opacity .7s var(--ease-out), transform .25s ease-out; }
+
+/* Pulses with the loudness of the ambient sound */
+.dial-pulse {
+  position: absolute;
+  inset: -6%;
+  border-radius: 50%;
+  background: radial-gradient(circle closest-side, transparent 72%, color-mix(in srgb, var(--accent) 55%, transparent) 82%, transparent 96%);
+  opacity: calc(var(--level, 0) * 1.4);
+  transform: scale(calc(.97 + var(--level, 0) * .1));
+  filter: blur(8px);
+  pointer-events: none;
+}
+
+.ticks .tick { stroke: var(--track); stroke-width: 1.4; stroke-linecap: round; }
+.ticks .tick.is-major { stroke-width: 2.6; }
+.ticks .tick.is-lit { stroke: color-mix(in srgb, var(--accent) 50%, transparent); }
+.ticks .tick.is-lit.is-major { stroke: var(--accent); }
 @keyframes breathe {
   0%, 100% { opacity: .18; transform: scale(.94); }
   50% { opacity: .38; transform: scale(1.06); }
@@ -372,7 +411,7 @@ body.is-running .ring-head { transition: cx 1s linear, cy 1s linear, stroke .5s;
 }
 .time {
   font-family: var(--font-display);
-  font-size: clamp(60px, 18vw, 92px);
+  font-size: clamp(56px, 16vw, 86px);
   font-weight: 250;
   line-height: 1;
   letter-spacing: -0.02em;
@@ -410,6 +449,7 @@ body.is-running .time .colon { animation: blink 1s steps(1) infinite; }
 #btn-skip:active svg { transform: translateX(3px); }
 
 .primary-btn {
+  translate: var(--mag-x, 0px) var(--mag-y, 0px);
   display: inline-flex;
   align-items: center;
   justify-content: center;

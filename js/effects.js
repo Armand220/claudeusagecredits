@@ -1,0 +1,123 @@
+// Ambient visual effects: watch-face ticks, cursor spotlight, 3D tilt,
+// a magnetic button and a glow that pulses with the ambient sound.
+
+import * as audio from './audio.js?v=5';
+import { motionOK } from './fx.js?v=5';
+
+const finePointer = window.matchMedia('(hover: hover) and (pointer: fine)');
+const SVG_NS = 'http://www.w3.org/2000/svg';
+
+/** 60 watch-face ticks inside the dial. Returns update(fractionRemaining). */
+export function makeTicks(svg) {
+  const g = document.createElementNS(SVG_NS, 'g');
+  g.setAttribute('class', 'ticks');
+  const ticks = [];
+  for (let i = 0; i < 60; i++) {
+    const a = (i / 60) * Math.PI * 2;
+    const major = i % 5 === 0;
+    const r1 = major ? 83 : 86;
+    const r2 = 89.5;
+    const line = document.createElementNS(SVG_NS, 'line');
+    line.setAttribute('x1', (110 + r1 * Math.cos(a)).toFixed(2));
+    line.setAttribute('y1', (110 + r1 * Math.sin(a)).toFixed(2));
+    line.setAttribute('x2', (110 + r2 * Math.cos(a)).toFixed(2));
+    line.setAttribute('y2', (110 + r2 * Math.sin(a)).toFixed(2));
+    line.setAttribute('class', major ? 'tick is-major' : 'tick');
+    g.appendChild(line);
+    ticks.push(line);
+  }
+  svg.insertBefore(g, svg.querySelector('.ring-track'));
+  let lit = -1;
+  return (fraction) => {
+    const n = Math.ceil(fraction * 60);
+    if (n === lit) return;
+    lit = n;
+    ticks.forEach((t, i) => t.classList.toggle('is-lit', i < n));
+  };
+}
+
+/** A soft light that follows the cursor across any .card. */
+export function initSpotlight() {
+  if (!finePointer.matches) return;
+  document.addEventListener(
+    'pointermove',
+    (e) => {
+      const card = e.target.closest && e.target.closest('.card');
+      if (!card) return;
+      const r = card.getBoundingClientRect();
+      card.style.setProperty('--spot-x', `${e.clientX - r.left}px`);
+      card.style.setProperty('--spot-y', `${e.clientY - r.top}px`);
+    },
+    { passive: true },
+  );
+}
+
+/** Tilt a card slightly towards the cursor. */
+export function initTilt(card, maxDeg = 4) {
+  if (!finePointer.matches) return;
+  let raf = 0;
+  card.addEventListener('pointermove', (e) => {
+    if (!motionOK()) return;
+    cancelAnimationFrame(raf);
+    raf = requestAnimationFrame(() => {
+      const r = card.getBoundingClientRect();
+      const x = (e.clientX - r.left) / r.width - 0.5;
+      const y = (e.clientY - r.top) / r.height - 0.5;
+      card.style.setProperty('--tilt-x', `${(-y * maxDeg).toFixed(2)}deg`);
+      card.style.setProperty('--tilt-y', `${(x * maxDeg * 1.2).toFixed(2)}deg`);
+      card.classList.add('is-tilting');
+    });
+  });
+  card.addEventListener('pointerleave', () => {
+    cancelAnimationFrame(raf);
+    card.style.setProperty('--tilt-x', '0deg');
+    card.style.setProperty('--tilt-y', '0deg');
+    card.classList.remove('is-tilting');
+  });
+}
+
+/** Pull a button gently towards a nearby cursor. */
+export function initMagnet(btn, reach = 70, strength = 0.22) {
+  if (!finePointer.matches) return;
+  let tx = 0;
+  let ty = 0;
+  const set = (x, y) => {
+    if (Math.abs(x - tx) < 0.2 && Math.abs(y - ty) < 0.2) return;
+    tx = x;
+    ty = y;
+    btn.style.setProperty('--mag-x', `${x.toFixed(1)}px`);
+    btn.style.setProperty('--mag-y', `${y.toFixed(1)}px`);
+  };
+  document.addEventListener(
+    'pointermove',
+    (e) => {
+      if (!motionOK()) return set(0, 0);
+      const r = btn.getBoundingClientRect();
+      const cx = r.left + r.width / 2 - tx;
+      const cy = r.top + r.height / 2 - ty;
+      const dx = e.clientX - cx;
+      const dy = e.clientY - cy;
+      const within = Math.abs(dx) < r.width / 2 + reach && Math.abs(dy) < r.height / 2 + reach;
+      if (within) set(dx * strength, dy * strength * 1.3);
+      else set(0, 0);
+    },
+    { passive: true },
+  );
+  document.addEventListener('pointerleave', () => set(0, 0));
+}
+
+/** Drive a --level custom property from the ambient sound's loudness. */
+export function initAudioGlow(target) {
+  let level = 0;
+  let shown = -1;
+  const loop = () => {
+    const raw = Math.min(1, audio.meter() * 5);
+    level += (raw - level) * (raw > level ? 0.3 : 0.06);
+    if (Math.abs(level - shown) > 0.004) {
+      shown = level;
+      target.style.setProperty('--level', level.toFixed(3));
+    }
+    requestAnimationFrame(loop);
+  };
+  requestAnimationFrame(loop);
+}
