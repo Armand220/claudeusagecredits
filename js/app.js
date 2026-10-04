@@ -1,12 +1,13 @@
-import * as audio from './audio.js?v=71';
-import * as fx from './fx.js?v=71';
-import { toast } from './toast.js?v=71';
-import * as effects from './effects.js?v=71';
-import * as scenery from './scenery.js?v=71';
-import * as pip from './pip.js?v=71';
-import { shareCard, makeCardFile } from './share.js?v=71';
-import * as party from './party.js?v=71';
-import * as photo from './photo.js?v=71';
+import * as audio from './audio.js?v=72';
+import * as fx from './fx.js?v=72';
+import { toast } from './toast.js?v=72';
+import * as effects from './effects.js?v=72';
+import * as scenery from './scenery.js?v=72';
+import * as pip from './pip.js?v=72';
+import { shareCard, makeCardFile } from './share.js?v=72';
+import * as party from './party.js?v=72';
+import { clean as cleanWords } from './filter.js?v=72';
+import * as photo from './photo.js?v=72';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -59,9 +60,9 @@ const ROLES = {
 };
 const ROLE_IDS = Object.keys(ROLES);
 // What each kind of request is about; the host chooses which they take.
-const REQ_GROUP = { toggle: 'timer', skip: 'timer', reset: 'timer', mode: 'timer', more: 'timer', break: 'timer', sound: 'sounds', mix: 'sounds', task: 'tasks', done: 'tasks', message: 'messages' };
+const REQ_GROUP = { toggle: 'timer', skip: 'timer', reset: 'timer', mode: 'timer', more: 'timer', break: 'timer', sound: 'sounds', silence: 'sounds', mix: 'sounds', task: 'tasks', done: 'tasks', message: 'messages' };
 const GROUPS = { timer: 'The timer', sounds: 'Sounds', tasks: 'Tasks', messages: 'Messages' };
-const DIRECT_KINDS = ['sound', 'mix', 'task', 'done']; // what an Add guest changes without asking
+const DIRECT_KINDS = ['sound', 'silence', 'mix', 'task', 'done']; // what an Add guest changes without asking
 const COOLDOWNS = [10, 30, 60, 120]; // seconds between one guest's requests
 const PENDING_MS = 20000; // how long a request waits for the host's answer
 const ADD_LIMIT = 5; // Add guests: at most this many changes…
@@ -76,6 +77,7 @@ function cleanRules(raw) {
     tasks: r.tasks !== false,
     messages: r.messages !== false,
     cooldown: COOLDOWNS.includes(Number(r.cooldown)) ? Number(r.cooldown) : 30,
+    filter: r.filter !== false, // star out bad language in names, tasks and messages
   };
 }
 
@@ -252,7 +254,7 @@ function guestRec(id) {
 // What a guest is told about their role and the host's rules.
 function accessOf(rec) {
   const r = settings.partyRules;
-  return { role: rec.role, timer: r.timer, sounds: r.sounds, tasks: r.tasks, messages: r.messages, cooldown: r.cooldown, wait: Math.max(0, rec.lastAsk + r.cooldown * 1000 - Date.now()) };
+  return { role: rec.role, timer: r.timer, sounds: r.sounds, tasks: r.tasks, messages: r.messages, cooldown: r.cooldown, filter: r.filter, wait: Math.max(0, rec.lastAsk + r.cooldown * 1000 - Date.now()) };
 }
 
 function cleanAccess(raw) {
@@ -264,8 +266,14 @@ function cleanAccess(raw) {
     tasks: a.tasks !== false,
     messages: a.messages !== false,
     cooldown: clampInt(a.cooldown, 0, 600, 30),
+    filter: a.filter !== false,
   };
 }
+
+// The language filter, when the party has it on (the host's rule).
+const partyFilter = () => (P && P.role === 'guest' ? P.access.filter : settings.partyRules.filter);
+const tidy = (text) => (partyFilter() ? cleanWords(text) : String(text));
+const isGuest = () => Boolean(P && P.role === 'guest');
 
 function shareAccess() {
   if (!P || P.role !== 'host') return;
@@ -287,7 +295,7 @@ function partyState() {
     timer: { ...timer },
     settings: Object.fromEntries(PARTY_SETTINGS.map((k) => [k, settings[k]])),
     mix,
-    tasks: tasks.map((t) => ({ id: t.id, title: t.title, est: t.est, pomos: t.pomos, done: t.done })),
+    tasks: tasks.map((t) => ({ id: t.id, title: tidy(t.title), est: t.est, pomos: t.pomos, done: t.done })),
     activeTaskId,
   };
 }
@@ -307,7 +315,8 @@ function applyPartyState(s) {
   Object.assign(timer, cleanTimer(shifted));
   const st = obj(s.settings);
   for (const k of PARTY_SETTINGS) if (k in st) settings[k] = k === 'flow' ? Boolean(st[k]) : clampInt(st[k], ...LIMITS[k], settings[k]);
-  tasks = cleanTasks(s.tasks);
+  P.lastState = s;
+  tasks = cleanTasks(s.tasks).map((x) => ({ ...x, title: tidy(x.title) }));
   activeTaskId = tasks.some((x) => x.id === s.activeTaskId) ? s.activeTaskId : null;
   const want = obj(s.mix);
   for (const k of audio.ambientKinds) {
@@ -409,6 +418,7 @@ function renderPartyDialog(prefill = '') {
           ${Object.entries(GROUPS).map(([g, label]) => `<label class="party-check pressable"><input type="checkbox" id="party-allow-${g}" name="${g}"${rules[g] ? ' checked' : ''}><span>${label}</span></label>`).join('')}
         </fieldset>
         <label class="party-rule"><span>Time between requests</span><select id="party-cooldown">${COOLDOWNS.map((c) => `<option value="${c}"${c === rules.cooldown ? ' selected' : ''}>${secs(c * 1000)}</option>`).join('')}</select></label>
+        <label class="switch"><input type="checkbox" id="party-filter"${rules.filter ? ' checked' : ''}><span>Language filter: star out bad words in names, tasks and messages</span></label>
       </div>
       <ul class="party-role-key">${ROLE_IDS.map((r) => `<li><span aria-hidden="true">${ROLES[r].icon}</span><span><strong>${ROLES[r].name}</strong> ${ROLES[r].note}${r === 'add' ? ` (Up to ${ADD_LIMIT} changes every ${ADD_WINDOW / 1000} s.)` : ''}</span></li>`).join('')}</ul>
       <p class="field-note">📱 Keep Tempo open on screen while people join: phones pause pages in the background.</p>
@@ -438,7 +448,8 @@ function renderPartyDialog(prefill = '') {
         ${canBreak ? '<button type="button" class="text-btn pressable" id="party-break">Ask for a break</button>' : ''}
         <button type="button" class="text-btn pressable" id="party-leave">Leave party</button>
       </div>
-      <h3 class="party-h">In the party</h3><ul class="party-members">${members}</ul>`;
+      <h3 class="party-h">In the party</h3><ul class="party-members">${members}</ul>
+      ${a.filter ? '<p class="field-note">🧼 The language filter is on: bad words are starred out.</p>' : ''}`;
     tickPartyWait();
   }
   if (refocus) body.querySelector(refocus)?.focus();
@@ -472,8 +483,9 @@ async function startParty() {
   partyStatus('Setting up a private party…');
   guestRecs.clear();
   try {
-    const ctl = await party.host(name, {
+    const ctl = await party.host(tidy(name), {
       getState: partyState,
+      cleanName: (n) => tidy(n),
       accessFor: (g) => accessOf(guestRec(g.id)),
       onJoin: (g) => {
         P.members = ctl.members();
@@ -518,7 +530,8 @@ async function joinParty(code) {
     return await party.join(code, name, {
       onWelcome: (msg, ctl) => {
         const access = cleanAccess(msg.access);
-        P = { role: 'guest', ctl, code, hostName: String(msg.host || 'Host').slice(0, 24), members: Array.isArray(msg.members) ? msg.members : [], backup, access, nextAt: 0, pending: null, adds: [], me: String(msg.id || '') };
+        const tidyName = (n) => (access.filter ? cleanWords(n) : String(n));
+        P = { role: 'guest', ctl, code, hostName: tidyName(String(msg.host || 'Host').slice(0, 24)), members: (Array.isArray(msg.members) ? msg.members : []).map((m) => ({ ...m, name: tidyName(m.name || '') })), backup, access, nextAt: 0, pending: null, adds: [], me: String(msg.id || '') };
         el.body.classList.add('is-guest');
         showGuestRole();
         applyPartyState(msg.state);
@@ -529,7 +542,7 @@ async function joinParty(code) {
       onState: applyPartyState,
       onMembers: (m) => {
         if (!P) return;
-        P.members = m;
+        P.members = m.map((x) => ({ ...x, name: tidy(x.name) }));
         renderPartyButton();
         if ($('#party-dialog').open) renderPartyDialog();
       },
@@ -540,6 +553,7 @@ async function joinParty(code) {
         const wait = Number(obj(raw).wait);
         if (Number.isFinite(wait)) P.nextAt = Date.now() + Math.min(Math.max(wait, 0), 600000);
         showGuestRole();
+        if (was.filter !== P.access.filter && P.lastState) applyPartyState(P.lastState);
         if (was.role !== P.access.role) {
           const said = {
             watch: ['👀', `${P.hostName} set you to watch`, "You'll see and hear everything; the host makes the changes."],
@@ -614,11 +628,17 @@ const REQUEST_TEXT = {
   more: (d) => (Number(d) > 1 ? `add ${Number(d)} minutes` : 'add a minute'),
   break: () => 'take a break',
   sound: (d) => `${d && d.on ? 'play' : 'stop'} ${SOUND_INFO[d && d.kind] ? SOUND_INFO[d.kind].name.toLowerCase() : 'a sound'}`,
+  silence: () => 'turn all the sounds off',
   mix: (d) => `play the ${d && d.name ? d.name : 'mix'} mix`,
   task: (d) => `add the task “${String(d || '').slice(0, 60)}”`,
   done: (d) => `tick off “${(tasks.find((t) => t.id === d) || { title: 'a task' }).title.slice(0, 60)}”`,
   message: (d) => String(d || '').slice(0, 140),
 };
+
+// A short explanation for a guest's tap that can't do anything.
+function guestNote(icon, title, body = '') {
+  toast({ icon, title, body, duration: 2600, key: 'party-ask' });
+}
 
 // A guest's tap. Their own app explains the host's rules up front (the host's
 // app enforces them anyway), so nothing is sent that would only be refused.
@@ -675,6 +695,9 @@ function doRequest(kind, data) {
     if (timer.mode === 'focus') el.skip.click();
   } else if (kind === 'sound' && data && audio.ambientKinds.includes(data.kind)) {
     if (Boolean(data.on) !== Boolean(sound.mix[data.kind] && sound.mix[data.kind].on)) setSound(data.kind, Boolean(data.on));
+  } else if (kind === 'silence') {
+    activeKinds().forEach((k) => setSound(k, false));
+    afterSoundChange();
   } else if (kind === 'mix' && data) {
     const m = allMixes().find((x) => x.id === data.id);
     if (m) applyMix(m, el.mixes);
@@ -685,6 +708,7 @@ function doRequest(kind, data) {
 // What an Add guest just did, for the host's quiet heads-up.
 const DID_TEXT = {
   sound: (d) => `${d && d.on ? 'turned on' : 'turned off'} ${SOUND_INFO[d && d.kind] ? SOUND_INFO[d.kind].name.toLowerCase() : 'a sound'}`,
+  silence: () => 'turned all the sounds off',
   mix: (d) => `played the ${d && d.name ? String(d.name).slice(0, 40) : ''} mix`,
   task: (d) => `added “${String(d || '').slice(0, 60)}”`,
   done: (d) => {
@@ -699,6 +723,13 @@ function onPartyRequest(g, r) {
   const rec = guestRec(g.id);
   const rules = settings.partyRules;
   const group = REQ_GROUP[r.kind];
+  // What guests typed goes through the language filter; a mix is named by
+  // the host's own list, never by what the guest says it's called.
+  if ((r.kind === 'task' || r.kind === 'message') && typeof r.data === 'string') r.data = tidy(r.data);
+  if (r.kind === 'mix') {
+    const m = r.data && allMixes().find((x) => x.id === r.data.id);
+    r.data = m ? { id: m.id, name: m.name } : null;
+  }
   const now = Date.now();
   const no = (text, wait = 0) => P.ctl.answer(g.id, r.id, false, text, { auto: true, wait });
   if (!group) return;
@@ -715,6 +746,7 @@ function onPartyRequest(g, r) {
     const d = r.data;
     const valid = {
       sound: () => d && audio.ambientKinds.includes(d.kind),
+      silence: () => activeKinds().length > 0,
       mix: () => d && allMixes().some((m) => m.id === d.id),
       task: () => typeof d === 'string' && d.trim(),
       done: () => tasks.some((t) => t.id === d),
@@ -775,7 +807,7 @@ function onPartyRequest(g, r) {
 // Guests' taps on the controls turn into requests (capture phase, before the app's own handlers).
 document.addEventListener('click', (e) => {
   if (!P || P.role !== 'guest') return;
-  const t = e.target.closest('#btn-toggle, #mini-toggle, #btn-skip, #btn-reset, .mode-tab, #btn-extend, .chip[data-sound], .mix-card, .task-check, .task-delete, .add-btn, #btn-flow-break');
+  const t = e.target.closest('#btn-toggle, #mini-toggle, #btn-skip, #btn-reset, .mode-tab, #btn-extend, .chip[data-sound], .mix-card, .mix-remove, .mix-orbit, .task-check, .task-delete, .add-btn, #btn-flow-break');
   if (!t) return;
   e.preventDefault();
   e.stopImmediatePropagation();
@@ -786,11 +818,18 @@ document.addEventListener('click', (e) => {
   else if (t.matches('#btn-extend')) askHost('more', 1);
   else if (t.matches('.chip[data-sound]')) {
     const k = t.dataset.sound;
-    if (k !== 'off') askHost('sound', { kind: k, on: !(sound.mix[k] && sound.mix[k].on) });
-  } else if (t.matches('.mix-card')) {
+    if (k === 'off') {
+      if (activeKinds().length) askHost('silence');
+      else guestNote('🔇', 'Nothing is playing');
+    } else askHost('sound', { kind: k, on: !(sound.mix[k] && sound.mix[k].on) });
+  } else if (t.matches('.mix-remove')) askHost('sound', { kind: t.closest('.mix-row').dataset.kind, on: false });
+  else if (t.matches('.mix-orbit')) guestNote('🎧', `${P.hostName} places the sounds`, 'Use the volume slider to make them quieter for you.');
+  else if (t.matches('.mix-card')) {
     const m = allMixes().find((x) => x.id === t.dataset.mix);
-    if (m && !m.custom) askHost('mix', { id: m.id, name: m.name });
+    if (m && m.custom) guestNote('🎚️', "Your own mixes stay yours", `Ask ${P.hostName} for one of the built-in mixes, or for single sounds.`);
+    else if (m) askHost('mix', { id: m.id, name: m.name });
   } else if (t.matches('.task-check')) askHost('done', t.closest('.task').dataset.id);
+  else if (t.matches('.task-delete')) guestNote('🗑️', `Only ${P.hostName} can delete tasks`);
   else if (t.matches('.add-btn')) {
     const title = el.taskInput.value.trim();
     if (title) {
@@ -813,7 +852,7 @@ window.addEventListener('keydown', (e) => {
   if (!P || P.role !== 'guest' || e.metaKey || e.ctrlKey || e.altKey || $('dialog[open]')) return;
   if (/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
   const key = e.key.toLowerCase();
-  const map = { ' ': () => askHost('toggle', timer.running ? 'pause' : 'start'), s: () => askHost('skip'), r: () => askHost('reset'), 1: () => askHost('mode', 'focus'), 2: () => askHost('mode', 'short'), 3: () => askHost('mode', 'long'), '+': () => askHost('more', 1), '=': () => askHost('more', 1) };
+  const map = { ' ': () => askHost('toggle', timer.running ? 'pause' : 'start'), s: () => askHost('skip'), r: () => askHost('reset'), 1: () => askHost('mode', 'focus'), 2: () => askHost('mode', 'short'), 3: () => askHost('mode', 'long'), '+': () => askHost('more', 1), '=': () => askHost('more', 1), m: () => (activeKinds().length ? askHost('silence') : guestNote('🔇', 'Nothing is playing')) };
   if (!map[key] || e.repeat) return;
   e.preventDefault();
   e.stopImmediatePropagation();
@@ -870,6 +909,10 @@ $('#party-body').addEventListener('change', (e) => {
   if (t.id === 'party-default-role' && ROLE_IDS.includes(t.value)) settings.partyRules.role = t.value;
   else if (t.closest('.party-allow') && t.name in GROUPS) settings.partyRules[t.name] = t.checked;
   else if (t.id === 'party-cooldown') settings.partyRules = cleanRules({ ...settings.partyRules, cooldown: Number(t.value) });
+  else if (t.id === 'party-filter') {
+    settings.partyRules.filter = t.checked;
+    queuePartyBroadcast(); // the host's task names go out filtered (or not) from now on
+  }
   else return;
   save();
   shareAccess();
@@ -3655,6 +3698,8 @@ function renderMixer() {
       slider.className = 'mix-vol';
       slider.style.setProperty('--fill', `${slider.value}%`);
       slider.setAttribute('aria-label', `${SOUND_INFO[k].name} volume`);
+      // In a party the host sets each sound; a guest's own volume is the main slider.
+      slider.disabled = isGuest();
       const remove = document.createElement('button');
       remove.type = 'button';
       remove.className = 'mix-remove pressable';
@@ -4152,9 +4197,17 @@ el.mixList.addEventListener('click', (e) => {
   setSound(btn.closest('.mix-row').dataset.kind, false);
 });
 
+// A party guest hears the sounds where the host put them.
+function guestRoomNote(e) {
+  if (!isGuest() || !e.target.closest('.orb')) return false;
+  e.preventDefault();
+  guestNote('🎧', `${P.hostName} places the sounds`, 'Use the volume slider to make them quieter for you.');
+  return true;
+}
+
 el.room.addEventListener('pointerdown', (e) => {
   const orb = e.target.closest('.orb');
-  if (!orb || e.button > 0) return;
+  if (!orb || e.button > 0 || guestRoomNote(e)) return;
   e.preventDefault();
   const k = orb.dataset.kind;
   orb.setPointerCapture(e.pointerId);
@@ -4186,7 +4239,7 @@ el.room.addEventListener('pointerdown', (e) => {
 
 el.room.addEventListener('dblclick', (e) => {
   const orb = e.target.closest('.orb');
-  if (!orb) return;
+  if (!orb || isGuest()) return;
   const [dx, dz] = audio.defaultAnchor(orb.dataset.kind);
   moveSound(orb.dataset.kind, dx, dz);
   fx.pop(orb, 1.25);
@@ -4197,7 +4250,7 @@ el.room.addEventListener('dblclick', (e) => {
 el.room.addEventListener('keydown', (e) => {
   const orb = e.target.closest('.orb');
   const step = { ArrowLeft: [-0.3, 0], ArrowRight: [0.3, 0], ArrowUp: [0, -0.3], ArrowDown: [0, 0.3] }[e.key];
-  if (!orb || !step) return;
+  if (!orb || !step || guestRoomNote(e)) return;
   e.preventDefault();
   const m = sound.mix[orb.dataset.kind];
   moveSound(orb.dataset.kind, m.x + step[0], m.z + step[1]);
@@ -4632,6 +4685,7 @@ statTabs.forEach((t, i) => {
 
 // What's new: the newest first. Bump `id` when adding an entry.
 const CHANGES = [
+  { id: 27, icon: '🧼', text: 'Parties now have a language filter: bad words in names, tasks and messages are starred out (the host can turn it off). And as a guest, Off, the mixer ✕ and M now work: they ask the host, or just turn sounds off if you can add things.' },
   { id: 26, icon: '🛡️', text: 'Party roles: as the host, pick what each guest can do. Watch (just follow along), Ask (send you requests) or Add (add tasks and sounds themselves). Choose what guests can ask about and how long they wait between requests, and remove anyone who spams.' },
   { id: 25, icon: '🔒', text: 'Private parties now connect on any network: everything goes through encrypted relays, so nobody ever sees your IP address. Guests asking for +1 minute now ask for 1 minute (not 5), and sounds are smoother on Android phones.' },
   { id: 24, icon: '🔊', text: 'Button sounds now work on phones, and on iPhone they play even with the silent switch on (you can turn that off in Settings > Sound).' },

@@ -2385,6 +2385,8 @@ body.is-guest.party-watch .controls { opacity: .62; }
 .party-you div span { display: block; font-size: 13.5px; color: var(--ink-2); }
 .party-wait { min-height: 1.4em; margin: 8px 0 10px; font-size: 13.5px; font-weight: 600; color: var(--ink-2); }
 .party-wait:empty { min-height: 0; margin: 4px 0; }
+.party-rules .switch { padding: 2px 0; font-size: 14.5px; }
+body.is-guest .mix-vol:disabled { opacity: .45; cursor: not-allowed; }
 
 /* Phones: keep the timer, its task, the break idea and the intention close
    together so they fit above the tab bar. */

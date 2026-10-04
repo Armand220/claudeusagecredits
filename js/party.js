@@ -33,7 +33,7 @@ const ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'; // no 0/O, 1/I/L
 export const CODE_LENGTH = 8;
 export const MAX_GUESTS = 12;
 const PROTOCOL = 2;
-const REQUEST_KINDS = ['toggle', 'skip', 'reset', 'mode', 'more', 'sound', 'mix', 'task', 'done', 'message', 'break'];
+const REQUEST_KINDS = ['toggle', 'skip', 'reset', 'mode', 'more', 'sound', 'silence', 'mix', 'task', 'done', 'message', 'break'];
 
 export const supported =
   typeof RTCPeerConnection === 'function' && typeof WebSocket === 'function' && Boolean(globalThis.crypto && crypto.subtle);
@@ -393,7 +393,8 @@ function dedupe() {
  * - direct: a WebRTC connection, a little faster, but the two devices learn
  *   each other's addresses. Only when both host and guest turned privacy off.
  *
- * hooks: getState() → the state to share; accessFor(guest) → what a new
+ * hooks: getState() → the state to share; cleanName(name) → the name to use
+ * for a guest (e.g. with bad language starred out); accessFor(guest) → what a new
  * guest may do (sent to them, and their role shown to everyone);
  * onJoin(guest), onLeave(guest), onRequest(guest, request), onSignal(online).
  * The host's app enforces the rules: a guest's own app only mirrors them.
@@ -445,7 +446,7 @@ export async function host(name, hooks, { private: privately = true } = {}) {
     if (!m || typeof m !== 'object' || g.removed) return;
     g.lastSeen = Date.now();
     if (m.t === 'hello' && !g.ready) {
-      g.name = str(m.name, 24) || 'Guest';
+      g.name = (hooks.cleanName ? hooks.cleanName(str(m.name, 24)) : str(m.name, 24)) || 'Guest';
       g.access = hooks.accessFor ? hooks.accessFor(g) : null;
       g.ready = true;
       welcome(g);

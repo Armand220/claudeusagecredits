@@ -51,6 +51,14 @@ installed as an app on your phone or computer.
   messages) and the role new guests start with, and can remove anyone. The
   rules are checked on the host's device, so a tampered app can't get round
   them; past 10 requests in 10 s, the rest are dropped unseen
+- **Language filter** (on by default, the host can turn it off): bad words in
+  names, tasks and messages are starred out (`****`). It sees through
+  capitals, accents, l33t spelling (`sh1t`), stretched letters (`fuuuck`) and
+  spaced-out letters (`f u c k`), but leaves ordinary words alone (class,
+  assess, cocktail, Scunthorpe). The word list is in `js/filter.js`
+- Guests' **Off** button, the mixer's ✕ and the M key ask the host to turn
+  sounds off (or just do it, for Add guests). Each guest's own volume slider
+  stays theirs
 - Guests' focus sessions still count in their own stats, and their own timer,
   tasks and sounds come back when they leave
 - **Private by design**: devices connect peer to peer (WebRTC). They meet
@@ -179,6 +187,7 @@ Plain HTML, CSS and JavaScript modules, with no build step and no dependencies.
 - `js/share.js`: the shareable image of your day
 - `js/party.js`: focus parties (WebRTC, a tiny MQTT client for encrypted
   signaling over public brokers, relay-only privacy)
+- `js/filter.js`: the party language filter
 - `js/photo.js`: your background photo (stored in IndexedDB)
 - `sw.js`, `manifest.webmanifest`: offline support and app install
 
