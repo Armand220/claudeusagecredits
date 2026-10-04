@@ -1,13 +1,13 @@
-import * as audio from './audio.js?v=76';
-import * as fx from './fx.js?v=76';
-import { toast, rehome as rehomeToasts } from './toast.js?v=76';
-import * as effects from './effects.js?v=76';
-import * as scenery from './scenery.js?v=76';
-import * as pip from './pip.js?v=76';
-import { shareCard, makeCardFile } from './share.js?v=76';
-import * as party from './party.js?v=76';
-import { clean as cleanWords } from './filter.js?v=76';
-import * as photo from './photo.js?v=76';
+import * as audio from './audio.js?v=77';
+import * as fx from './fx.js?v=77';
+import { toast, rehome as rehomeToasts } from './toast.js?v=77';
+import * as effects from './effects.js?v=77';
+import * as scenery from './scenery.js?v=77';
+import * as pip from './pip.js?v=77';
+import { shareCard, makeCardFile } from './share.js?v=77';
+import * as party from './party.js?v=77';
+import { clean as cleanWords } from './filter.js?v=77';
+import * as photo from './photo.js?v=77';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -179,6 +179,12 @@ function cleanCounters(raw) {
   // Days (todayKey) when the intention was ticked off.
   out.intentionDays = Array.isArray(out.intentionDays) ? out.intentionDays.filter((d) => typeof d === 'string').slice(-400) : [];
   out.paletteRuns = clampInt(out.paletteRuns, 0, 1e6, 0);
+  // Streak freezes: how many are held (at most 2), the days they covered,
+  // the day the last one was earned, and the best streak so far.
+  out.freezes = clampInt(out.freezes, 0, 2, 0);
+  out.frozenDays = Array.isArray(out.frozenDays) ? out.frozenDays.filter((d) => typeof d === 'string').slice(-60) : [];
+  out.freezeEarned = typeof out.freezeEarned === 'string' ? out.freezeEarned : '';
+  out.bestStreak = clampInt(out.bestStreak, 0, 1e5, 0);
   // Which colour each #tag got, so tags keep their colours.
   out.tagColors = Object.fromEntries(
     Object.entries(obj(out.tagColors))
@@ -2515,7 +2521,8 @@ function dayTotals(date) {
 }
 
 function streakDays() {
-  const active = new Set(history.filter((h) => h.m > 0).map((h) => dayKey(new Date(h.t))));
+  // Days with focus, plus days a freeze covered.
+  const active = new Set([...history.filter((h) => h.m > 0).map((h) => dayKey(new Date(h.t))), ...counters.frozenDays]);
   const d = new Date();
   d.setHours(0, 0, 0, 0);
   if (!active.has(dayKey(d))) d.setDate(d.getDate() - 1);
@@ -2534,7 +2541,56 @@ function goalProgress(totals = dayTotals(new Date())) {
     : { value: totals.s, target: settings.goal, unit: 'focus sessions' };
 }
 
+// The streak flame: spends a freeze on a single missed day, earns one every
+// 7 days (at most 2 held), and shows on the main screen from 2 days on.
+function renderStreak() {
+  const day = (offset) => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    d.setDate(d.getDate() + offset);
+    return dayKey(d);
+  };
+  const focused = new Set(history.filter((h) => h.m > 0).map((h) => dayKey(new Date(h.t))));
+  const covered = (k) => focused.has(k) || counters.frozenDays.includes(k);
+  if (counters.freezes > 0 && !covered(day(-1)) && covered(day(-2))) {
+    counters.freezes -= 1;
+    counters.frozenDays.push(day(-1));
+    toast({ icon: '❄️', title: 'A streak freeze covered yesterday', body: 'Your streak is safe. Focus today to keep it going.', duration: 5000 });
+    save();
+  }
+  const n = streakDays();
+  if (n > 0 && n % 7 === 0 && focused.has(day(0)) && counters.freezeEarned !== day(0) && counters.freezes < 2) {
+    counters.freezes += 1;
+    counters.freezeEarned = day(0);
+    toast({ icon: '❄️', title: `${n} days in a row: you earned a streak freeze`, body: 'It covers a day you miss, so your streak survives.', duration: 5000 });
+    save();
+  }
+  counters.bestStreak = Math.max(counters.bestStreak, n);
+  const pill = $('#streak-pill');
+  pill.hidden = n < 2;
+  pill.dataset.tier = n >= 30 ? 'violet' : n >= 14 ? 'blue' : n >= 7 ? 'orange' : 'ember';
+  $('#streak-count').textContent = String(n);
+  const freezes = counters.freezes ? `, ${counters.freezes} streak ${counters.freezes === 1 ? 'freeze' : 'freezes'}` : '';
+  pill.setAttribute('aria-label', `${n}-day streak${freezes}`);
+  pill.title = `${n}-day streak${freezes}`;
+}
+
+$('#streak-pill').addEventListener('click', (e) => {
+  audio.sfx('tap', e.currentTarget);
+  fx.pop(e.currentTarget, 1.08);
+  const n = streakDays();
+  const f = counters.freezes;
+  toast({
+    icon: '🔥',
+    title: `${n}-day streak · best ${Math.max(n, counters.bestStreak)}`,
+    body: `${f ? `❄️ ${f} streak ${f === 1 ? 'freeze' : 'freezes'} held: a day you miss won't break it.` : 'Every 7 days in a row earns a ❄️ freeze that covers a missed day.'}`,
+    duration: 5000,
+    key: 'streak',
+  });
+});
+
 function renderGoal() {
+  renderStreak();
   const { value, target, unit } = goalProgress();
   const f = Math.min(1, value / target);
   el.goalFill.style.strokeDasharray = `${GOAL_C}`;
@@ -2660,13 +2716,7 @@ function renderStats() {
     days.push({ date: d, m: v.m, s: v.s, today: i === 0 });
   }
 
-  const cursor = new Date(today);
-  if (!(todayStats.m > 0)) cursor.setDate(cursor.getDate() - 1);
-  let streak = 0;
-  while ((byDay.get(dayKey(cursor)) || { m: 0 }).m > 0) {
-    streak += 1;
-    cursor.setDate(cursor.getDate() - 1);
-  }
+  const streak = streakDays();
 
   const week = days.reduce((n, d) => n + d.m, 0);
   const total = history.reduce((n, h) => n + h.m, 0);
@@ -4777,6 +4827,7 @@ statTabs.forEach((t, i) => {
 
 // What's new: the newest first. Bump `id` when adding an entry.
 const CHANGES = [
+  { id: 32, icon: '🔥', text: 'Streak flame: your streak now shows at the top, changing colour as it grows. Every 7 days in a row earns a ❄️ freeze that covers a day you miss. Tap the flame for your best streak.' },
   { id: 31, icon: '📲', text: 'Comfier on small phones: a bigger timer dial, a tidier top bar and no sideways scrolling, down to the smallest iPhone.' },
   { id: 30, icon: '📱', text: 'Better on phones held sideways: the timer sits beside its controls and the tabs move to the right edge, so nothing is squashed or covered.' },
   { id: 29, icon: '✨', text: 'A fresh new look: the timer takes centre stage, and on a computer Sounds and Tasks live in one side panel you switch with the buttons on the right. Sounds are now picture tiles, and everything is a little calmer and quicker.' },

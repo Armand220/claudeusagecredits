@@ -40,6 +40,11 @@ tabs standing up on the right edge.
 - **Floating mini timer** that stays on top of other windows (`P`)
 - The browser tab icon becomes a little progress ring
 
+**Streak flame**: from 2 days in a row, a 🔥 with your streak sits in the top
+bar. It glows ember, then orange at a week, blue at two weeks and violet at a
+month. Every 7 days in a row earns a ❄️ freeze (up to 2), which is spent by
+itself to cover a single missed day. Tap it for your best streak.
+
 **Focus party** (focus together, live)
 - Tap **🎉 Party** to host: you get a random code like `K7QX-2M9P` and an
   invite link. Everyone who joins shares your timer (ending at the same

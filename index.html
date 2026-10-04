@@ -23,7 +23,7 @@
   <!-- Fonts load without blocking the first paint. -->
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..700&family=Outfit:wght@200..700&display=swap" media="print" onload="this.media='all'">
   <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..700&family=Outfit:wght@200..700&display=swap"></noscript>
-  <link rel="stylesheet" href="styles.css?v=76">
+  <link rel="stylesheet" href="styles.css?v=77">
 </head>
 <body data-mode="focus">
   <div class="photo-bg" aria-hidden="true"></div>
@@ -41,6 +41,7 @@
           <span>Tempo</span>
         </a>
       </h1>
+      <button class="streak-pill pressable" id="streak-pill" type="button" hidden><span class="streak-flame" aria-hidden="true">🔥</span><span id="streak-count">0</span></button>
       <button class="goal-pill pressable" id="goal-pill" type="button" aria-label="Daily goal">
         <svg class="goal-ring" width="26" height="26" viewBox="0 0 36 36" aria-hidden="true">
           <circle class="goal-track" cx="18" cy="18" r="15"/>
@@ -648,6 +649,6 @@
     </div>
   </dialog>
 
-  <script type="module" src="js/app.js?v=76"></script>
+  <script type="module" src="js/app.js?v=77"></script>
 </body>
 </html>
