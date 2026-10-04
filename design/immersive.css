@@ -1,0 +1,625 @@
+/* ==========================================================================
+   Tempo · Direction B — "Immersive focus stage"
+   Load AFTER styles.css. The timer is the stage: no card, a frosted lens
+   behind the dial, scenery all around. Sounds and Tasks live in one dock
+   (a drawer on the right) switched by a rail that reuses the phone's
+   bottom nav and body[data-view]. The page itself never scrolls on desktop.
+   ========================================================================== */
+
+/* ------------------------------------------------------------------ Tokens */
+
+:root {
+  --dock-w: 404px;
+  --rail-w: 72px;
+  --top-h: 64px;
+  --dock-bg: rgb(255 252 250 / 74%);
+  --dock-border: rgb(255 255 255 / 85%);
+  --dock-shadow: 0 1px 2px rgb(60 30 10 / 6%), 0 24px 60px -24px rgb(60 30 10 / 28%);
+  --tile: rgb(255 255 255 / 62%);
+  --tile-hover: rgb(255 255 255 / 92%);
+  --stage-glass: rgb(255 255 255 / 52%);
+  --stage-border: rgb(255 255 255 / 70%);
+  --lens-top: rgb(255 255 255 / 58%);
+  --lens-bottom: rgb(255 255 255 / 22%);
+  --lens-edge: rgb(255 255 255 / 85%);
+  --lens-shadow: rgb(120 50 20 / 22%);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --dock-bg: rgb(26 20 23 / 76%);
+    --dock-border: rgb(255 255 255 / 9%);
+    --dock-shadow: 0 1px 2px rgb(0 0 0 / 40%), 0 30px 70px -24px rgb(0 0 0 / 70%);
+    --tile: rgb(255 255 255 / 5.5%);
+    --tile-hover: rgb(255 255 255 / 10%);
+    --stage-glass: rgb(28 21 24 / 55%);
+    --stage-border: rgb(255 255 255 / 9%);
+    --lens-top: rgb(40 30 34 / 55%);
+    --lens-bottom: rgb(16 11 13 / 30%);
+    --lens-edge: rgb(255 255 255 / 10%);
+    --lens-shadow: rgb(0 0 0 / 55%);
+  }
+}
+:root[data-theme="dark"] {
+  --dock-bg: rgb(26 20 23 / 76%);
+  --dock-border: rgb(255 255 255 / 9%);
+  --dock-shadow: 0 1px 2px rgb(0 0 0 / 40%), 0 30px 70px -24px rgb(0 0 0 / 70%);
+  --tile: rgb(255 255 255 / 5.5%);
+  --tile-hover: rgb(255 255 255 / 10%);
+  --stage-glass: rgb(28 21 24 / 55%);
+  --stage-border: rgb(255 255 255 / 9%);
+  --lens-top: rgb(40 30 34 / 55%);
+  --lens-bottom: rgb(16 11 13 / 30%);
+  --lens-edge: rgb(255 255 255 / 10%);
+  --lens-shadow: rgb(0 0 0 / 55%);
+}
+
+/* ----------------------------------------------------------- The stage */
+
+.timer-card {
+  --dial: min(340px, 76vw);
+  background: none;
+  border-color: transparent;
+  box-shadow: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+.timer-card::before { display: none; }
+
+/* Mode switch: one quiet glass pill. */
+.timer-card .modes {
+  max-width: 372px;
+  background: var(--stage-glass);
+  border: 1px solid var(--stage-border);
+  -webkit-backdrop-filter: blur(18px) saturate(160%);
+  backdrop-filter: blur(18px) saturate(160%);
+  box-shadow: var(--shadow-sm);
+}
+
+/* The dial sits on a frosted lens, so the digits stay crisp over any scene. */
+.dial { width: var(--dial); }
+.dial::before {
+  content: "";
+  position: absolute;
+  inset: 3%;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 30%, var(--lens-top), var(--lens-bottom) 75%);
+  -webkit-backdrop-filter: blur(22px) saturate(150%);
+  backdrop-filter: blur(22px) saturate(150%);
+  box-shadow: inset 0 1px 0 var(--lens-edge), inset 0 0 0 1px color-mix(in srgb, var(--lens-edge) 50%, transparent), 0 40px 80px -40px var(--lens-shadow);
+  pointer-events: none;
+}
+.time { font-size: calc(var(--dial) * .245); font-weight: 220; }
+/* 100+ minute sessions ("120:00") get a slightly smaller face so they never touch the ticks. */
+.time:has(span:nth-child(6)) { font-size: calc(var(--dial) * .2); }
+.session-label { font-size: max(13px, calc(var(--dial) * .036)); }
+
+/* Pills under the digits: one consistent, smaller family. */
+.extend-btn {
+  padding: 3px 10px;
+  border-color: transparent;
+  background: color-mix(in srgb, var(--surface) 70%, transparent);
+  box-shadow: 0 0 0 1px var(--line);
+}
+
+/* Things under the controls share one glass pill style. */
+.timer-card .current-task {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: center;
+  gap: 2px 10px;
+  margin-top: 20px;
+  padding: 9px 18px;
+  border: 1px solid var(--stage-border);
+  border-radius: 999px;
+  background: var(--stage-glass);
+  -webkit-backdrop-filter: blur(18px) saturate(160%);
+  backdrop-filter: blur(18px) saturate(160%);
+  box-shadow: var(--shadow-sm);
+}
+.timer-card .current-task-kicker,
+.timer-card .current-task-title { display: inline; }
+.timer-card .current-task-title .tag { margin-left: 4px; }
+
+.timer-card .break-idea,
+.timer-card .intention {
+  border: 1px solid var(--stage-border);
+  background: var(--stage-glass);
+  -webkit-backdrop-filter: blur(18px) saturate(160%);
+  backdrop-filter: blur(18px) saturate(160%);
+}
+.timer-card .break-idea { border-radius: 999px; margin-top: 12px; }
+.timer-card .intention { margin-top: 10px; border-style: solid; }
+.timer-card .intention:not(.is-set):not(:focus-within) { border-style: dashed; border-color: color-mix(in srgb, var(--ink-3) 40%, transparent); }
+.timer-card .intention.is-set:not(:focus-within) {
+  border-color: var(--stage-border);
+  background: color-mix(in srgb, var(--accent) 9%, var(--stage-glass));
+}
+.timer-card .intention:focus-within { background: var(--surface); border-color: var(--accent); }
+
+.round-btn {
+  background: var(--stage-glass);
+  border-color: var(--stage-border);
+  -webkit-backdrop-filter: blur(16px) saturate(160%);
+  backdrop-filter: blur(16px) saturate(160%);
+}
+.zen-btn {
+  background: var(--stage-glass);
+  border-color: var(--stage-border);
+  -webkit-backdrop-filter: blur(16px) saturate(160%);
+  backdrop-filter: blur(16px) saturate(160%);
+}
+
+/* Zen keeps working as before: the stage simply loses its furniture. */
+body.is-zen .timer-card .modes { display: none; }
+body.is-zen .timer-card .current-task,
+body.is-zen .timer-card .break-idea,
+body.is-zen .timer-card .intention { border-color: transparent; background: transparent; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; }
+body.is-zen .timer-card { --dial: min(64vmin, calc(100dvh - 300px), 620px); }
+body.is-zen .timer-card .intention.is-set:not(:focus-within) { border-color: transparent; background: transparent; }
+body.is-zen .time { font-size: calc(var(--dial) * .245); }
+
+/* ----------------------------------------------- Sound tiles (all sizes) */
+
+.sounds-panel .panel-head { margin-bottom: 8px; }
+.sound-groups { position: relative; gap: 12px; }
+.chip-group { grid-template-columns: minmax(0, 1fr); gap: 7px; }
+.chip-group-label { padding: 0 2px; line-height: 22px; }
+.sound-groups .chip-group .chips {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 6px;
+}
+.sound-groups .chip-group .chip {
+  position: relative;
+  display: grid;
+  grid-template-rows: auto auto;
+  justify-items: center;
+  align-content: start;
+  gap: 5px;
+  min-width: 0;
+  min-height: 66px;
+  padding: 10px 3px 7px;
+  border: 1px solid transparent;
+  border-radius: 16px;
+  background: var(--tile);
+  color: var(--ink-2);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.2;
+  text-align: center;
+  overflow-wrap: break-word;
+  hyphens: manual;
+  box-shadow: none;
+}
+.sound-groups .chip-group .chip:hover {
+  background: var(--tile-hover);
+  border-color: color-mix(in srgb, var(--accent) 35%, transparent);
+  color: var(--ink);
+}
+.sound-groups .chip-group .chip[aria-pressed="true"] {
+  background: color-mix(in srgb, var(--accent) 13%, var(--tile-hover));
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent), 0 8px 18px -10px color-mix(in srgb, var(--accent) 70%, transparent);
+  color: var(--ink);
+}
+.chip-icon {
+  display: block;
+  font-size: 22px;
+  line-height: 1;
+  transition: transform .45s var(--spring-strong);
+}
+.chip:hover .chip-icon { transform: translateY(-2px) scale(1.1); }
+.chip[aria-pressed="false"] .chip-icon { filter: saturate(.75); }
+.chip-label { display: block; max-width: 100%; }
+.sound-groups .chip-group .chip .eq {
+  position: absolute;
+  top: 7px;
+  right: 7px;
+  width: 10px;
+  height: 10px;
+  color: var(--accent-strong);
+}
+.sound-groups .chip-group .chip .eq i { width: 2.5px; }
+
+/* "Off" becomes a small pill on the Nature heading line. */
+.sound-groups .chips-off {
+  position: absolute;
+  top: -1px;
+  right: 0;
+  z-index: 2;
+  display: block;
+  margin: 0;
+}
+.chips-off .chip {
+  gap: 5px;
+  padding: 2px 10px 2px 7px;
+  border-color: transparent;
+  background: var(--tile);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.chips-off .chip .chip-icon { font-size: 12px; }
+.chips-off .chip[aria-pressed="true"] {
+  background: var(--tile);
+  color: var(--ink);
+  box-shadow: inset 0 0 0 1px var(--ink-3);
+}
+.chips-off .chip[aria-pressed="false"]:hover { color: var(--danger); }
+
+/* Ready-made mixes: compact cards on the same tile surface. */
+.mixes { gap: 6px; margin-bottom: 10px; }
+.mix-card {
+  min-width: 74px;
+  padding: 8px 8px 7px;
+  border-color: transparent;
+  border-radius: 14px;
+  background: var(--tile);
+  font-size: 11.5px;
+}
+.mix-card:hover { background: var(--tile-hover); }
+.mix-card.mix-surprise { border: 1px dashed color-mix(in srgb, var(--ink-3) 55%, transparent); background: transparent; }
+.mix-icon { font-size: 20px; }
+
+/* Now playing: the room is a compact visual beside the per-sound controls. */
+.mixer {
+  grid-template-columns: 152px minmax(0, 1fr);
+  grid-template-rows: auto 1fr;
+  grid-template-areas: "room list" "room tools";
+  align-items: start;
+  gap: 12px 14px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+.mix-list { grid-area: list; gap: 6px; }
+.mixer-tools { grid-area: tools; justify-content: flex-start; gap: 2px 4px; }
+.mix-actions { gap: 0; margin-left: -6px; }
+.mix-actions .text-btn { padding: 5px 6px; font-size: 12.5px; }
+.save-mix { width: 100%; }
+.save-mix input { flex: 1; min-width: 0; width: auto; height: 32px; }
+.sleep { gap: 5px; font-size: 12.5px; }
+.sleep select { height: 30px; padding: 0 6px; background: var(--tile); font-size: 12.5px; }
+.mix-row {
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-areas: "name orbit remove" "vol vol vol";
+  gap: 0 2px;
+  padding: 3px 3px 9px 10px;
+  border: 0;
+  border-radius: 14px;
+  background: var(--tile);
+}
+.mix-name { grid-area: name; font-size: 13px; }
+.mix-row .mix-orbit,
+.mix-row .mix-note { grid-area: orbit; }
+.mix-row .mix-remove { grid-area: remove; }
+.mix-row .mix-orbit,
+.mix-row .mix-remove { width: 30px; height: 30px; }
+.mix-row .mix-vol { grid-area: vol; width: auto; margin: 2px 8px 0 0; }
+.mix-note { align-self: center; }
+
+.room {
+  grid-area: room;
+  width: 100%;
+  margin: 0;
+  background:
+    radial-gradient(circle, transparent 0 21%, var(--line) 21% calc(21% + 1px), transparent calc(21% + 1px) 43%, var(--line) 43% calc(43% + 1px), transparent calc(43% + 1px)),
+    radial-gradient(circle, var(--accent-soft), transparent 70%),
+    var(--tile);
+  border-color: var(--line);
+  box-shadow: inset 0 2px 10px rgb(0 0 0 / 5%);
+}
+.room .orb {
+  width: 30px;
+  height: 30px;
+  margin: -15px 0 0 -15px;
+  font-size: 15px;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 50%, transparent), 0 4px 10px -3px rgb(0 0 0 / 30%);
+}
+.room .orb::after { inset: -4px; }
+.room-you svg { width: 26px; height: 26px; }
+.room-you span { font-size: 9px; }
+.room-label { font-size: 9px; }
+.room-front { top: 5px; }
+.room-back { bottom: 4px; }
+.room-track { width: 28px; height: 28px; right: 2%; top: 2%; }
+.room-track svg { width: 15px; height: 15px; }
+.sounds-panel .hint { margin-top: 12px; font-size: 12.5px; }
+/* The how-to hint shows while nothing plays; once sounds are on, the room explains itself. */
+.mixer:not([hidden]) + .hint { display: none; }
+
+/* ------------------------------------------------- Tasks (all sizes) */
+
+.task-list { gap: 5px; }
+.task {
+  border-color: transparent;
+  background: var(--tile);
+}
+.task:hover { border-color: var(--line); background: var(--tile-hover); box-shadow: none; transform: none; }
+.task.is-active {
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  background: linear-gradient(90deg, var(--accent-soft), transparent 85%), var(--tile-hover);
+}
+.task-form input[type="text"], .est { background: var(--tile); }
+.task-summary { font-size: 13.5px; }
+
+/* ===================================================== Desktop: the stage */
+
+@media (min-width: 761px) {
+  .app {
+    max-width: none;
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+    min-height: 100dvh;
+    padding-bottom: max(16px, env(safe-area-inset-bottom));
+  }
+
+  /* A slimmer, quieter top bar. */
+  .topbar { height: var(--top-h); padding: 0 0 0 4px; }
+  .topbar .icon-btn,
+  .topbar .goal-pill {
+    border-color: transparent;
+    box-shadow: none;
+    background: color-mix(in srgb, var(--stage-glass) 85%, transparent);
+  }
+  .topbar .icon-btn:hover,
+  .topbar .goal-pill:hover { background: var(--dock-bg); border-color: var(--stage-border); }
+
+  .layout,
+  body[data-view] .layout {
+    position: relative;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) var(--dock-w);
+    grid-template-rows: minmax(0, 1fr);
+    align-items: stretch;
+    gap: 0 20px;
+    min-height: 0;
+    margin-right: calc(var(--rail-w) + 14px);
+    transition: grid-template-columns .55s var(--ease-out), column-gap .55s var(--ease-out);
+  }
+  body[data-view="timer"] .layout { grid-template-columns: minmax(0, 1fr) 0px; column-gap: 0; }
+
+  .layout > .timer-card {
+    --dial: clamp(260px, calc(100dvh - 420px), 480px);
+    position: relative;
+    top: auto;
+    grid-column: 1;
+    grid-row: 1;
+    align-self: center;
+    align-self: safe center;
+    justify-self: center;
+    width: min(100%, 620px);
+    padding: 0 0 8px;
+  }
+  .layout > .timer-card:has(#break-idea:not([hidden])) { --dial: clamp(240px, calc(100dvh - 480px), 480px); }
+  .layout > .timer-card .dial { margin: 22px 0 22px; }
+  .layout > .timer-card .zen-btn { top: 2px; right: 0; }
+  .layout > .timer-card .pip-btn { right: auto; left: 0; }
+
+  /* The dock: one glass drawer holding whichever section is open. */
+  .layout > .side {
+    grid-column: 2;
+    grid-row: 1;
+    justify-self: end;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    width: var(--dock-w);
+    min-height: 0;
+    overflow: hidden auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in srgb, var(--ink-3) 45%, transparent) transparent;
+    border: 1px solid var(--dock-border);
+    border-radius: 26px;
+    background: var(--dock-bg);
+    -webkit-backdrop-filter: blur(28px) saturate(170%);
+    backdrop-filter: blur(28px) saturate(170%);
+    box-shadow: var(--dock-shadow);
+    transition: opacity .35s ease, transform .55s var(--spring), visibility 0s;
+  }
+  body[data-view="timer"] .layout > .side {
+    opacity: 0;
+    transform: translateX(32px) scale(.98);
+    visibility: hidden;
+    pointer-events: none;
+    transition: opacity .2s ease, transform .35s var(--ease-out), visibility 0s .35s;
+  }
+  .layout > .side > .sounds-panel,
+  .layout > .side > .tasks-panel {
+    grid-column: auto;
+    grid-row: auto;
+    position: relative;
+    top: auto;
+    padding: 18px 18px 16px;
+    border: 0;
+    border-radius: 0;
+    background: none;
+    box-shadow: none;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+  .layout > .side > .card::before { display: none; }
+  body[data-view="sounds"] .side > .tasks-panel,
+  body[data-view="tasks"] .side > .sounds-panel,
+  body[data-view="timer"] .side > .sounds-panel { display: none; }
+  .side .panel-head { min-height: 34px; }
+  .side .panel h2 { font-size: 19px; }
+  .side .mixes { margin-inline: -18px; padding-inline: 18px; scroll-padding-inline: 18px; }
+  .side .shortcuts-hint {
+    margin-top: auto;
+    padding: 12px 18px 16px;
+    font-size: 12px;
+    line-height: 2.1;
+    border-top: 1px solid var(--line);
+  }
+
+  /* The rail: the phone's bottom nav, standing up on the right. */
+  .bottom-nav {
+    --i: 0;
+    position: fixed;
+    top: calc(max(12px, env(safe-area-inset-top)) + var(--top-h));
+    right: max(16px, env(safe-area-inset-right));
+    z-index: 50;
+    display: grid;
+    grid-template-rows: repeat(3, 66px);
+    width: var(--rail-w);
+    padding: 6px;
+    border: 1px solid var(--dock-border);
+    border-radius: 24px;
+    background: var(--dock-bg);
+    -webkit-backdrop-filter: blur(28px) saturate(170%);
+    backdrop-filter: blur(28px) saturate(170%);
+    box-shadow: var(--dock-shadow);
+  }
+  body:not(.is-ready) .bottom-nav { opacity: 0; transform: translateX(14px); }
+  .bottom-nav { transition: opacity .7s var(--ease-out), transform .8s var(--spring); }
+  .nav-indicator {
+    position: absolute;
+    top: 6px;
+    left: 6px;
+    right: 6px;
+    height: 66px;
+    border-radius: 18px;
+    background: var(--accent-soft);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 22%, transparent);
+    transform: translateY(calc(var(--i) * 100%));
+    transition: transform .5s var(--spring);
+  }
+  .nav-btn {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    justify-items: center;
+    align-content: center;
+    gap: 4px;
+    padding: 0;
+    border: 0;
+    border-radius: 18px;
+    background: none;
+    color: var(--ink-3);
+    font-size: 11.5px;
+    font-weight: 700;
+    transition: color .25s, transform .4s var(--spring-strong);
+  }
+  .nav-btn:hover { color: var(--ink); }
+  .nav-btn:active { transform: scale(.92); transition-duration: .08s; }
+  .nav-btn svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .nav-btn[aria-current="page"] { color: var(--ink); }
+  .nav-btn[aria-current="page"] svg { color: var(--accent-strong); }
+  .nav-badge {
+    position: absolute;
+    top: 6px;
+    left: calc(50% + 5px);
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    border-radius: 999px;
+    background: var(--accent-strong);
+    color: var(--on-accent);
+    font-size: 11px;
+    line-height: 18px;
+    text-align: center;
+  }
+
+  /* Zen: just the stage. */
+  body.is-zen .app { display: block; }
+  body.is-zen .bottom-nav { display: none; }
+  body.is-zen[data-view] .layout { grid-template-columns: minmax(0, 1fr); margin-right: 0; }
+  body.is-zen .layout > .timer-card { --dial: min(64vmin, calc(100dvh - 300px), 620px); width: 100%; }
+  body.is-zen .layout > .timer-card .zen-btn { top: max(16px, env(safe-area-inset-top)); right: max(16px, env(safe-area-inset-right)); }
+}
+
+/* Tall enough: the page is exactly one screen and only the dock scrolls. */
+@media (min-width: 761px) and (min-height: 600px) {
+  .app { height: 100dvh; }
+}
+/* Short windows: the page scrolls, the dock stays in view. */
+@media (min-width: 761px) and (max-height: 599px) {
+  .layout > .side { position: sticky; top: 12px; align-self: start; max-height: calc(100dvh - 24px); }
+}
+
+/* Laptops and tablets in landscape: a narrower dock. */
+@media (min-width: 761px) and (max-width: 1199px) {
+  :root { --dock-w: 360px; }
+  .side .sound-groups .chip-group .chips { gap: 5px; }
+}
+@media (min-width: 761px) and (max-width: 1099px) {
+  .layout > .timer-card .zen-btn { top: 58px; }
+}
+/* Narrow windows: the dock floats over the stage instead of squeezing it. */
+@media (min-width: 761px) and (max-width: 959px) {
+  .layout,
+  body[data-view] .layout { grid-template-columns: minmax(0, 1fr); column-gap: 0; }
+  .layout > .side {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 20;
+    box-shadow: 0 30px 80px -20px rgb(0 0 0 / 40%);
+  }
+}
+
+/* Wide screens: a little more room for the dial and the dock. */
+@media (min-width: 1600px) {
+  :root { --dock-w: 432px; }
+}
+
+/* ===================================================== Phones */
+
+@media (max-width: 760px) {
+  .timer-card { --dial: min(84vw, 340px, calc(100dvh - 450px)); padding: 6px 4px 10px; }
+  .timer-card .zen-btn { top: 64px; }
+  .timer-card .pip-btn { left: 4px; }
+  .timer-card .zen-btn:not(.pip-btn) { right: 4px; }
+  .timer-card .current-task { margin-top: 16px; padding: 8px 14px; }
+
+  /* Sounds and Tasks: one calm sheet each. */
+  .side > .panel {
+    border-color: var(--dock-border);
+    background: var(--dock-bg);
+    box-shadow: var(--dock-shadow);
+  }
+  .sounds-panel { padding: 16px 12px 16px; }
+  .sounds-panel .panel-head { padding-left: 4px; }
+  .sounds-panel .mixes { margin-inline: -12px; padding-inline: 12px; scroll-padding-inline: 12px; }
+  .sound-groups .chip-group .chips { gap: 5px; }
+  .sound-groups .chip-group .chip { min-height: 66px; padding-top: 10px; }
+  .chip-group-label { padding-left: 4px; }
+  .mixer { grid-template-columns: 136px minmax(0, 1fr); gap: 12px 10px; }
+  .bottom-nav { background: var(--dock-bg); border-color: var(--dock-border); }
+  .mini-bar { background: var(--dock-bg); }
+  .est { padding: 0 4px 0 10px; }
+  .est input { width: 28px; }
+}
+@media (max-width: 360px) {
+  .sound-groups .chip-group .chips { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .mixer { grid-template-columns: minmax(0, 1fr); grid-template-areas: "list" "room" "tools"; }
+  .room { max-width: 200px; justify-self: center; }
+}
+
+/* ===================================================== Dialogs (light polish) */
+
+.sheet { background: color-mix(in srgb, var(--surface) 86%, transparent); }
+.tile { border-color: transparent; background: color-mix(in srgb, var(--surface-2) 70%, var(--surface)); }
+
+/* ===================================================== Accessibility modes */
+
+@media (prefers-reduced-transparency: reduce) {
+  :root:root:root { --dock-bg: var(--surface); --tile: var(--surface-2); --tile-hover: var(--surface-2); --stage-glass: var(--surface); --lens-top: var(--surface); --lens-bottom: var(--surface); }
+  .layout > .side, .bottom-nav, .dial::before, .timer-card .modes, .timer-card .current-task,
+  .timer-card .intention, .timer-card .break-idea, .round-btn, .zen-btn { -webkit-backdrop-filter: none; backdrop-filter: none; }
+}
+
+@media (forced-colors: active) {
+  .layout > .side, .bottom-nav, .sound-groups .chip, .mix-row, .room, .timer-card .modes,
+  .timer-card .current-task, .timer-card .intention, .timer-card .break-idea { border: 1px solid CanvasText; }
+  .dial::before { display: none; }
+  .sound-groups .chip-group .chip[aria-pressed="true"], .nav-btn[aria-current="page"] { outline: 2px solid Highlight; outline-offset: -2px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .layout, body[data-view] .layout { transition: none; }
+  .chip:hover .chip-icon { transform: none; }
+}
