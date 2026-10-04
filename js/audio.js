@@ -22,10 +22,17 @@ let ambientReverb = null;
 
 export const supported = Boolean(AC);
 
+// Android phones (and other low-core devices) can stutter with full-quality
+// 3D audio, so they get a lighter mix: bigger audio buffers, cheaper panning
+// for short one-off sounds, a shorter reverb and fewer raindrops/crackles.
+const LITE = /Android/i.test(navigator.userAgent)
+  || (!/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent) && (navigator.hardwareConcurrency || 8) <= 4);
+const SPARSE = LITE ? 1.8 : 1;
+
 function ensure() {
   if (!AC) return null;
   if (!ctx) {
-    ctx = new AC({ latencyHint: 'interactive' });
+    ctx = new AC({ latencyHint: LITE ? 'balanced' : 'interactive' });
     const comp = ctx.createDynamicsCompressor();
     comp.threshold.value = -12;
     comp.knee.value = 12;
@@ -46,7 +53,7 @@ function ensure() {
     ambientBus.connect(analyser);
     applyYaw(0);
     reverb = ctx.createConvolver();
-    reverb.buffer = roomImpulse(2.2, 3.2);
+    reverb.buffer = LITE ? roomImpulse(1.2, 3) : roomImpulse(2.2, 3.2);
     reverb.connect(gain(0.45, master));
   }
   // 'interrupted' is iOS after a call or switching apps; both need a nudge.
@@ -205,9 +212,9 @@ function osc(type, freq) {
   return o;
 }
 
-function panner(x, y, z, rolloff = 0.6) {
+function panner(x, y, z, rolloff = 0.6, cheap = false) {
   const p = ctx.createPanner();
-  p.panningModel = 'HRTF';
+  p.panningModel = cheap && LITE ? 'equalpower' : 'HRTF';
   p.distanceModel = 'inverse';
   p.refDistance = 1;
   p.maxDistance = 60;
@@ -520,7 +527,7 @@ export function sfx(name, source) {
   const c = ensure();
   if (!c) return;
   const [x, y, z] = headRelative(...screenToSpace(source));
-  const p = panner(x, y, z, 0);
+  const p = panner(x, y, z, 0, true);
   p.connect(sfxBus);
   SFX[name](c.currentTime + 0.005, p);
 }
@@ -750,7 +757,7 @@ const SCENES = {
       if (thunderAt < now) thunderAt = now + rand(20, 60);
       while (next < until) {
         drop(next);
-        next += rand(0.012, 0.075);
+        next += rand(0.012, 0.075) * SPARSE;
       }
       if (thunderAt < until) {
         thunder(thunderAt);
@@ -821,7 +828,7 @@ const SCENES = {
       if (strikeAt < now2) strikeAt = now2 + rand(3, 10);
       while (next < until) {
         drop(next);
-        next += rand(0.006, 0.04);
+        next += rand(0.006, 0.04) * SPARSE;
       }
       while (gustNext < until) {
         const d = rand(1.5, 3.5);
@@ -898,7 +905,7 @@ const SCENES = {
       if (next < now) next = now;
       while (next < until) {
         crackle(next, Math.random() < 0.06);
-        next += Math.random() < 0.2 ? rand(0.008, 0.04) : rand(0.06, 0.5);
+        next += (Math.random() < 0.2 ? rand(0.008, 0.04) : rand(0.06, 0.5)) * SPARSE;
       }
     };
   },
@@ -1296,7 +1303,7 @@ const SCENES = {
       if (next < now) next = now;
       while (next < until) {
         bubble(next);
-        next += Math.random() < 0.3 ? rand(0.005, 0.02) : rand(0.02, 0.09);
+        next += (Math.random() < 0.3 ? rand(0.005, 0.02) : rand(0.02, 0.09)) * SPARSE;
       }
     };
   },
@@ -2005,7 +2012,7 @@ export function setLayer(kind, on, opts = {}) {
       return p;
     },
     E(x, y, z, rolloff = 0.6, dest = layer.out) {
-      const p = panner(layer.ax + x, y, layer.az + z, rolloff);
+      const p = panner(layer.ax + x, y, layer.az + z, rolloff, true);
       p.refDistance = NEAR;
       p.connect(dest);
       return p;

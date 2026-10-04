@@ -12,11 +12,12 @@
 //   from the code (PBKDF2, 200,000 rounds): brokers see only ciphertext, and
 //   nobody without the code can read, join or forge anything. Guessing codes
 //   is deliberately slow.
-// - "Private" connections (the default) only ever use a TURN relay, so your
-//   IP address is never given to anyone in the party, not even encrypted.
-//   The relay forwards traffic it can't read (WebRTC encrypts it end to end).
-// - Like any server you connect to, the brokers and relay see the address
-//   that connects to them, but not who you're talking to or what you say.
+// - "Private" parties (the default) send everything through the brokers,
+//   sealed the same way, so your IP address is never given to anyone in the
+//   party, not even encrypted. (Over the internet a direct connection can't
+//   hide it: the other device has to send packets to your address.)
+// - Like any server you connect to, the brokers see the address that
+//   connects to them, but not who you're talking to or what you say.
 //
 // The host's tab is the source of truth: guests receive its state and send
 // requests, and the host decides what happens.
@@ -370,24 +371,45 @@ const closePc = (pc) => {
   }
 };
 
+// Remember message ids for a while, so copies from the other brokers are ignored.
+function dedupe() {
+  const seen = new Map();
+  return (mid) => {
+    if (!mid || seen.has(mid)) return false;
+    seen.set(mid, Date.now());
+    if (seen.size > 2000) seen.delete(seen.keys().next().value);
+    return true;
+  };
+}
+
 /**
  * Start hosting. Resolves with { code, broadcast(state), answer(guestId, reqId, ok, text),
  * members(), end() } once the party can be joined.
  *
+ * Guests reach the host in one of two ways:
+ * - private (relayed): every message goes through the brokers, sealed with the
+ *   code's key. Nobody ever learns anyone's IP address, and no TURN server is
+ *   needed. This is what a private host always uses.
+ * - direct: a WebRTC connection, a little faster, but the two devices learn
+ *   each other's addresses. Only when both host and guest turned privacy off.
+ *
  * hooks: getState() → the state to share; onJoin(guest), onLeave(guest),
  * onRequest(guest, request), onSignal(online).
- * opts: { private: true } to keep everyone's IP address hidden (the default).
  */
 export async function host(name, hooks, { private: privately = true } = {}) {
   const code = makeCode();
   const secrets = await secretsFor(code);
   const guests = new Map(); // connection id → guest
-  const seen = new Set();
+  const fresh = dedupe();
   let ended = false;
   let signal = null;
 
+  const say = async (topic, body) => signal && signal.send(topic, await seal(secrets.key, { ...body, mid: randomId() }));
   const send = (g, msg) => {
-    if (g.ch && g.ch.readyState === 'open') {
+    if (g.via === 'relay') {
+      g.seq += 1;
+      say(g.reply, { t: 'msg', cid: g.id, seq: g.seq, data: msg });
+    } else if (g.ch && g.ch.readyState === 'open') {
       try {
         g.ch.send(JSON.stringify(msg));
       } catch {
@@ -403,91 +425,129 @@ export async function host(name, hooks, { private: privately = true } = {}) {
     const members = memberList();
     guests.forEach((g) => g.ready && send(g, { t: 'members', members }));
   };
-  const say = async (topic, body) => signal && signal.send(topic, await seal(secrets.key, { ...body, mid: randomId() }));
+  const welcome = (g) => send(g, { t: 'welcome', id: g.id, host: name, state: hooks.getState(), members: memberList(), now: Date.now() });
 
   function drop(g) {
     if (guests.get(g.id) !== g) return;
     guests.delete(g.id);
-    closePc(g.pc);
+    if (g.pc) closePc(g.pc);
     if (g.ready && !ended) {
       hooks.onLeave(g);
       sendMembers();
     }
   }
 
-  function attach(g, ch) {
-    g.ch = ch;
-    ch.onmessage = (e) => {
-      let m;
-      try {
-        m = JSON.parse(e.data);
-      } catch {
-        return;
-      }
-      if (!m || typeof m !== 'object') return;
-      if (m.t === 'hello' && !g.ready) {
-        g.name = str(m.name, 24) || 'Guest';
-        g.ready = true;
-        send(g, { t: 'welcome', id: g.id, host: name, state: hooks.getState(), members: memberList(), now: Date.now() });
-        hooks.onJoin(g);
-        sendMembers();
-      } else if (m.t === 'ping') {
-        send(g, { t: 'pong', c: m.c, h: Date.now() });
-      } else if (m.t === 'req' && g.ready && REQUEST_KINDS.includes(m.kind)) {
-        hooks.onRequest(g, { id: Number(m.id) || 0, kind: m.kind, data: m.data ?? null, label: str(m.label, 140) });
-      } else if (m.t === 'bye') {
-        drop(g);
-      }
-    };
-    ch.onclose = () => drop(g);
+  // What a guest says, whichever way it arrives.
+  function fromGuest(g, m) {
+    if (!m || typeof m !== 'object') return;
+    g.lastSeen = Date.now();
+    if (m.t === 'hello' && !g.ready) {
+      g.name = str(m.name, 24) || 'Guest';
+      g.ready = true;
+      welcome(g);
+      hooks.onJoin(g);
+      sendMembers();
+    } else if (m.t === 'ping') {
+      send(g, { t: 'pong', c: m.c, h: Date.now() });
+    } else if (m.t === 'req' && g.ready && REQUEST_KINDS.includes(m.kind)) {
+      hooks.onRequest(g, { id: Number(m.id) || 0, kind: m.kind, data: m.data ?? null, label: str(m.label, 140) });
+    } else if (m.t === 'bye') {
+      drop(g);
+    }
   }
 
   async function onMessage(topic, text) {
     if (ended || topic !== secrets.topic) return;
     const body = await open(secrets.key, text);
-    if (!body || body.t !== 'offer' || seen.has(body.mid)) return; // not someone with the code
-    seen.add(body.mid);
-    if (seen.size > 500) seen.clear();
+    if (!body || !fresh(body.mid)) return; // not someone with the code, or a copy
     const cid = str(body.cid, 64);
     const reply = str(body.reply, 120);
-    if (!cid || !reply.startsWith(`${secrets.topic}/`) || !body.sdp) return;
+    if (!cid) return;
     const known = guests.get(cid);
-    if (known) {
-      // They knocked again: our answer must have got lost, so resend it.
-      if (!known.ready && known.answer) say(reply, known.answer);
+
+    if (body.t === 'msg') {
+      if (known && known.via === 'relay') fromGuest(known, body.data);
       return;
     }
-    if (guests.size >= MAX_GUESTS) {
-      say(reply, { t: 'full', cid });
+    if (!reply.startsWith(`${secrets.topic}/`)) return;
+
+    if (body.t === 'knock') {
+      // A private guest at the door (they knock until welcomed).
+      if (known) {
+        if (known.ready && known.via === 'relay') welcome(known);
+        return;
+      }
+      if (guests.size >= MAX_GUESTS) {
+        say(reply, { t: 'full', cid });
+        return;
+      }
+      const g = { id: cid, via: 'relay', reply, seq: 0, name: 'Guest', ready: false, lastSeen: Date.now() };
+      guests.set(cid, g);
+      fromGuest(g, { t: 'hello', name: body.name });
       return;
     }
-    const g = { id: cid, name: 'Guest', ready: false, answer: null };
-    g.pc = newPeer(privately, (s) => {
-      if (s === 'failed' || s === 'closed') drop(g);
-    });
-    g.pc.ondatachannel = (e) => attach(g, e.channel);
-    guests.set(cid, g);
-    try {
-      await g.pc.setRemoteDescription(body.sdp);
-      await g.pc.setLocalDescription(await g.pc.createAnswer());
-      await gathered(g.pc, privately);
-      g.answer = { t: 'answer', cid, sdp: shareable(g.pc, privately) };
-      await say(reply, g.answer);
-    } catch {
-      drop(g);
-      return;
+
+    if (body.t === 'offer' && body.sdp) {
+      // A guest asking for a direct connection. A private host keeps everyone
+      // relayed, so nobody learns anyone's address.
+      if (privately) {
+        say(reply, { t: 'relay', cid });
+        return;
+      }
+      if (known) {
+        // They knocked again: our answer must have got lost, so resend it.
+        if (!known.ready && known.answer) say(reply, known.answer);
+        return;
+      }
+      if (guests.size >= MAX_GUESTS) {
+        say(reply, { t: 'full', cid });
+        return;
+      }
+      const g = { id: cid, via: 'direct', name: 'Guest', ready: false, answer: null, lastSeen: Date.now() };
+      g.pc = newPeer(false, (s) => {
+        if (s === 'failed' || s === 'closed') drop(g);
+      });
+      g.pc.ondatachannel = (e) => {
+        g.ch = e.channel;
+        g.ch.onmessage = (ev) => {
+          try {
+            fromGuest(g, JSON.parse(ev.data));
+          } catch {
+            /* not for us */
+          }
+        };
+        g.ch.onclose = () => drop(g);
+      };
+      guests.set(cid, g);
+      try {
+        await g.pc.setRemoteDescription(body.sdp);
+        await g.pc.setLocalDescription(await g.pc.createAnswer());
+        await gathered(g.pc, false);
+        g.answer = { t: 'answer', cid, sdp: shareable(g.pc, false) };
+        await say(reply, g.answer);
+      } catch {
+        drop(g);
+        return;
+      }
+      setTimeout(() => {
+        if (!g.ready) drop(g);
+      }, 45000);
     }
-    // Someone who knocks but never finishes joining is let go.
-    setTimeout(() => {
-      if (!g.ready) drop(g);
-    }, 45000);
   }
 
   signal = await openSignal([secrets.topic], (topic, text) => onMessage(topic, text));
   hooks.onSignal(true);
 
-  // Guests get the full state now and then anyway, to correct any drift.
-  const heartbeat = setInterval(() => controller.broadcast(hooks.getState()), 15000);
+  // Everyone gets the full state now and then anyway, to correct any drift
+  // or a lost message; relayed guests who go quiet for 40 s have left.
+  const heartbeat = setInterval(() => {
+    const state = hooks.getState();
+    const now = Date.now();
+    guests.forEach((g) => {
+      if (g.via === 'relay' && now - g.lastSeen > 40000) drop(g);
+      else if (g.ready) send(g, { t: 'state', state, now });
+    });
+  }, 10000);
 
   const controller = {
     code,
@@ -507,11 +567,11 @@ export async function host(name, hooks, { private: privately = true } = {}) {
       clearInterval(heartbeat);
       guests.forEach((g) => {
         send(g, { t: 'end' });
-        // Give the goodbye a moment to arrive before hanging up.
-        setTimeout(() => closePc(g.pc), 400);
+        if (g.pc) setTimeout(() => closePc(g.pc), 400);
       });
       guests.clear();
-      signal.close();
+      // Let the goodbyes go out through the brokers first.
+      setTimeout(() => signal.close(), 600);
     },
   };
   return controller;
@@ -521,6 +581,10 @@ export async function host(name, hooks, { private: privately = true } = {}) {
  * Join the party with this code. Resolves with { request(kind, data, label),
  * offset(), leave() } once the host has welcomed us.
  *
+ * Private (the default) relays everything through the brokers, sealed, so
+ * no IP address is ever shared. Direct tries a WebRTC connection, and falls
+ * back to relaying if the host keeps their party private.
+ *
  * hooks: onWelcome(msg, controller), onState(state), onMembers(list),
  * onAnswer(answer), onEnd(reason) where reason is 'ended' or 'lost'.
  * Rejects with Error('not-found' | 'full' | 'unreachable' | 'network:…' | 'setup:…').
@@ -529,6 +593,8 @@ export async function join(code, name, hooks, { private: privately = true } = {}
   const secrets = await secretsFor(code);
   const cid = `c${randomId()}`;
   const reply = `${secrets.topic}/${randomId()}`;
+  const fresh = dedupe();
+  let via = privately ? 'relay' : 'direct';
   let signal = null;
   let pc = null;
   let ch = null;
@@ -539,9 +605,14 @@ export async function join(code, name, hooks, { private: privately = true } = {}
   let best = { rtt: Infinity, offset: 0 };
   let pinger = 0;
   let knocker = 0;
+  let lastHeard = Date.now();
+  let lastStateSeq = 0;
 
+  const say = async (body) => signal && signal.send(secrets.topic, await seal(secrets.key, { ...body, cid, reply, mid: randomId() }));
   const send = (msg) => {
-    if (ch && ch.readyState === 'open') {
+    if (via === 'relay') {
+      say({ t: 'msg', data: msg });
+    } else if (ch && ch.readyState === 'open') {
       try {
         ch.send(JSON.stringify(msg));
       } catch {
@@ -592,17 +663,78 @@ export async function join(code, name, hooks, { private: privately = true } = {}
         if (left) return;
         left = true;
         send({ t: 'bye' });
-        setTimeout(cleanup, 200);
+        setTimeout(cleanup, 400);
       },
     };
 
+    // What the host says, whichever way it arrives.
+    function fromHost(msg, seq = 0) {
+      if (!msg || typeof msg !== 'object') return;
+      lastHeard = Date.now();
+      if (msg.t === 'welcome' && !welcomed) {
+        welcomed = true;
+        settled = true;
+        clearTimeout(timer);
+        clearInterval(knocker);
+        // Direct guests only needed the brokers to meet; relayed ones keep them.
+        if (via === 'direct') {
+          signal?.close();
+          signal = null;
+        }
+        const ping = () => {
+          send({ t: 'ping', c: Date.now() });
+          if (via === 'relay' && Date.now() - lastHeard > 40000) lost();
+        };
+        ping();
+        pinger = setInterval(ping, via === 'relay' ? 10000 : 30000);
+        if (Number.isFinite(msg.now)) best = { rtt: 5000, offset: msg.now - Date.now() };
+        resolve(controller);
+        hooks.onWelcome(msg, controller);
+      } else if (!welcomed) {
+        /* nothing counts before the welcome */
+      } else if (msg.t === 'pong' && Number.isFinite(msg.c) && Number.isFinite(msg.h)) {
+        const rtt = Date.now() - msg.c;
+        // The quickest round trip involves the least guesswork, so trust it most.
+        if (rtt >= 0 && rtt <= best.rtt * 1.5) best = { rtt: Math.min(rtt, best.rtt), offset: msg.h - (msg.c + rtt / 2) };
+      } else if (msg.t === 'state' && msg.state && typeof msg.state === 'object') {
+        // Relayed messages can arrive out of order; never go back to an older state.
+        if (seq && seq < lastStateSeq) return;
+        if (seq) lastStateSeq = seq;
+        hooks.onState(msg.state);
+      } else if (msg.t === 'members' && Array.isArray(msg.members)) {
+        hooks.onMembers(msg.members.slice(0, MAX_GUESTS + 1).map((x) => ({ id: str(x && x.id, 64), name: str(x && x.name, 24) || 'Guest', host: Boolean(x && x.host) })));
+      } else if (msg.t === 'ans') {
+        hooks.onAnswer({ id: Number(msg.id) || 0, ok: Boolean(msg.ok), text: str(msg.text, 140) });
+      } else if (msg.t === 'end') {
+        ended = true;
+        cleanup();
+        hooks.onEnd('ended');
+      }
+    }
+
+    // Private: knock (with our name) until the host lets us in.
+    const knockRelay = () => {
+      via = 'relay';
+      if (pc) closePc(pc);
+      pc = null;
+      clearInterval(knocker);
+      const knock = () => !welcomed && say({ t: 'knock', name, v: PROTOCOL });
+      knock();
+      knocker = setInterval(knock, 3000);
+    };
+
     const onMessage = async (topic, text) => {
-      if (topic !== reply || answered) return;
+      if (topic !== reply || ended) return;
       const body = await open(secrets.key, text);
-      if (!body || body.cid !== cid || answered) return;
-      if (body.t === 'full') {
+      if (!body || body.cid !== cid || !fresh(body.mid)) return;
+      if (body.t === 'msg') {
+        fromHost(body.data, Number(body.seq) || 0);
+      } else if (body.t === 'full') {
         fail('full');
-      } else if (body.t === 'answer' && body.sdp) {
+      } else if (body.t === 'relay' && via === 'direct' && !answered) {
+        // The host keeps the party private: come in through the relay instead.
+        knockRelay();
+      } else if (body.t === 'answer' && body.sdp && via === 'direct' && !answered) {
         answered = true;
         clearInterval(knocker);
         try {
@@ -615,60 +747,29 @@ export async function join(code, name, hooks, { private: privately = true } = {}
 
     (async () => {
       signal = await openSignal([reply], onMessage);
-      pc = newPeer(privately, (state) => {
+      if (via === 'relay') {
+        knockRelay();
+        return;
+      }
+      pc = newPeer(false, (state) => {
         if (state === 'failed' || state === 'closed') lost();
       });
       ch = pc.createDataChannel('party', { ordered: true });
       ch.onopen = () => send({ t: 'hello', v: PROTOCOL, name });
-      ch.onclose = lost;
+      ch.onclose = () => via === 'direct' && lost();
       ch.onmessage = (e) => {
-        let msg;
         try {
-          msg = JSON.parse(e.data);
+          fromHost(JSON.parse(e.data));
         } catch {
-          return;
-        }
-        if (!msg || typeof msg !== 'object') return;
-        if (msg.t === 'welcome' && !welcomed) {
-          welcomed = true;
-          settled = true;
-          clearTimeout(timer);
-          // The brokers are only needed to meet; let them go.
-          signal?.close();
-          signal = null;
-          const ping = () => send({ t: 'ping', c: Date.now() });
-          ping();
-          pinger = setInterval(ping, 30000);
-          if (Number.isFinite(msg.now)) best = { rtt: 5000, offset: msg.now - Date.now() };
-          resolve(controller);
-          hooks.onWelcome(msg, controller);
-        } else if (!welcomed) {
-          /* nothing counts before the welcome */
-        } else if (msg.t === 'pong' && Number.isFinite(msg.c) && Number.isFinite(msg.h)) {
-          const rtt = Date.now() - msg.c;
-          // The quickest round trip involves the least guesswork, so trust it most.
-          if (rtt >= 0 && rtt <= best.rtt * 1.5) best = { rtt: Math.min(rtt, best.rtt), offset: msg.h - (msg.c + rtt / 2) };
-        } else if (msg.t === 'state' && msg.state && typeof msg.state === 'object') {
-          hooks.onState(msg.state);
-        } else if (msg.t === 'members' && Array.isArray(msg.members)) {
-          hooks.onMembers(msg.members.slice(0, MAX_GUESTS + 1).map((x) => ({ id: str(x && x.id, 64), name: str(x && x.name, 24) || 'Guest', host: Boolean(x && x.host) })));
-        } else if (msg.t === 'ans') {
-          hooks.onAnswer({ id: Number(msg.id) || 0, ok: Boolean(msg.ok), text: str(msg.text, 140) });
-        } else if (msg.t === 'end') {
-          ended = true;
-          cleanup();
-          hooks.onEnd('ended');
+          /* not for us */
         }
       };
       await pc.setLocalDescription(await pc.createOffer());
-      await gathered(pc, privately);
-      const offer = { t: 'offer', cid, reply, sdp: shareable(pc, privately) };
-      // Knock until the host answers (a message can get lost, or the host's
-      // phone may be waking up from the background).
-      const knock = async () => {
-        if (!answered && signal) signal.send(secrets.topic, await seal(secrets.key, { ...offer, mid: randomId() }));
-      };
-      await knock();
+      await gathered(pc, false);
+      if (via !== 'direct') return;
+      const offer = { t: 'offer', sdp: shareable(pc, false) };
+      const knock = () => !answered && via === 'direct' && say(offer);
+      knock();
       knocker = setInterval(knock, 3000);
     })().catch((err) => fail(err && /^network/.test(err.message) ? err.message : `setup:${(err && (err.name || err.message)) || 'error'}`));
   });

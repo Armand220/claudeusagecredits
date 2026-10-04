@@ -48,9 +48,10 @@ installed as an app on your phone or computer.
   of the party code and messages sealed with AES-256-GCM under a key derived
   from the code (PBKDF2, 200,000 rounds): they can't read them, and nobody
   without the code can join or forge anything. With "Private connection" on
-  (the default) all traffic goes through a TURN relay, so your IP address is
-  never given to anyone in the party at all, and WebRTC encrypts the data end
-  to end
+  (the default) everything goes through those encrypted relays, so your IP
+  address is never given to anyone in the party at all. With it off, devices
+  connect directly (WebRTC, also encrypted), which is a little faster but
+  lets them see each other's addresses
 
 **3D sound** (best with headphones)
 - **Mixer**: layer as many sounds as you like, each with its own volume —

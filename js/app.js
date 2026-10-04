@@ -1,12 +1,12 @@
-import * as audio from './audio.js?v=69';
-import * as fx from './fx.js?v=69';
-import { toast } from './toast.js?v=69';
-import * as effects from './effects.js?v=69';
-import * as scenery from './scenery.js?v=69';
-import * as pip from './pip.js?v=69';
-import { shareCard, makeCardFile } from './share.js?v=69';
-import * as party from './party.js?v=69';
-import * as photo from './photo.js?v=69';
+import * as audio from './audio.js?v=70';
+import * as fx from './fx.js?v=70';
+import { toast } from './toast.js?v=70';
+import * as effects from './effects.js?v=70';
+import * as scenery from './scenery.js?v=70';
+import * as pip from './pip.js?v=70';
+import { shareCard, makeCardFile } from './share.js?v=70';
+import * as party from './party.js?v=70';
+import * as photo from './photo.js?v=70';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -271,7 +271,7 @@ function renderPartyButton() {
 const PARTY_ERRORS = {
   'not-found': "Couldn't find that party. Check the code, and ask the host to keep Tempo open on screen (phones pause it in the background).",
   full: 'That party is full (12 guests).',
-  unreachable: "Found the party but couldn't connect. Try turning off 'Private connection' on both phones, or switch between Wi-Fi and mobile data.",
+  unreachable: "Found the party but couldn't connect directly. Turn 'Private connection' on: it goes through the encrypted relay and works on any network.",
   network: "Couldn't reach any of the party relays. Check your internet, and turn off any ad or tracker blocker or VPN for this site.",
   setup: "This browser couldn't set up the connection. Try Chrome or Safari, and not inside another app's built-in browser.",
 };
@@ -314,7 +314,7 @@ function renderPartyDialog(prefill = '') {
       </div>
       <h3 class="party-h">In the party</h3><ul class="party-members">${members}</ul>
       <p class="field-note">📱 Keep Tempo open on screen while people join: phones pause pages in the background.</p>
-      <p class="field-note">${P.ctl.private ? '🔒 Private: everyone connects through a relay, so nobody sees anyone\'s IP address. Connection details are end-to-end encrypted with the code.' : 'Direct connections: faster, but members can see each other\'s IP address.'}</p>`;
+      <p class="field-note">${P.ctl.private ? '🔒 Private: everything goes through encrypted relays (AES-256, keyed by the code), so nobody in the party ever sees anyone\'s IP address.' : 'Direct connections: a little faster, but members can see each other\'s IP address.'}</p>`;
   } else {
     body.innerHTML = `
       <p class="sheet-note">You're in <strong>${esc(P.hostName)}</strong>'s party. Tap Start, a sound, or add a task to ask the host; they decide.</p>
@@ -444,7 +444,7 @@ const REQUEST_TEXT = {
   skip: () => 'skip to the next session',
   reset: () => 'reset the timer',
   mode: (d) => `switch to ${MODES[d] ? MODES[d].label.toLowerCase() : 'another mode'}`,
-  more: () => 'add 5 minutes',
+  more: (d) => (Number(d) > 1 ? `add ${Number(d)} minutes` : 'add a minute'),
   break: () => 'take a break',
   sound: (d) => `${d && d.on ? 'play' : 'stop'} ${SOUND_INFO[d && d.kind] ? SOUND_INFO[d.kind].name.toLowerCase() : 'a sound'}`,
   mix: (d) => `play the ${d && d.name ? d.name : 'mix'} mix`,
@@ -467,7 +467,7 @@ function doRequest(kind, data) {
   } else if (kind === 'skip') el.skip.click();
   else if (kind === 'reset') el.reset.click();
   else if (kind === 'mode' && MODES[data]) el.tabs[MODE_ORDER.indexOf(data)].click();
-  else if (kind === 'more') addTime(5 * 60000, el.extend);
+  else if (kind === 'more') addTime(clampInt(data, 1, 30, 1) * 60000, el.extend);
   else if (kind === 'break') {
     if (timer.mode === 'focus') el.skip.click();
   } else if (kind === 'sound' && data && audio.ambientKinds.includes(data.kind)) {
@@ -513,7 +513,7 @@ document.addEventListener('click', (e) => {
   else if (t.matches('#btn-skip, #btn-flow-break')) askHost('skip');
   else if (t.matches('#btn-reset')) askHost('reset');
   else if (t.matches('.mode-tab')) askHost('mode', t.dataset.mode);
-  else if (t.matches('#btn-extend')) askHost('more');
+  else if (t.matches('#btn-extend')) askHost('more', 1);
   else if (t.matches('.chip[data-sound]')) {
     const k = t.dataset.sound;
     if (k !== 'off') askHost('sound', { kind: k, on: !(sound.mix[k] && sound.mix[k].on) });
@@ -543,7 +543,7 @@ window.addEventListener('keydown', (e) => {
   if (!P || P.role !== 'guest' || e.metaKey || e.ctrlKey || e.altKey || $('dialog[open]')) return;
   if (/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
   const key = e.key.toLowerCase();
-  const map = { ' ': () => askHost('toggle', timer.running ? 'pause' : 'start'), s: () => askHost('skip'), r: () => askHost('reset'), 1: () => askHost('mode', 'focus'), 2: () => askHost('mode', 'short'), 3: () => askHost('mode', 'long'), '+': () => askHost('more'), '=': () => askHost('more') };
+  const map = { ' ': () => askHost('toggle', timer.running ? 'pause' : 'start'), s: () => askHost('skip'), r: () => askHost('reset'), 1: () => askHost('mode', 'focus'), 2: () => askHost('mode', 'short'), 3: () => askHost('mode', 'long'), '+': () => askHost('more', 1), '=': () => askHost('more', 1) };
   if (!map[key] || e.repeat) return;
   e.preventDefault();
   e.stopImmediatePropagation();
@@ -4337,6 +4337,7 @@ statTabs.forEach((t, i) => {
 
 // What's new: the newest first. Bump `id` when adding an entry.
 const CHANGES = [
+  { id: 25, icon: '🔒', text: 'Private parties now connect on any network: everything goes through encrypted relays, so nobody ever sees your IP address. Guests asking for +1 minute now ask for 1 minute (not 5), and sounds are smoother on Android phones.' },
   { id: 24, icon: '🔊', text: 'Button sounds now work on phones, and on iPhone they play even with the silent switch on (you can turn that off in Settings > Sound).' },
   { id: 23, icon: '🎉', text: 'Focus parties: tap Party to host, share the code, and everyone shares your timer, sounds and tasks live. Guests can ask for changes; you decide. Private by default: nobody sees anyone\'s IP address.' },
   { id: 22, icon: '👥', text: 'Focus together: while a session runs, tap Invite and send the link. Whoever opens it joins you, and your timers end at the same moment.' },
