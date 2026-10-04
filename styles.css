@@ -318,7 +318,7 @@ body.is-running .brand-mark path { transform-origin: 16px 16px; animation: spin 
 }
 
 .layout { display: grid; gap: 20px; }
-@media (min-width: 920px) {
+@media (min-width: 920px) and (min-height: 501px), (min-width: 920px) and (pointer: fine) {
   .layout { grid-template-columns: minmax(0, 1.08fr) minmax(0, 1fr); align-items: start; gap: 24px; }
   .layout > .timer-card { position: sticky; top: 20px; }
 }
@@ -2394,7 +2394,7 @@ body.is-guest .mix-vol:disabled { opacity: .45; cursor: not-allowed; }
 
 /* Phones: keep the timer, its task, the break idea and the intention close
    together so they fit above the tab bar. */
-@media (max-width: 760px) {
+@media (max-width: 760px), (max-height: 500px) and (pointer: coarse) {
   .dial { margin: 18px 0 14px; }
   .current-task { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: center; gap: 2px 8px; margin-top: 16px; padding: 8px 14px; }
   .current-task-kicker, .current-task-title { display: inline; }
@@ -2402,7 +2402,7 @@ body.is-guest .mix-vol:disabled { opacity: .45; cursor: not-allowed; }
   .break-idea { margin-top: 12px; padding: 6px 6px 6px 12px; font-size: 13.5px; }
   .intention { margin-top: 10px; }
 }
-@media (max-width: 760px) and (max-height: 720px) {
+@media (max-width: 760px) and (max-height: 720px), (max-height: 500px) and (pointer: coarse) {
   .dial { width: min(300px, 70vw); margin: 12px 0 10px; }
   .time { font-size: clamp(52px, 15vw, 76px); }
 }
@@ -2466,7 +2466,7 @@ body.is-zen .cycle-dots i { width: 10px; height: 10px; }
 
 .bottom-nav, .mini-bar { display: none; }
 
-@media (max-width: 760px) {
+@media (max-width: 760px), (max-height: 500px) and (pointer: coarse) {
   .app { padding-bottom: calc(96px + env(safe-area-inset-bottom)); }
   body[data-view="timer"] .side,
   body[data-view="sounds"] .timer-card,
@@ -2986,7 +2986,7 @@ body.is-zen .time { font-size: calc(var(--dial) * .245); }
 
 /* ===================================================== Desktop: the stage */
 
-@media (min-width: 761px) {
+@media (min-width: 761px) and (min-height: 501px), (min-width: 761px) and (pointer: fine) {
   .app {
     max-width: none;
     display: grid;
@@ -3172,24 +3172,24 @@ body.is-zen .time { font-size: calc(var(--dial) * .245); }
 }
 
 /* Tall enough: the page is exactly one screen and only the dock scrolls. */
-@media (min-width: 761px) and (min-height: 600px) {
+@media (min-width: 761px) and (min-height: 501px) and (min-height: 600px), (min-width: 761px) and (pointer: fine) and (min-height: 600px) {
   .app { height: 100dvh; }
 }
 /* Short windows: the page scrolls, the dock stays in view. */
-@media (min-width: 761px) and (max-height: 599px) {
+@media (min-width: 761px) and (min-height: 501px) and (max-height: 599px), (min-width: 761px) and (pointer: fine) and (max-height: 599px) {
   .layout > .side { position: sticky; top: 12px; align-self: start; max-height: calc(100dvh - 24px); }
 }
 
 /* Laptops and tablets in landscape: a narrower dock. */
-@media (min-width: 761px) and (max-width: 1199px) {
+@media (min-width: 761px) and (min-height: 501px) and (max-width: 1199px), (min-width: 761px) and (pointer: fine) and (max-width: 1199px) {
   :root { --dock-w: 360px; }
   .side .sound-groups .chip-group .chips { gap: 5px; }
 }
-@media (min-width: 761px) and (max-width: 1099px) {
+@media (min-width: 761px) and (min-height: 501px) and (max-width: 1099px), (min-width: 761px) and (pointer: fine) and (max-width: 1099px) {
   .layout > .timer-card .zen-btn { top: 58px; }
 }
 /* Narrow windows: the dock floats over the stage instead of squeezing it. */
-@media (min-width: 761px) and (max-width: 959px) {
+@media (min-width: 761px) and (min-height: 501px) and (max-width: 959px), (min-width: 761px) and (pointer: fine) and (max-width: 959px) {
   .layout,
   body[data-view] .layout { grid-template-columns: minmax(0, 1fr); column-gap: 0; }
   .layout > .side {
@@ -3209,7 +3209,7 @@ body.is-zen .time { font-size: calc(var(--dial) * .245); }
 
 /* ===================================================== Phones */
 
-@media (max-width: 760px) {
+@media (max-width: 760px), (max-height: 500px) and (pointer: coarse) {
   .timer-card { --dial: min(84vw, 340px, calc(100dvh - 450px)); padding: 6px 4px 10px; }
   .timer-card .zen-btn { top: 64px; }
   .timer-card .pip-btn { left: 4px; }
@@ -3272,6 +3272,56 @@ body.is-zen .time { font-size: calc(var(--dial) * .245); }
   backdrop-filter: none;
   background: color-mix(in srgb, var(--stage-glass) 70%, var(--surface));
 }
-@media (max-width: 760px) {
+@media (max-width: 760px), (max-height: 500px) and (pointer: coarse) {
   .dial::before { -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); }
+}
+
+/* Phones held sideways: the dial on the left, everything else beside it,
+   sized to the short screen instead of shrinking to nothing. */
+@media (max-height: 500px) and (pointer: coarse) and (orientation: landscape) {
+  .timer-card,
+  body.is-zen .timer-card {
+    --dial: min(calc(100dvh - 150px), 280px);
+    display: grid;
+    grid-template-columns: var(--dial) minmax(0, 340px);
+    grid-template-areas: "dial modes" "dial controls" "dial task" "dial idea" "dial intent";
+    align-content: center;
+    justify-content: center;
+    align-items: center;
+    column-gap: clamp(20px, 5vw, 48px);
+    row-gap: 10px;
+    padding: 4px 8px 8px;
+  }
+  .timer-card .modes { grid-area: modes; width: 100%; margin: 0; }
+  .timer-card .dial { grid-area: dial; margin: 0 !important; }
+  .timer-card .controls { grid-area: controls; margin: 0; }
+  .timer-card .current-task { grid-area: task; margin: 0 !important; }
+  .timer-card .break-idea { grid-area: idea; margin: 0 !important; }
+  .timer-card .intention { grid-area: intent; margin: 0 !important; }
+  .timer-card .zen-hint { display: none; }
+  .timer-card .pip-btn { top: 4px; left: 4px; }
+  .timer-card .zen-btn:not(.pip-btn) { top: 4px; right: 4px; }
+  .topbar { height: 52px; }
+}
+@media (max-height: 500px) and (pointer: coarse) and (orientation: landscape) {
+  /* A compact top bar, as on phones held upright. */
+  .icon-btn .label, .goal-label, .palette-btn, .help-btn { display: none; }
+  .icon-btn { width: 42px; padding: 0; justify-content: center; }
+  /* The tab bar stands up on the right, so it never covers the timer. */
+  .app { padding-bottom: max(12px, env(safe-area-inset-bottom)); padding-right: calc(88px + env(safe-area-inset-right)); }
+  .bottom-nav {
+    left: auto;
+    right: max(10px, env(safe-area-inset-right));
+    top: 50%;
+    bottom: auto;
+    width: 70px;
+    grid-template-columns: none;
+    grid-template-rows: repeat(3, 62px);
+    transform: translateY(-50%);
+  }
+  .nav-indicator { top: 6px; right: 6px; bottom: auto; left: 6px; width: auto; height: 62px; transform: translateY(calc(var(--i) * 100%)); }
+  .toasts { bottom: max(12px, env(safe-area-inset-bottom)); }
+}
+@media (max-height: 500px) and (pointer: coarse) and (orientation: landscape) {
+  .sound-groups .chip-group .chips { grid-template-columns: repeat(auto-fill, minmax(86px, 1fr)); }
 }

@@ -13,6 +13,8 @@ sounds. On a computer, Sounds and Tasks share one side panel, switched from
 the rail on the right (it remembers which one you had open); click Timer for
 just the clock. On phones the same three live behind the bottom tab bar.
 Sounds are picture tiles, with little bars on the ones playing.
+Turn your phone sideways and the dial sits beside its controls, with the
+tabs standing up on the right edge.
 
 **Timer**
 - Focus, short break and long break, with a long break after every few focus
