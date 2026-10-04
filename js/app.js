@@ -1,12 +1,12 @@
-import * as audio from './audio.js?v=70';
-import * as fx from './fx.js?v=70';
-import { toast } from './toast.js?v=70';
-import * as effects from './effects.js?v=70';
-import * as scenery from './scenery.js?v=70';
-import * as pip from './pip.js?v=70';
-import { shareCard, makeCardFile } from './share.js?v=70';
-import * as party from './party.js?v=70';
-import * as photo from './photo.js?v=70';
+import * as audio from './audio.js?v=71';
+import * as fx from './fx.js?v=71';
+import { toast } from './toast.js?v=71';
+import * as effects from './effects.js?v=71';
+import * as scenery from './scenery.js?v=71';
+import * as pip from './pip.js?v=71';
+import { shareCard, makeCardFile } from './share.js?v=71';
+import * as party from './party.js?v=71';
+import * as photo from './photo.js?v=71';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -45,10 +45,39 @@ const DEFAULTS = {
   bells: false,
   daySky: true,
   playOnSilent: true,
+  partyRules: null, // see cleanRules
 };
 const PALETTES = ['sunset', 'ocean', 'forest', 'lavender', 'rose', 'mono'];
 const LIMITS = { focus: [1, 180], short: [1, 60], long: [1, 90], longEvery: [2, 12], goal: [1, 24], chimeVolume: [0, 100], flowRatio: [2, 6], goalMinutes: [15, 720] };
 const RING_C = 2 * Math.PI * 100;
+
+// Focus party roles: what each guest may do. The host picks one per guest.
+const ROLES = {
+  watch: { icon: '👀', name: 'Watch', note: 'Sees and hears everything, but can’t ask for changes.' },
+  ask: { icon: '🙋', name: 'Ask', note: 'Can ask the host for changes, one at a time.' },
+  add: { icon: '✏️', name: 'Add', note: 'Adds tasks and sounds directly, and asks for timer changes.' },
+};
+const ROLE_IDS = Object.keys(ROLES);
+// What each kind of request is about; the host chooses which they take.
+const REQ_GROUP = { toggle: 'timer', skip: 'timer', reset: 'timer', mode: 'timer', more: 'timer', break: 'timer', sound: 'sounds', mix: 'sounds', task: 'tasks', done: 'tasks', message: 'messages' };
+const GROUPS = { timer: 'The timer', sounds: 'Sounds', tasks: 'Tasks', messages: 'Messages' };
+const DIRECT_KINDS = ['sound', 'mix', 'task', 'done']; // what an Add guest changes without asking
+const COOLDOWNS = [10, 30, 60, 120]; // seconds between one guest's requests
+const PENDING_MS = 20000; // how long a request waits for the host's answer
+const ADD_LIMIT = 5; // Add guests: at most this many changes…
+const ADD_WINDOW = 30000; // …in this many ms
+
+function cleanRules(raw) {
+  const r = raw && typeof raw === 'object' ? raw : {};
+  return {
+    role: ROLE_IDS.includes(r.role) ? r.role : 'ask',
+    timer: r.timer !== false,
+    sounds: r.sounds !== false,
+    tasks: r.tasks !== false,
+    messages: r.messages !== false,
+    cooldown: COOLDOWNS.includes(Number(r.cooldown)) ? Number(r.cooldown) : 30,
+  };
+}
 
 // ---------------------------------------------------------------------------
 // State
@@ -79,6 +108,7 @@ function cleanSettings(raw) {
   if (!audio.chimeStyles.includes(out.chimeStyle)) out.chimeStyle = 'bells';
   out.flow = Boolean(out.flow);
   if (!['sessions', 'minutes'].includes(out.goalType)) out.goalType = 'sessions';
+  out.partyRules = cleanRules(out.partyRules);
   return out;
 }
 
@@ -201,8 +231,52 @@ function save() {
 // Focus party (see party.js): the host shares the timer, tasks and sounds;
 // guests follow along and ask for changes.
 
-let P = null; // { role: 'host' | 'guest', ctl, code, hostName, members, backup }
+// P: { role: 'host' | 'guest', ctl, code, hostName, members, backup }, and for
+// a guest also access (what the host lets them do), nextAt (when they may ask
+// again), pending (their unanswered request) and adds (recent direct changes).
+let P = null;
 let partyTimer = 0;
+// The host's record of each guest: { role, lastAsk, pendingUntil, adds }.
+// These are what count: a guest's app only mirrors the rules to explain them.
+const guestRecs = new Map();
+const secs = (ms) => {
+  const s = Math.max(1, Math.ceil(ms / 1000));
+  return s < 60 ? `${s} s` : `${Math.floor(s / 60)} min${s % 60 ? ` ${s % 60} s` : ''}`;
+};
+
+function guestRec(id) {
+  if (!guestRecs.has(id)) guestRecs.set(id, { role: settings.partyRules.role, lastAsk: 0, pendingUntil: 0, adds: [] });
+  return guestRecs.get(id);
+}
+
+// What a guest is told about their role and the host's rules.
+function accessOf(rec) {
+  const r = settings.partyRules;
+  return { role: rec.role, timer: r.timer, sounds: r.sounds, tasks: r.tasks, messages: r.messages, cooldown: r.cooldown, wait: Math.max(0, rec.lastAsk + r.cooldown * 1000 - Date.now()) };
+}
+
+function cleanAccess(raw) {
+  const a = obj(raw);
+  return {
+    role: ROLE_IDS.includes(a.role) ? a.role : 'ask',
+    timer: a.timer !== false,
+    sounds: a.sounds !== false,
+    tasks: a.tasks !== false,
+    messages: a.messages !== false,
+    cooldown: clampInt(a.cooldown, 0, 600, 30),
+  };
+}
+
+function shareAccess() {
+  if (!P || P.role !== 'host') return;
+  guestRecs.forEach((rec, id) => P.ctl.setAccess(id, accessOf(rec)));
+  P.members = P.ctl.members();
+}
+
+// The guest's body class says what their taps do (see the controls hint).
+function showGuestRole() {
+  for (const r of ROLE_IDS) el.body.classList.toggle(`party-${r}`, Boolean(P && P.role === 'guest' && P.access.role === r));
+}
 const PARTY_SETTINGS = ['focus', 'short', 'long', 'longEvery', 'flow', 'flowRatio'];
 const partyName = () => settings.partyName || 'Friend';
 
@@ -271,6 +345,7 @@ function renderPartyButton() {
 const PARTY_ERRORS = {
   'not-found': "Couldn't find that party. Check the code, and ask the host to keep Tempo open on screen (phones pause it in the background).",
   full: 'That party is full (12 guests).',
+  removed: 'The host removed you from this party.',
   unreachable: "Found the party but couldn't connect directly. Turn 'Private connection' on: it goes through the encrypted relay and works on any network.",
   network: "Couldn't reach any of the party relays. Check your internet, and turn off any ad or tracker blocker or VPN for this site.",
   setup: "This browser couldn't set up the connection. Try Chrome or Safari, and not inside another app's built-in browser.",
@@ -303,32 +378,86 @@ function renderPartyDialog(prefill = '') {
       <p class="party-status" id="party-status" role="status"></p>`;
     return;
   }
-  const members = P.members.map((m) => `<li><span class="party-dot" aria-hidden="true"></span>${esc(m.name)}${m.host ? ' <em>host</em>' : ''}</li>`).join('');
+  // Re-rendering mustn't throw away what the host was in the middle of.
+  const focused = document.activeElement && body.contains(document.activeElement) ? document.activeElement : null;
+  const refocus = focused && (focused.id ? `#${focused.id}` : focused.dataset.guest ? `.${focused.classList[0]}[data-guest="${CSS.escape(focused.dataset.guest)}"]` : '');
+  const roleTag = (m) => (ROLE_IDS.includes(m.role) ? ` <span class="party-role-tag" title="${ROLES[m.role].name}">${ROLES[m.role].icon} ${ROLES[m.role].name}</span>` : '');
   if (P.role === 'host') {
+    const rules = settings.partyRules;
+    const roleOptions = (sel) => ROLE_IDS.map((r) => `<option value="${r}"${r === sel ? ' selected' : ''}>${ROLES[r].icon} ${ROLES[r].name}</option>`).join('');
+    const members = P.members.map((m) => {
+      if (m.host) return `<li><span class="party-dot" aria-hidden="true"></span><span class="party-name">${esc(m.name)}</span> <em>host</em></li>`;
+      const rec = guestRec(m.id);
+      return `<li><span class="party-dot" aria-hidden="true"></span><span class="party-name">${esc(m.name)}</span>
+        <select class="party-role" data-guest="${esc(m.id)}" aria-label="What ${esc(m.name)} can do">${roleOptions(rec.role)}</select>
+        <button type="button" class="party-kick pressable" data-guest="${esc(m.id)}" aria-label="Remove ${esc(m.name)} from the party" title="Remove from the party">✕</button></li>`;
+    }).join('');
     body.innerHTML = `
-      <p class="sheet-note">Share the code or the link. Guests see your timer, tasks and sounds; their taps arrive here as requests.</p>
+      <p class="sheet-note">Share the code or the link. Guests see your timer, tasks and sounds; what they can do is up to you.</p>
       <div class="party-code" aria-label="Party code">${party.formatCode(P.code)}</div>
       <div class="party-actions">
         <button type="button" class="primary-btn pressable" id="party-copy">Copy invite link</button>
         <button type="button" class="text-btn pressable" id="party-end">End party</button>
       </div>
       <h3 class="party-h">In the party</h3><ul class="party-members">${members}</ul>
+      ${P.members.length < 2 ? '<p class="field-note">Nobody here yet. When people join, pick what each of them can do.</p>' : ''}
+      <h3 class="party-h">Guest rules</h3>
+      <div class="party-rules">
+        <label class="party-rule"><span>New guests</span><select id="party-default-role">${roleOptions(rules.role)}</select></label>
+        <fieldset class="party-allow">
+          <legend>Guests can ask about</legend>
+          ${Object.entries(GROUPS).map(([g, label]) => `<label class="party-check pressable"><input type="checkbox" id="party-allow-${g}" name="${g}"${rules[g] ? ' checked' : ''}><span>${label}</span></label>`).join('')}
+        </fieldset>
+        <label class="party-rule"><span>Time between requests</span><select id="party-cooldown">${COOLDOWNS.map((c) => `<option value="${c}"${c === rules.cooldown ? ' selected' : ''}>${secs(c * 1000)}</option>`).join('')}</select></label>
+      </div>
+      <ul class="party-role-key">${ROLE_IDS.map((r) => `<li><span aria-hidden="true">${ROLES[r].icon}</span><span><strong>${ROLES[r].name}</strong> ${ROLES[r].note}${r === 'add' ? ` (Up to ${ADD_LIMIT} changes every ${ADD_WINDOW / 1000} s.)` : ''}</span></li>`).join('')}</ul>
       <p class="field-note">📱 Keep Tempo open on screen while people join: phones pause pages in the background.</p>
       <p class="field-note">${P.ctl.private ? '🔒 Private: everything goes through encrypted relays (AES-256, keyed by the code), so nobody in the party ever sees anyone\'s IP address.' : 'Direct connections: a little faster, but members can see each other\'s IP address.'}</p>`;
   } else {
+    const a = P.access;
+    const role = ROLES[a.role];
+    const allowed = Object.keys(GROUPS).filter((g) => g !== 'messages' && a[g]).map((g) => GROUPS[g].toLowerCase());
+    const what = {
+      watch: `You can see and hear everything; ${esc(P.hostName)} makes the changes.`,
+      ask: allowed.length ? `Tap a control to ask ${esc(P.hostName)} about ${allowed.join(', ').replace(/, ([^,]*)$/, ' or $1')}. One request at a time, then a ${secs(a.cooldown * 1000)} wait.` : `${esc(P.hostName)} isn't taking requests right now.`,
+      add: `Add tasks and sounds yourself (up to ${ADD_LIMIT} changes every ${ADD_WINDOW / 1000} s).${a.timer ? ` Timer taps ask ${esc(P.hostName)}.` : ''}`,
+    }[a.role];
+    const canMessage = a.role !== 'watch' && a.messages;
+    const canBreak = a.role !== 'watch' && a.timer;
+    const members = P.members.map((m) => `<li><span class="party-dot" aria-hidden="true"></span><span class="party-name">${esc(m.name)}</span>${m.id && m.id === P.me ? ' <em>you</em>' : ''}${m.host ? ' <em>host</em>' : roleTag(m)}</li>`).join('');
     body.innerHTML = `
-      <p class="sheet-note">You're in <strong>${esc(P.hostName)}</strong>'s party. Tap Start, a sound, or add a task to ask the host; they decide.</p>
-      <form class="party-join" id="party-msg-form" autocomplete="off">
+      <p class="sheet-note">You're in <strong>${esc(P.hostName)}</strong>'s party.</p>
+      <div class="party-you"><span class="party-you-icon" aria-hidden="true">${role.icon}</span><div><strong>You can ${a.role === 'watch' ? 'watch' : a.role}</strong><span>${what}</span></div></div>
+      <p class="party-wait" id="party-wait" role="status"></p>
+      ${canMessage ? `<form class="party-join" id="party-msg-form" autocomplete="off">
         <label class="sr-only" for="party-msg">Message to the host</label>
         <input id="party-msg" type="text" maxlength="140" placeholder="Ask the host something…">
         <button type="submit" class="text-btn pressable">Send</button>
-      </form>
+      </form>` : ''}
       <div class="party-actions">
-        <button type="button" class="text-btn pressable" id="party-break">Ask for a break</button>
+        ${canBreak ? '<button type="button" class="text-btn pressable" id="party-break">Ask for a break</button>' : ''}
         <button type="button" class="text-btn pressable" id="party-leave">Leave party</button>
       </div>
       <h3 class="party-h">In the party</h3><ul class="party-members">${members}</ul>`;
+    tickPartyWait();
   }
+  if (refocus) body.querySelector(refocus)?.focus();
+}
+
+// A guest's countdown until they can ask again, while the dialog is open.
+let waitTicker = 0;
+function tickPartyWait() {
+  clearTimeout(waitTicker);
+  const out = $('#party-wait');
+  if (!out || !P || P.role !== 'guest' || !$('#party-dialog').open) return;
+  const now = Date.now();
+  let text = '';
+  if (P.access.role !== 'watch') {
+    if (P.pending && P.pending.until > now) text = `⏳ Waiting for ${P.hostName} to answer…`;
+    else if (P.nextAt > now) text = `⏳ You can ask again in ${secs(P.nextAt - now)}`;
+  }
+  if (out.textContent !== text) out.textContent = text;
+  if (text) waitTicker = setTimeout(tickPartyWait, 1000 - (now % 1000) + 20);
 }
 
 function partyStatus(text) {
@@ -341,9 +470,11 @@ async function startParty() {
   settings.partyName = name;
   save();
   partyStatus('Setting up a private party…');
+  guestRecs.clear();
   try {
     const ctl = await party.host(name, {
       getState: partyState,
+      accessFor: (g) => accessOf(guestRec(g.id)),
       onJoin: (g) => {
         P.members = ctl.members();
         renderPartyButton();
@@ -352,6 +483,7 @@ async function startParty() {
         toast({ icon: '🎉', title: `${g.name} joined the party`, duration: 3000 });
       },
       onLeave: (g) => {
+        guestRecs.delete(g.id);
         P.members = ctl.members();
         renderPartyButton();
         if ($('#party-dialog').open) renderPartyDialog();
@@ -385,8 +517,10 @@ async function joinParty(code) {
   try {
     return await party.join(code, name, {
       onWelcome: (msg, ctl) => {
-        P = { role: 'guest', ctl, code, hostName: String(msg.host || 'Host').slice(0, 24), members: Array.isArray(msg.members) ? msg.members : [], backup };
+        const access = cleanAccess(msg.access);
+        P = { role: 'guest', ctl, code, hostName: String(msg.host || 'Host').slice(0, 24), members: Array.isArray(msg.members) ? msg.members : [], backup, access, nextAt: 0, pending: null, adds: [], me: String(msg.id || '') };
         el.body.classList.add('is-guest');
+        showGuestRole();
         applyPartyState(msg.state);
         renderPartyButton();
         renderPartyDialog();
@@ -399,8 +533,39 @@ async function joinParty(code) {
         renderPartyButton();
         if ($('#party-dialog').open) renderPartyDialog();
       },
-      onAnswer: (a) => toast({ icon: a.ok ? '👍' : '🙂', title: a.ok ? `${P.hostName} said yes` : `${P.hostName} said not now`, body: a.text, duration: 3000 }),
-      onEnd: (why) => leaveParty(why === 'ended' ? `${P ? P.hostName : 'The host'} ended the party` : 'Lost the connection to the party'),
+      onAccess: (raw) => {
+        if (!P) return;
+        const was = P.access;
+        P.access = cleanAccess(raw);
+        const wait = Number(obj(raw).wait);
+        if (Number.isFinite(wait)) P.nextAt = Date.now() + Math.min(Math.max(wait, 0), 600000);
+        showGuestRole();
+        if (was.role !== P.access.role) {
+          const said = {
+            watch: ['👀', `${P.hostName} set you to watch`, "You'll see and hear everything; the host makes the changes."],
+            ask: ['🙋', `${P.hostName} lets you ask`, 'Tap a control to ask for a change.'],
+            add: ['✏️', `${P.hostName} lets you add things`, 'Add tasks and sounds yourself; timer changes are still requests.'],
+          }[P.access.role];
+          toast({ icon: said[0], title: said[1], body: said[2], duration: 4000, key: 'party-role' });
+        }
+        if ($('#party-dialog').open) renderPartyDialog();
+      },
+      onAnswer: (a) => {
+        if (!P) return;
+        if (P.pending && P.pending.id === a.id) P.pending = null;
+        if (a.wait) P.nextAt = Math.max(P.nextAt, Date.now() + a.wait);
+        tickPartyWait();
+        if (a.auto) {
+          // The host's app answered by itself: a rule said no (or a direct change went through).
+          if (!a.ok) toast({ icon: '⏳', title: 'Not sent', body: a.text, duration: 3000, key: 'party-ask' });
+          return;
+        }
+        toast({ icon: a.ok ? '👍' : '🙂', title: a.ok ? `${P.hostName} said yes` : `${P.hostName} said not now`, body: a.text, duration: 3000, key: 'party-ask' });
+      },
+      onEnd: (why) => leaveParty({
+        ended: `${P ? P.hostName : 'The host'} ended the party`,
+        removed: `${P ? P.hostName : 'The host'} removed you from the party`,
+      }[why] || 'Lost the connection to the party'),
     }, { private: $('#party-private').checked });
   } catch (err) {
     partyStatus(partyError(err));
@@ -414,6 +579,8 @@ function leaveParty(message) {
   const was = P;
   P = null;
   el.body.classList.remove('is-guest');
+  showGuestRole();
+  guestRecs.clear();
   if (was.role === 'host') was.ctl.end();
   else {
     was.ctl.leave();
@@ -453,12 +620,48 @@ const REQUEST_TEXT = {
   message: (d) => String(d || '').slice(0, 140),
 };
 
+// A guest's tap. Their own app explains the host's rules up front (the host's
+// app enforces them anyway), so nothing is sent that would only be refused.
 function askHost(kind, data) {
   if (!P || P.role !== 'guest') return;
-  P.ctl.request(kind, data);
+  const a = P.access;
+  const now = Date.now();
+  const say = (icon, title, body = '') => toast({ icon, title, body, duration: 2600, key: 'party-ask' });
+  if (a.role === 'watch') {
+    say('👀', "You're watching", `${P.hostName} makes the changes in this party.`);
+    return;
+  }
+  if (a.role === 'add' && DIRECT_KINDS.includes(kind)) {
+    P.adds = P.adds.filter((t) => now - t < ADD_WINDOW);
+    if (P.adds.length >= ADD_LIMIT) {
+      say('⏳', 'Slow down a little', `You can change things again in ${secs(P.adds[0] + ADD_WINDOW - now)}.`);
+      return;
+    }
+    P.adds.push(now);
+    P.ctl.request(kind, data);
+    audio.sfx('pop', el.toggle);
+    return;
+  }
+  const group = REQ_GROUP[kind];
+  if (!a[group]) {
+    say('🙂', `${P.hostName} isn't taking requests about ${GROUPS[group].toLowerCase()}`);
+    return;
+  }
+  if (P.pending && P.pending.until > now) {
+    say('⏳', 'Waiting for an answer', `${P.hostName} hasn't answered your last request yet.`);
+    return;
+  }
+  if (P.nextAt > now) {
+    say('⏳', `You can ask again in ${secs(P.nextAt - now)}`, 'There’s a short wait between requests, so nobody gets flooded.');
+    return;
+  }
+  const id = P.ctl.request(kind, data);
+  P.nextAt = now + a.cooldown * 1000;
+  P.pending = kind === 'message' ? null : { id, until: now + PENDING_MS };
   const what = REQUEST_TEXT[kind] ? REQUEST_TEXT[kind](data) : kind;
   audio.sfx('pop', el.toggle);
-  toast({ icon: '🙋', title: kind === 'message' ? 'Message sent to the host' : `Asked the host to ${what}`, duration: 2200 });
+  say('🙋', kind === 'message' ? 'Message sent to the host' : `Asked the host to ${what}`);
+  tickPartyWait();
 }
 
 function doRequest(kind, data) {
@@ -479,7 +682,69 @@ function doRequest(kind, data) {
   else if (kind === 'done') $(`.task[data-id="${CSS.escape(String(data))}"] .task-check`)?.click();
 }
 
+// What an Add guest just did, for the host's quiet heads-up.
+const DID_TEXT = {
+  sound: (d) => `${d && d.on ? 'turned on' : 'turned off'} ${SOUND_INFO[d && d.kind] ? SOUND_INFO[d.kind].name.toLowerCase() : 'a sound'}`,
+  mix: (d) => `played the ${d && d.name ? String(d.name).slice(0, 40) : ''} mix`,
+  task: (d) => `added “${String(d || '').slice(0, 60)}”`,
+  done: (d) => {
+    const t = tasks.find((x) => x.id === d);
+    return t ? `${t.done ? 'unticked' : 'ticked off'} “${t.title.slice(0, 60)}”` : 'ticked off a task';
+  },
+};
+
+// On the host: every guest request comes through here, and the rules are checked here.
 function onPartyRequest(g, r) {
+  if (!P || P.role !== 'host') return;
+  const rec = guestRec(g.id);
+  const rules = settings.partyRules;
+  const group = REQ_GROUP[r.kind];
+  const now = Date.now();
+  const no = (text, wait = 0) => P.ctl.answer(g.id, r.id, false, text, { auto: true, wait });
+  if (!group) return;
+  if (rec.role === 'watch') {
+    no("You're watching, so you can't ask for changes.");
+    return;
+  }
+  if (rec.role === 'add' && DIRECT_KINDS.includes(r.kind)) {
+    rec.adds = rec.adds.filter((t) => now - t < ADD_WINDOW);
+    if (rec.adds.length >= ADD_LIMIT) {
+      no('Slow down a little: too many changes at once.', rec.adds[0] + ADD_WINDOW - now);
+      return;
+    }
+    const d = r.data;
+    const valid = {
+      sound: () => d && audio.ambientKinds.includes(d.kind),
+      mix: () => d && allMixes().some((m) => m.id === d.id),
+      task: () => typeof d === 'string' && d.trim(),
+      done: () => tasks.some((t) => t.id === d),
+    }[r.kind]();
+    if (!valid) {
+      no("That didn't work.");
+      return;
+    }
+    rec.adds.push(now);
+    const did = DID_TEXT[r.kind](r.data);
+    doRequest(r.kind, r.data);
+    P.ctl.answer(g.id, r.id, true, '', { auto: true });
+    toast({ icon: '✏️', title: `${g.name} ${did}`, duration: 2600, key: `party-did-${g.id}` });
+    return;
+  }
+  if (!rules[group]) {
+    no(`The host isn't taking requests about ${GROUPS[group].toLowerCase()} right now.`);
+    return;
+  }
+  if (rec.pendingUntil > now) {
+    no('Wait for the host to answer your last request.', rec.pendingUntil - now);
+    return;
+  }
+  const wait = rec.lastAsk + rules.cooldown * 1000 - now;
+  if (wait > 0) {
+    no(`You can ask again in ${secs(wait)}.`, wait);
+    return;
+  }
+  rec.lastAsk = now;
+  rec.pendingUntil = r.kind === 'message' ? 0 : now + PENDING_MS;
   const what = REQUEST_TEXT[r.kind] ? REQUEST_TEXT[r.kind](r.data) : r.kind;
   // A soft, friendly ding: noticeable, never alarming.
   audio.softBell('half');
@@ -493,10 +758,15 @@ function onPartyRequest(g, r) {
     title: `${g.name} asks to ${what}`,
     duration: 15000,
     actions: [
-      { label: 'Not now', kind: 'ghost', onClick: () => P && P.ctl.answer(g.id, r.id, false) },
+      { label: 'Not now', kind: 'ghost', onClick: () => {
+        rec.pendingUntil = 0;
+        if (P) P.ctl.answer(g.id, r.id, false);
+      } },
       { label: 'Do it', onClick: () => {
+        rec.pendingUntil = 0;
+        if (!P) return;
         doRequest(r.kind, r.data);
-        if (P) P.ctl.answer(g.id, r.id, true);
+        P.ctl.answer(g.id, r.id, true);
       } },
     ],
   });
@@ -575,9 +845,34 @@ $('#party-body').addEventListener('click', async (e) => {
     } catch {
       /* cancelled or blocked */
     }
+  } else if (e.target.closest('.party-kick') && P && P.role === 'host') {
+    const gid = e.target.closest('.party-kick').dataset.guest;
+    const m = P.members.find((x) => x.id === gid);
+    P.ctl.remove(gid);
+    guestRecs.delete(gid);
+    if (m) toast({ icon: '👋', title: `Removed ${m.name}`, body: 'They can only come back by joining again.', duration: 3000 });
   } else if (id === 'party-end') leaveParty('Party ended');
   else if (id === 'party-leave') leaveParty('You left the party');
   else if (id === 'party-break') askHost('break');
+});
+// The host's rules and each guest's role.
+$('#party-body').addEventListener('change', (e) => {
+  if (!P || P.role !== 'host') return;
+  const t = e.target;
+  if (t.matches('.party-role') && ROLE_IDS.includes(t.value)) {
+    const rec = guestRec(t.dataset.guest);
+    rec.role = t.value;
+    rec.adds = [];
+    P.ctl.setAccess(t.dataset.guest, accessOf(rec));
+    P.members = P.ctl.members();
+    return;
+  }
+  if (t.id === 'party-default-role' && ROLE_IDS.includes(t.value)) settings.partyRules.role = t.value;
+  else if (t.closest('.party-allow') && t.name in GROUPS) settings.partyRules[t.name] = t.checked;
+  else if (t.id === 'party-cooldown') settings.partyRules = cleanRules({ ...settings.partyRules, cooldown: Number(t.value) });
+  else return;
+  save();
+  shareAccess();
 });
 $('#party-body').addEventListener('submit', async (e) => {
   e.preventDefault();
@@ -4337,6 +4632,7 @@ statTabs.forEach((t, i) => {
 
 // What's new: the newest first. Bump `id` when adding an entry.
 const CHANGES = [
+  { id: 26, icon: '🛡️', text: 'Party roles: as the host, pick what each guest can do. Watch (just follow along), Ask (send you requests) or Add (add tasks and sounds themselves). Choose what guests can ask about and how long they wait between requests, and remove anyone who spams.' },
   { id: 25, icon: '🔒', text: 'Private parties now connect on any network: everything goes through encrypted relays, so nobody ever sees your IP address. Guests asking for +1 minute now ask for 1 minute (not 5), and sounds are smoother on Android phones.' },
   { id: 24, icon: '🔊', text: 'Button sounds now work on phones, and on iPhone they play even with the silent switch on (you can turn that off in Settings > Sound).' },
   { id: 23, icon: '🎉', text: 'Focus parties: tap Party to host, share the code, and everyone shares your timer, sounds and tasks live. Guests can ask for changes; you decide. Private by default: nobody sees anyone\'s IP address.' },

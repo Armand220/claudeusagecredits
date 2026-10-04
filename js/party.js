@@ -383,8 +383,8 @@ function dedupe() {
 }
 
 /**
- * Start hosting. Resolves with { code, broadcast(state), answer(guestId, reqId, ok, text),
- * members(), end() } once the party can be joined.
+ * Start hosting. Resolves with { code, broadcast(state), answer(guestId, reqId, ok, text, extra),
+ * setAccess(guestId, access), remove(guestId), members(), end() } once the party can be joined.
  *
  * Guests reach the host in one of two ways:
  * - private (relayed): every message goes through the brokers, sealed with the
@@ -393,8 +393,10 @@ function dedupe() {
  * - direct: a WebRTC connection, a little faster, but the two devices learn
  *   each other's addresses. Only when both host and guest turned privacy off.
  *
- * hooks: getState() → the state to share; onJoin(guest), onLeave(guest),
- * onRequest(guest, request), onSignal(online).
+ * hooks: getState() → the state to share; accessFor(guest) → what a new
+ * guest may do (sent to them, and their role shown to everyone);
+ * onJoin(guest), onLeave(guest), onRequest(guest, request), onSignal(online).
+ * The host's app enforces the rules: a guest's own app only mirrors them.
  */
 export async function host(name, hooks, { private: privately = true } = {}) {
   const code = makeCode();
@@ -417,15 +419,16 @@ export async function host(name, hooks, { private: privately = true } = {}) {
       }
     }
   };
+  const removed = new Set(); // connection ids the host sent away
   const memberList = () => [
     { id: 'host', name, host: true },
-    ...[...guests.values()].filter((g) => g.ready).map((g) => ({ id: g.id, name: g.name })),
+    ...[...guests.values()].filter((g) => g.ready).map((g) => ({ id: g.id, name: g.name, role: (g.access && g.access.role) || '' })),
   ];
   const sendMembers = () => {
     const members = memberList();
     guests.forEach((g) => g.ready && send(g, { t: 'members', members }));
   };
-  const welcome = (g) => send(g, { t: 'welcome', id: g.id, host: name, state: hooks.getState(), members: memberList(), now: Date.now() });
+  const welcome = (g) => send(g, { t: 'welcome', id: g.id, host: name, state: hooks.getState(), members: memberList(), access: g.access, now: Date.now() });
 
   function drop(g) {
     if (guests.get(g.id) !== g) return;
@@ -439,10 +442,11 @@ export async function host(name, hooks, { private: privately = true } = {}) {
 
   // What a guest says, whichever way it arrives.
   function fromGuest(g, m) {
-    if (!m || typeof m !== 'object') return;
+    if (!m || typeof m !== 'object' || g.removed) return;
     g.lastSeen = Date.now();
     if (m.t === 'hello' && !g.ready) {
       g.name = str(m.name, 24) || 'Guest';
+      g.access = hooks.accessFor ? hooks.accessFor(g) : null;
       g.ready = true;
       welcome(g);
       hooks.onJoin(g);
@@ -450,6 +454,12 @@ export async function host(name, hooks, { private: privately = true } = {}) {
     } else if (m.t === 'ping') {
       send(g, { t: 'pong', c: m.c, h: Date.now() });
     } else if (m.t === 'req' && g.ready && REQUEST_KINDS.includes(m.kind)) {
+      // A flood guard under the app's own rules: past 10 requests in 10 s,
+      // the rest are dropped without bothering the host.
+      const now = Date.now();
+      g.reqs = (g.reqs || []).filter((t) => now - t < 10000);
+      if (g.reqs.length >= 10) return;
+      g.reqs.push(now);
       hooks.onRequest(g, { id: Number(m.id) || 0, kind: m.kind, data: m.data ?? null, label: str(m.label, 140) });
     } else if (m.t === 'bye') {
       drop(g);
@@ -471,6 +481,10 @@ export async function host(name, hooks, { private: privately = true } = {}) {
     }
     if (!reply.startsWith(`${secrets.topic}/`)) return;
 
+    if (removed.has(cid)) {
+      say(reply, { t: 'removed', cid });
+      return;
+    }
     if (body.t === 'knock') {
       // A private guest at the door (they knock until welcomed).
       if (known) {
@@ -557,9 +571,27 @@ export async function host(name, hooks, { private: privately = true } = {}) {
       const msg = { t: 'state', state, now: Date.now() };
       guests.forEach((g) => g.ready && send(g, msg));
     },
-    answer(guestId, reqId, ok, text = '') {
+    /** extra: { auto } for an answer the app gave by itself, { wait } ms until they may ask again. */
+    answer(guestId, reqId, ok, text = '', { auto = false, wait = 0 } = {}) {
       const g = guests.get(guestId);
-      if (g) send(g, { t: 'ans', id: reqId, ok: Boolean(ok), text: str(text, 140) });
+      if (g) send(g, { t: 'ans', id: reqId, ok: Boolean(ok), text: str(text, 140), auto: Boolean(auto), wait: Math.max(0, Math.round(Number(wait) || 0)) });
+    },
+    /** What this guest may do (the app decides what's in it); everyone sees the new roles. */
+    setAccess(guestId, access) {
+      const g = guests.get(guestId);
+      if (!g || !g.ready) return;
+      g.access = access;
+      send(g, { t: 'access', access });
+      sendMembers();
+    },
+    /** Send a guest away. They can come back only by joining again. */
+    remove(guestId) {
+      const g = guests.get(guestId);
+      if (!g) return;
+      g.removed = true;
+      removed.add(g.id);
+      send(g, { t: 'end', why: 'removed' });
+      setTimeout(() => drop(g), 400);
     },
     end() {
       if (ended) return;
@@ -586,8 +618,9 @@ export async function host(name, hooks, { private: privately = true } = {}) {
  * back to relaying if the host keeps their party private.
  *
  * hooks: onWelcome(msg, controller), onState(state), onMembers(list),
- * onAnswer(answer), onEnd(reason) where reason is 'ended' or 'lost'.
- * Rejects with Error('not-found' | 'full' | 'unreachable' | 'network:…' | 'setup:…').
+ * onAccess(access), onAnswer(answer), onEnd(reason) where reason is 'ended',
+ * 'removed' or 'lost'.
+ * Rejects with Error('not-found' | 'full' | 'removed' | 'unreachable' | 'network:…' | 'setup:…').
  */
 export async function join(code, name, hooks, { private: privately = true } = {}) {
   const secrets = await secretsFor(code);
@@ -702,13 +735,16 @@ export async function join(code, name, hooks, { private: privately = true } = {}
         if (seq) lastStateSeq = seq;
         hooks.onState(msg.state);
       } else if (msg.t === 'members' && Array.isArray(msg.members)) {
-        hooks.onMembers(msg.members.slice(0, MAX_GUESTS + 1).map((x) => ({ id: str(x && x.id, 64), name: str(x && x.name, 24) || 'Guest', host: Boolean(x && x.host) })));
+        hooks.onMembers(msg.members.slice(0, MAX_GUESTS + 1).map((x) => ({ id: str(x && x.id, 64), name: str(x && x.name, 24) || 'Guest', host: Boolean(x && x.host), role: str(x && x.role, 12) })));
+      } else if (msg.t === 'access' && msg.access && typeof msg.access === 'object') {
+        if (hooks.onAccess) hooks.onAccess(msg.access);
       } else if (msg.t === 'ans') {
-        hooks.onAnswer({ id: Number(msg.id) || 0, ok: Boolean(msg.ok), text: str(msg.text, 140) });
+        const wait = Number(msg.wait);
+        hooks.onAnswer({ id: Number(msg.id) || 0, ok: Boolean(msg.ok), text: str(msg.text, 140), auto: Boolean(msg.auto), wait: Number.isFinite(wait) ? Math.min(Math.max(wait, 0), 600000) : 0 });
       } else if (msg.t === 'end') {
         ended = true;
         cleanup();
-        hooks.onEnd('ended');
+        hooks.onEnd(msg.why === 'removed' ? 'removed' : 'ended');
       }
     }
 
@@ -731,6 +767,8 @@ export async function join(code, name, hooks, { private: privately = true } = {}
         fromHost(body.data, Number(body.seq) || 0);
       } else if (body.t === 'full') {
         fail('full');
+      } else if (body.t === 'removed') {
+        fail('removed');
       } else if (body.t === 'relay' && via === 'direct' && !answered) {
         // The host keeps the party private: come in through the relay instead.
         knockRelay();

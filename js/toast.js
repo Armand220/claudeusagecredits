@@ -2,6 +2,7 @@
 
 const MAX_VISIBLE = 3;
 let host = null;
+const keyed = new Map(); // key → dismiss, so a repeated toast replaces itself
 
 function container() {
   if (!host) {
@@ -15,11 +16,13 @@ function container() {
 }
 
 /**
- * toast({ title, body, icon, action: { label, onClick }, duration })
+ * toast({ title, body, icon, action: { label, onClick }, duration, key })
+ * A toast with a key replaces the last one with the same key.
  * Returns a function that dismisses the toast.
  */
-export function toast({ title, body = '', icon = '', action = null, actions = [], duration = 4200, tone = '' } = {}) {
+export function toast({ title, body = '', icon = '', action = null, actions = [], duration = 4200, tone = '', key = '' } = {}) {
   const root = container();
+  if (key && keyed.has(key)) keyed.get(key)(true);
   const el = document.createElement('div');
   el.className = `toast${tone ? ` is-${tone}` : ''}`;
 
@@ -43,13 +46,19 @@ export function toast({ title, body = '', icon = '', action = null, actions = []
 
   let closed = false;
   let timer = 0;
-  const dismiss = () => {
+  const dismiss = (instant = false) => {
     if (closed) return;
     closed = true;
     clearTimeout(timer);
+    if (key && keyed.get(key) === dismiss) keyed.delete(key);
+    if (instant === true) {
+      el.remove();
+      return;
+    }
     el.classList.add('is-leaving');
     setTimeout(() => el.remove(), 260);
   };
+  if (key) keyed.set(key, dismiss);
 
   const all = action ? [action, ...actions] : actions;
   if (all.length) {

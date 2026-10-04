@@ -40,6 +40,17 @@ installed as an app on your phone or computer.
   adds a task, it becomes a request: the host hears a soft bell and sees
   "Maya asks to pause the timer" with **Do it** / **Not now** (or a quiet
   notification if Tempo is in the background). Guests can also send messages
+- **Roles, no spamming**: the host picks what each guest can do:
+  - 👀 **Watch**: sees and hears everything, can't ask for anything
+  - 🙋 **Ask**: sends requests, one at a time, with a wait between them
+    (10 s, 30 s, 1 min or 2 min, the host's choice)
+  - ✏️ **Add**: adds tasks, turns sounds on and off and ticks tasks off
+    directly (up to 5 changes every 30 s); timer changes are still requests
+
+  The host also chooses what guests can ask about (the timer, sounds, tasks,
+  messages) and the role new guests start with, and can remove anyone. The
+  rules are checked on the host's device, so a tampered app can't get round
+  them; past 10 requests in 10 s, the rest are dropped unseen
 - Guests' focus sessions still count in their own stats, and their own timer,
   tasks and sounds come back when they leave
 - **Private by design**: devices connect peer to peer (WebRTC). They meet
