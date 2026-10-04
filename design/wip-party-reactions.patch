@@ -1,0 +1,270 @@
+diff --git a/index.html b/index.html
+index 5fcc454..020e060 100644
+--- a/index.html
++++ b/index.html
+@@ -119,6 +119,7 @@
+             <circle class="ring-progress" id="ring-progress" cx="110" cy="110" r="100"/>
+             <circle class="ring-head" id="ring-head" cx="210" cy="110" r="7"/>
+           </svg>
++          <div class="countdown" id="countdown" aria-live="assertive" hidden></div>
+           <div class="dial-center">
+             <div class="time" id="time" role="timer" aria-label="25 minutes 0 seconds remaining"></div>
+             <div class="session-label" id="session-label">Session 1 of 4</div>
+@@ -150,6 +151,13 @@
+           </button>
+         </div>
+ 
++        <div class="react-bar" id="react-bar" role="group" aria-label="Send a reaction to the party" hidden>
++          <button type="button" class="react-btn pressable" data-e="👏" aria-label="Clap">👏</button>
++          <button type="button" class="react-btn pressable" data-e="🔥" aria-label="Fire">🔥</button>
++          <button type="button" class="react-btn pressable" data-e="☕" aria-label="Coffee">☕</button>
++          <button type="button" class="react-btn pressable" data-e="💪" aria-label="Strong">💪</button>
++          <button type="button" class="react-btn pressable" data-e="🎉" aria-label="Party">🎉</button>
++        </div>
+         <p class="zen-hint" aria-hidden="true">Press <kbd>F</kbd> or <kbd>Esc</kbd> to leave zen mode</p>
+ 
+         <form class="park-form" id="park-form" autocomplete="off" hidden>
+diff --git a/js/app.js b/js/app.js
+index b917efb..888edd9 100644
+--- a/js/app.js
++++ b/js/app.js
+@@ -79,6 +79,7 @@ function cleanRules(raw) {
+     cooldown: COOLDOWNS.includes(Number(r.cooldown)) ? Number(r.cooldown) : 30,
+     filter: r.filter !== false, // star out bad language in names, tasks and messages
+     admit: r.admit === true, // the host lets each person in
++    reactions: r.reactions !== false,
+   };
+ }
+ 
+@@ -270,7 +271,7 @@ function guestRec(id) {
+ // What a guest is told about their role and the host's rules.
+ function accessOf(rec) {
+   const r = settings.partyRules;
+-  return { role: rec.role, timer: r.timer, sounds: r.sounds, tasks: r.tasks, messages: r.messages, cooldown: r.cooldown, filter: r.filter, wait: Math.max(0, rec.lastAsk + r.cooldown * 1000 - Date.now()) };
++  return { role: rec.role, timer: r.timer, sounds: r.sounds, tasks: r.tasks, messages: r.messages, cooldown: r.cooldown, filter: r.filter, reactions: r.reactions, wait: Math.max(0, rec.lastAsk + r.cooldown * 1000 - Date.now()) };
+ }
+ 
+ function cleanAccess(raw) {
+@@ -283,9 +284,83 @@ function cleanAccess(raw) {
+     messages: a.messages !== false,
+     cooldown: clampInt(a.cooldown, 0, 600, 30),
+     filter: a.filter !== false,
++    reactions: a.reactions !== false,
+   };
+ }
+ 
++// ----- Reactions: little emoji that float up on everyone's screen
++
++let lastReact = 0;
++function showReaction(e, name) {
++  const layer = $('#react-layer') || document.body.appendChild(Object.assign(document.createElement('div'), { id: 'react-layer', className: 'react-layer' }));
++  const r = document.createElement('div');
++  r.className = 'react-float';
++  r.style.left = `${20 + Math.random() * 60}%`;
++  const big = document.createElement('span');
++  big.className = 'react-emoji';
++  big.textContent = e;
++  const who = document.createElement('span');
++  who.className = 'react-name';
++  who.textContent = name;
++  r.append(big, who);
++  layer.appendChild(r);
++  while (layer.childElementCount > 12) layer.firstElementChild.remove();
++  setTimeout(() => r.remove(), 2800);
++  audio.sfx('pop', el.toggle);
++}
++
++function renderReactBar() {
++  const on = Boolean(P) && (P.role === 'host' ? settings.partyRules.reactions : P.access.reactions);
++  $('#react-bar').hidden = !on;
++}
++
++$('#react-bar').addEventListener('click', (e) => {
++  const b = e.target.closest('.react-btn');
++  if (!b || !P) return;
++  const now = Date.now();
++  if (now - lastReact < 1600) {
++    fx.nudge(b);
++    return;
++  }
++  lastReact = now;
++  fx.pop(b, 1.25);
++  showReaction(b.dataset.e, 'You');
++  if (P.role === 'host') P.ctl.react(b.dataset.e);
++  else P.ctl.react(b.dataset.e);
++});
++
++// ----- A synced 3-2-1 when the host starts the timer with guests around
++
++let countdownTimer = 0;
++function runCountdown(go, onGo) {
++  clearInterval(countdownTimer);
++  const box = $('#countdown');
++  if (!go) {
++    box.hidden = true;
++    return;
++  }
++  const step = () => {
++    const left = Math.ceil((go - Date.now()) / 1000);
++    if (left <= 0) {
++      clearInterval(countdownTimer);
++      box.hidden = true;
++      if (onGo) onGo();
++      return;
++    }
++    if (box.textContent !== String(left)) {
++      box.textContent = String(left);
++      box.classList.remove('is-tick');
++      void box.offsetWidth;
++      box.classList.add('is-tick');
++      audio.sfx('tick', box);
++    }
++  };
++  box.hidden = false;
++  box.textContent = '';
++  step();
++  countdownTimer = setInterval(step, 100);
++}
++
+ // The language filter, when the party has it on (the host's rule).
+ const partyFilter = () => (P && P.role === 'guest' ? P.access.filter : settings.partyRules.filter);
+ const tidy = (text) => (partyFilter() ? cleanWords(text) : String(text));
+@@ -435,6 +510,7 @@ function renderPartyDialog(prefill = '') {
+           ${Object.entries(GROUPS).map(([g, label]) => `<label class="party-check pressable"><input type="checkbox" id="party-allow-${g}" name="${g}"${rules[g] ? ' checked' : ''}><span>${label}</span></label>`).join('')}
+         </fieldset>
+         <label class="party-rule"><span>Time between requests</span><select id="party-cooldown">${COOLDOWNS.map((c) => `<option value="${c}"${c === rules.cooldown ? ' selected' : ''}>${secs(c * 1000)}</option>`).join('')}</select></label>
++        <label class="switch"><input type="checkbox" id="party-reactions"${rules.reactions ? ' checked' : ''}><span>Reactions (👏 🔥 ☕) float up on everyone's screen</span></label>
+         <label class="switch"><input type="checkbox" id="party-admit"${rules.admit ? ' checked' : ''}><span>Ask me before letting people in</span></label>
+         <label class="switch"><input type="checkbox" id="party-filter"${rules.filter ? ' checked' : ''}><span>Language filter: star out bad words in names, tasks and messages</span></label>
+       </div>
+@@ -505,6 +581,11 @@ async function startParty() {
+       getState: partyState,
+       cleanName: (n) => tidy(n),
+       accessFor: (g) => accessOf(guestRec(g.id)),
++      onReact: (g, e) => {
++        if (!settings.partyRules.reactions) return false;
++        showReaction(e, g.name);
++        return true;
++      },
+       onJoin: (g) => {
+         P.members = ctl.members();
+         renderPartyButton();
+@@ -612,6 +693,8 @@ async function joinParty(code) {
+         toast({ icon: a.ok ? '👍' : '🙂', title: a.ok ? `${P.hostName} said yes` : `${P.hostName} said not now`, body: a.text, duration: 3000, key: 'party-ask' });
+       },
+       onWaiting: () => partyStatus('Waiting for the host to let you in…'),
++      onReact: (r) => P && P.access.reactions && showReaction(r.e, r.name),
++      onCountdown: (go) => runCountdown(go),
+       onEnd: (why) => leaveParty({
+         ended: `${P ? P.hostName : 'The host'} ended the party`,
+         removed: `${P ? P.hostName : 'The host'} removed you from the party`,
+@@ -991,7 +1074,10 @@ $('#party-body').addEventListener('change', (e) => {
+   if (t.id === 'party-default-role' && ROLE_IDS.includes(t.value)) settings.partyRules.role = t.value;
+   else if (t.closest('.party-allow') && t.name in GROUPS) settings.partyRules[t.name] = t.checked;
+   else if (t.id === 'party-cooldown') settings.partyRules = cleanRules({ ...settings.partyRules, cooldown: Number(t.value) });
+-  else if (t.id === 'party-admit') {
++  else if (t.id === 'party-reactions') {
++    settings.partyRules.reactions = t.checked;
++    renderReactBar();
++  } else if (t.id === 'party-admit') {
+     settings.partyRules.admit = t.checked;
+     P.ctl.setAdmit(t.checked ? 'ask' : 'open');
+   } else if (t.id === 'party-filter') {
+@@ -4688,6 +4774,24 @@ $('#mini-toggle').addEventListener('click', (e) => toggleTimer(e.currentTarget))
+ 
+ function toggleTimer(source) {
+   audio.unlock();
++  // In a party, the host's start becomes a 3-2-1 that everyone sees at once.
++  if (!timer.running && isFresh() && P && P.role === 'host' && P.members.length > 1) {
++    if (!$('#countdown').hidden) {
++      runCountdown(0);
++      P.ctl.countdown(0);
++      return;
++    }
++    const go = Date.now() + 3200;
++    P.ctl.countdown(go);
++    runCountdown(go, () => {
++      if (!timer.running) {
++        start();
++        audio.sfx('start', el.toggle);
++        fx.burst(el.toggle, { count: 12, spread: 70, size: 6 });
++      }
++    });
++    return;
++  }
+   if (timer.running) {
+     pause();
+     audio.sfx('pause', source);
+diff --git a/js/party.js b/js/party.js
+index 471548a..0c9e50e 100644
+--- a/js/party.js
++++ b/js/party.js
+@@ -36,6 +36,7 @@ const ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'; // no 0/O, 1/I/L
+ export const CODE_LENGTH = 8;
+ export const MAX_GUESTS = 12;
+ const PROTOCOL = 2;
++export const REACTIONS = ['👏', '🔥', '☕', '💪', '🎉'];
+ const REQUEST_KINDS = ['toggle', 'skip', 'reset', 'mode', 'more', 'sound', 'silence', 'mix', 'task', 'done', 'message', 'break'];
+ 
+ export const supported =
+@@ -443,6 +444,7 @@ export async function host(name, hooks, { private: privately = true, admit = 'op
+   const removed = new Set(); // sent away by the host
+   const gone = new Set(); // left: their old knocks mustn't bring them back
+   const arrivals = []; // when new people turned up, to slow down a flood
++  const reacted = []; // when the last reactions went out, party-wide
+   const fresh = dedupe();
+   let admitMode = admit === 'ask' ? 'ask' : 'open';
+   let ended = false;
+@@ -512,6 +514,15 @@ export async function host(name, hooks, { private: privately = true, admit = 'op
+       if (g.reqs.length >= 10) return;
+       g.reqs.push(now);
+       hooks.onRequest(g, { id: Number(m.id) || 0, kind: m.kind, data: m.data ?? null, label: str(m.label, 140) });
++    } else if (m.t === 'react' && g.ready && REACTIONS.includes(m.e)) {
++      // At most one every 1.5 s and 6 in 15 s from a guest, 4 a second party-wide.
++      g.reacts = (g.reacts || []).filter((t) => now - t < 15000);
++      while (reacted.length && now - reacted[0] > 1000) reacted.shift();
++      if (g.reacts.length >= 6 || now - (g.reacts[g.reacts.length - 1] || 0) < 1500 || reacted.length >= 4) return;
++      g.reacts.push(now);
++      reacted.push(now);
++      if (hooks.onReact && hooks.onReact(g, m.e) === false) return;
++      guests.forEach((o) => o !== g && o.ready && send(o, { t: 'react', e: m.e, name: g.name }));
+     } else if (m.t === 'bye') {
+       drop(g);
+     }
+@@ -679,6 +690,15 @@ export async function host(name, hooks, { private: privately = true, admit = 'op
+       send(g, { t: 'access', access });
+       sendMembers();
+     },
++    /** The host's own reaction, to everyone. */
++    react(e) {
++      if (!REACTIONS.includes(e)) return;
++      guests.forEach((g) => g.ready && send(g, { t: 'react', e, name }));
++    },
++    /** A synced 3-2-1: everyone counts down to \`go\` (host ms); 0 cancels. */
++    countdown(go) {
++      guests.forEach((g) => g.ready && send(g, { t: 'countdown', go: Number(go) || 0 }));
++    },
+     /** 'open': anyone with the code comes straight in. 'ask': the host lets each person in. */
+     setAdmit(mode) {
+       admitMode = mode === 'ask' ? 'ask' : 'open';
+@@ -817,6 +837,9 @@ export async function join(code, name, hooks, { private: privately = true } = {}
+         send({ t: 'req', id, kind, data, label });
+         return id;
+       },
++      react(e) {
++        if (REACTIONS.includes(e)) send({ t: 'react', e });
++      },
+       /** How far the host's clock is ahead of ours, in ms. */
+       offset: () => best.offset,
+       leave() {
+@@ -863,6 +886,10 @@ export async function join(code, name, hooks, { private: privately = true } = {}
+         hooks.onState(msg.state);
+       } else if (msg.t === 'members' && Array.isArray(msg.members)) {
+         hooks.onMembers(msg.members.slice(0, MAX_GUESTS + 1).map((x) => ({ id: str(x && x.id, 64), name: str(x && x.name, 24) || 'Guest', host: Boolean(x && x.host), role: str(x && x.role, 12) })));
++      } else if (msg.t === 'react' && REACTIONS.includes(msg.e)) {
++        if (hooks.onReact) hooks.onReact({ e: msg.e, name: str(msg.name, 24) || 'Someone' });
++      } else if (msg.t === 'countdown' && Number.isFinite(msg.go)) {
++        if (hooks.onCountdown) hooks.onCountdown(msg.go ? msg.go - best.offset : 0);
+       } else if (msg.t === 'access' && msg.access && typeof msg.access === 'object') {
+         if (hooks.onAccess) hooks.onAccess(msg.access);
+       } else if (msg.t === 'ans') {

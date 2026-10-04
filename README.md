@@ -186,6 +186,13 @@ itself to cover a single missed day. Tap it for your best streak.
   wide screens show all three side by side
 - Installable, with shortcuts (Start focusing, Take a break, Zen mode)
 
+## Coming next
+
+- **Party reactions** (👏 🔥 ☕ 💪 🎉 floating up on everyone's screen, rate
+  limited, with a host switch) and a **synced 3-2-1 start** when the host
+  starts the timer. Work in progress is saved in
+  `design/wip-party-reactions.patch`.
+
 ## Keyboard shortcuts
 
 | Key | Action |
