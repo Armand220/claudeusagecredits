@@ -8,6 +8,12 @@ installed as an app on your phone or computer.
 
 ## Features
 
+**The look**: the timer is the stage, over a live scene that matches your
+sounds. On a computer, Sounds and Tasks share one side panel, switched from
+the rail on the right (it remembers which one you had open); click Timer for
+just the clock. On phones the same three live behind the bottom tab bar.
+Sounds are picture tiles, with little bars on the ones playing.
+
 **Timer**
 - Focus, short break and long break, with a long break after every few focus
   sessions. One-tap presets: Classic 25/5, Deep 50/10, Sprint 15/3, Long haul 90/20

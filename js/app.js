@@ -1,13 +1,13 @@
-import * as audio from './audio.js?v=73';
-import * as fx from './fx.js?v=73';
-import { toast, rehome as rehomeToasts } from './toast.js?v=73';
-import * as effects from './effects.js?v=73';
-import * as scenery from './scenery.js?v=73';
-import * as pip from './pip.js?v=73';
-import { shareCard, makeCardFile } from './share.js?v=73';
-import * as party from './party.js?v=73';
-import { clean as cleanWords } from './filter.js?v=73';
-import * as photo from './photo.js?v=73';
+import * as audio from './audio.js?v=74';
+import * as fx from './fx.js?v=74';
+import { toast, rehome as rehomeToasts } from './toast.js?v=74';
+import * as effects from './effects.js?v=74';
+import * as scenery from './scenery.js?v=74';
+import * as pip from './pip.js?v=74';
+import { shareCard, makeCardFile } from './share.js?v=74';
+import * as party from './party.js?v=74';
+import { clean as cleanWords } from './filter.js?v=74';
+import * as photo from './photo.js?v=74';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -4110,7 +4110,7 @@ function offerJoin() {
       timer.paused = null;
       timer.flow = false;
       afterTimerChange();
-      setView('timer');
+      if (phoneLayout.matches) setView('timer');
       audio.sfx('start', el.toggle);
       fx.burst(el.toggle, { count: 14, spread: 80, size: 6 });
       toast({ icon: '👥', title: 'Joined', body: `Focusing together until ${at}.`, duration: 3000 });
@@ -4450,10 +4450,28 @@ const VIEWS = ['timer', 'sounds', 'tasks'];
 const navBtns = $$('.nav-btn');
 const phoneLayout = window.matchMedia('(max-width: 760px)');
 
+// On a computer the side panel remembers what it last showed (just on this device).
+const DOCK_KEY = 'tempo:dock';
+function savedDock() {
+  try {
+    const v = localStorage.getItem(DOCK_KEY);
+    return VIEWS.includes(v) ? v : 'tasks';
+  } catch {
+    return 'tasks';
+  }
+}
+
 function setView(view, { scroll = true } = {}) {
   if (!VIEWS.includes(view)) view = 'timer';
   const changed = el.body.dataset.view !== view;
   el.body.dataset.view = view;
+  if (!phoneLayout.matches) {
+    try {
+      localStorage.setItem(DOCK_KEY, view);
+    } catch {
+      /* private mode: it just won't be remembered */
+    }
+  }
   navBtns.forEach((b) => {
     if (b.dataset.view === view) b.setAttribute('aria-current', 'page');
     else b.removeAttribute('aria-current');
@@ -4758,6 +4776,7 @@ statTabs.forEach((t, i) => {
 
 // What's new: the newest first. Bump `id` when adding an entry.
 const CHANGES = [
+  { id: 29, icon: '✨', text: 'A fresh new look: the timer takes centre stage, and on a computer Sounds and Tasks live in one side panel you switch with the buttons on the right. Sounds are now picture tiles, and everything is a little calmer and quicker.' },
   { id: 28, icon: '🔐', text: 'Safer parties: turn on “Ask me before letting people in” (it switches on by itself when you remove someone), requests can no longer pile up on the host, and each guest’s messages are sealed with their own key so nobody can pretend to be someone else.' },
   { id: 27, icon: '🧼', text: 'Parties now have a language filter: bad words in names, tasks and messages are starred out (the host can turn it off). And as a guest, Off, the mixer ✕ and M now work: they ask the host, or just turn sounds off if you can add things.' },
   { id: 26, icon: '🛡️', text: 'Party roles: as the host, pick what each guest can do. Watch (just follow along), Ask (send you requests) or Add (add tasks and sounds themselves). Choose what guests can ask about and how long they wait between requests, and remove anyone who spams.' },
@@ -4958,7 +4977,7 @@ document.addEventListener('keydown', (e) => {
   } else if (key === 'i') {
     e.preventDefault();
     if (isZen()) setZen(false);
-    setView('timer');
+    if (phoneLayout.matches) setView('timer');
     setTimeout(() => $('#intention-input').focus(), isZen() ? 500 : 0);
   } else if (key === 'd') {
     noteDistraction();
@@ -5119,7 +5138,7 @@ if (timer.running) schedule();
 syncWakeLock();
 effects.initSpotlight();
 effects.initTilt($('.timer-card'));
-setView('timer', { scroll: false });
+setView(phoneLayout.matches ? 'timer' : savedDock(), { scroll: false });
 
 // ---------------------------------------------------------------------------
 // Command palette: search everything you can do and run it from the keyboard.
