@@ -40,6 +40,11 @@ tabs standing up on the right edge.
 - **Floating mini timer** that stays on top of other windows (`P`)
 - The browser tab icon becomes a little progress ring
 
+**Park a thought**: mid-focus, tap ⚡ *Distracted* (or press D) and type the
+thought that popped up ("email Sam") so you can stop holding it in your head.
+It's counted as a distraction as before, and at your break the parked thoughts
+come back on a card: *Make it a task* or *Done*.
+
 **Just 2 minutes**: on days you can't get going, pick 🌱 *Just 2 min* from the
 length picker under the timer (or the palette). When the two minutes are up
 the session simply carries on into a full one, without losing a second, and a

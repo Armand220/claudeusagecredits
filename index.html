@@ -23,7 +23,7 @@
   <!-- Fonts load without blocking the first paint. -->
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..700&family=Outfit:wght@200..700&display=swap" media="print" onload="this.media='all'">
   <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..700&family=Outfit:wght@200..700&display=swap"></noscript>
-  <link rel="stylesheet" href="styles.css?v=78">
+  <link rel="stylesheet" href="styles.css?v=79">
 </head>
 <body data-mode="focus">
   <div class="photo-bg" aria-hidden="true"></div>
@@ -152,11 +152,21 @@
 
         <p class="zen-hint" aria-hidden="true">Press <kbd>F</kbd> or <kbd>Esc</kbd> to leave zen mode</p>
 
+        <form class="park-form" id="park-form" autocomplete="off" hidden>
+          <label class="sr-only" for="park-input">Park the thought for later</label>
+          <span class="park-icon" aria-hidden="true">💭</span>
+          <input id="park-input" type="text" maxlength="80" enterkeyhint="done" placeholder="Park the thought for later…">
+          <button type="submit" class="park-save pressable">Park</button>
+        </form>
         <p class="current-task" id="current-task" hidden>
           <span class="current-task-kicker">Working on</span>
           <span class="current-task-title" id="current-task-title"></span>
         </p>
 
+        <section class="parked" id="parked" aria-labelledby="parked-title" hidden>
+          <h3 class="parked-title" id="parked-title"></h3>
+          <ul class="parked-list" id="parked-list"></ul>
+        </section>
         <p class="break-idea" id="break-idea" hidden>
           <span class="break-idea-text" id="break-idea-text" aria-live="polite"></span>
           <button type="button" class="break-idea-next pressable" id="btn-next-idea" aria-label="Another break idea" title="Another idea">
@@ -649,6 +659,6 @@
     </div>
   </dialog>
 
-  <script type="module" src="js/app.js?v=78"></script>
+  <script type="module" src="js/app.js?v=79"></script>
 </body>
 </html>

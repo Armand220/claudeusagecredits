@@ -1,13 +1,13 @@
-import * as audio from './audio.js?v=78';
-import * as fx from './fx.js?v=78';
-import { toast, rehome as rehomeToasts } from './toast.js?v=78';
-import * as effects from './effects.js?v=78';
-import * as scenery from './scenery.js?v=78';
-import * as pip from './pip.js?v=78';
-import { shareCard, makeCardFile } from './share.js?v=78';
-import * as party from './party.js?v=78';
-import { clean as cleanWords } from './filter.js?v=78';
-import * as photo from './photo.js?v=78';
+import * as audio from './audio.js?v=79';
+import * as fx from './fx.js?v=79';
+import { toast, rehome as rehomeToasts } from './toast.js?v=79';
+import * as effects from './effects.js?v=79';
+import * as scenery from './scenery.js?v=79';
+import * as pip from './pip.js?v=79';
+import { shareCard, makeCardFile } from './share.js?v=79';
+import * as party from './party.js?v=79';
+import { clean as cleanWords } from './filter.js?v=79';
+import * as photo from './photo.js?v=79';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -187,6 +187,11 @@ function cleanCounters(raw) {
   out.frozenDays = Array.isArray(out.frozenDays) ? out.frozenDays.filter((d) => typeof d === 'string').slice(-60) : [];
   out.freezeEarned = typeof out.freezeEarned === 'string' ? out.freezeEarned : '';
   out.bestStreak = clampInt(out.bestStreak, 0, 1e5, 0);
+  // Thoughts parked during focus, handed back at the break.
+  out.parked = (Array.isArray(out.parked) ? out.parked : [])
+    .filter((p) => p && typeof p.text === 'string' && p.text.trim())
+    .slice(-20)
+    .map((p) => ({ id: String(p.id || Math.random().toString(36).slice(2)), text: p.text.trim().slice(0, 80) }));
   // Which colour each #tag got, so tags keep their colours.
   out.tagColors = Object.fromEntries(
     Object.entries(obj(out.tagColors))
@@ -1289,15 +1294,99 @@ const RATING_NAMES = ['Rough', 'Okay', 'Good', 'Great'];
 
 function noteDistraction(source) {
   if (timer.mode !== 'focus' || isFresh()) return;
+  openPark();
   timer.distractions = Math.min(99, (timer.distractions || 0) + 1);
   save();
   renderDistractions();
   audio.sfx('tick', source || el.distract);
   fx.pop(el.distract, 1.12);
-  if (timer.distractions === 1) {
-    toast({ icon: '⚡', title: 'Noted. Back to it!', body: 'Jot the thought down as a task if it matters, then refocus.', duration: 3500 });
-  }
 }
+
+// Park a thought: a few words now, handed back at the break.
+const parkForm = $('#park-form');
+const parkInput = $('#park-input');
+function openPark() {
+  parkForm.hidden = false;
+  fx.enter(parkForm);
+  parkInput.focus();
+}
+function closePark() {
+  parkForm.hidden = true;
+  parkInput.value = '';
+}
+parkForm.addEventListener('submit', (e) => {
+  e.preventDefault();
+  const text = parkInput.value.trim();
+  if (text) {
+    counters.parked.push({ id: Math.random().toString(36).slice(2), text: text.slice(0, 80) });
+    counters.parked = counters.parked.slice(-20);
+    save();
+    audio.sfx('check', parkInput);
+    toast({ icon: '💭', title: 'Parked. Back to it!', body: "You'll get it back at your break.", duration: 2500, key: 'park' });
+  }
+  closePark();
+  el.distract.focus();
+});
+parkInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    e.stopPropagation();
+    closePark();
+    el.distract.focus();
+  }
+});
+parkInput.addEventListener('blur', () => {
+  // Tapping away with nothing typed just closes it.
+  setTimeout(() => {
+    if (!parkInput.value.trim() && !parkForm.contains(document.activeElement)) closePark();
+  }, 150);
+});
+
+// At the break, the parked thoughts come back: make them tasks, or let them go.
+function renderParked() {
+  const box = $('#parked');
+  const show = timer.mode !== 'focus' && counters.parked.length > 0;
+  box.hidden = !show;
+  if (!show) return;
+  const n = counters.parked.length;
+  $('#parked-title').textContent = `You parked ${n} ${n === 1 ? 'thought' : 'thoughts'}`;
+  $('#parked-list').replaceChildren(...counters.parked.map((p) => {
+    const li = document.createElement('li');
+    li.dataset.id = p.id;
+    const text = document.createElement('span');
+    text.className = 'parked-text';
+    text.textContent = p.text;
+    const task = document.createElement('button');
+    task.type = 'button';
+    task.className = 'parked-btn pressable';
+    task.dataset.act = 'task';
+    task.textContent = 'Make it a task';
+    task.setAttribute('aria-label', `Make “${p.text}” a task`);
+    const done = document.createElement('button');
+    done.type = 'button';
+    done.className = 'parked-btn is-ghost pressable';
+    done.dataset.act = 'done';
+    done.textContent = 'Done';
+    done.setAttribute('aria-label', `Let go of “${p.text}”`);
+    li.append(text, task, done);
+    return li;
+  }));
+}
+$('#parked-list').addEventListener('click', (e) => {
+  const b = e.target.closest('.parked-btn');
+  if (!b) return;
+  const id = b.closest('li').dataset.id;
+  const p = counters.parked.find((x) => x.id === id);
+  if (!p) return;
+  if (b.dataset.act === 'task') {
+    if (isGuest()) askHost('task', p.text);
+    else addTask(p.text, 1);
+  }
+  audio.sfx(b.dataset.act === 'task' ? 'pop' : 'tick', b);
+  counters.parked = counters.parked.filter((x) => x !== p);
+  save();
+  renderParked();
+  ($('#parked-list .parked-btn') || el.toggle).focus();
+});
 
 // Tap the length (before starting) to pick another one quickly.
 const LENGTHS = { focus: [15, 20, 25, 30, 45, 50, 60, 90], short: [3, 5, 10, 15], long: [10, 15, 20, 30] };
@@ -1652,6 +1741,8 @@ function renderTimer(force = false) {
   el.skip.title = flow && !isFresh() ? 'Finish and take your break (S)' : 'Skip (S)';
   el.skip.setAttribute('aria-label', flow && !isFresh() ? 'Finish and take your break' : 'Skip to next session');
   renderDistractions();
+  renderParked();
+  if ((timer.mode !== 'focus' || isFresh()) && !parkForm.hidden) closePark();
   renderLength();
   el.toggle.setAttribute('aria-pressed', String(timer.running));
   el.toggleLabel.textContent = timer.running ? 'Pause' : isFresh() ? 'Start' : 'Resume';
@@ -4870,6 +4961,7 @@ statTabs.forEach((t, i) => {
 
 // What's new: the newest first. Bump `id` when adding an entry.
 const CHANGES = [
+  { id: 34, icon: '💭', text: 'Park a thought: tap ⚡ Distracted (or press D) mid-focus, type what popped into your head, and get straight back to work. At your break, Tempo hands it back so you can make it a task or let it go.' },
   { id: 33, icon: '🌱', text: 'Can’t get going? Tap the length under the timer and pick “Just 2 min”. When the two minutes are up you just keep going into a full session, or stop there with no guilt.' },
   { id: 32, icon: '🔥', text: 'Streak flame: your streak now shows at the top, changing colour as it grows. Every 7 days in a row earns a ❄️ freeze that covers a day you miss. Tap the flame for your best streak.' },
   { id: 31, icon: '📲', text: 'Comfier on small phones: a bigger timer dial, a tidier top bar and no sideways scrolling, down to the smallest iPhone.' },
