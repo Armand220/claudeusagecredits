@@ -2253,6 +2253,7 @@ body.is-zen .intention input { font-size: clamp(15px, 2vmin, 20px); color: var(-
 .length-opt:hover { color: var(--ink); border-color: var(--accent); }
 .length-opt[aria-pressed="true"] { background: var(--accent-strong); color: var(--on-accent); border-color: transparent; }
 .length-opt.is-flow { width: 100%; font-size: 14px; letter-spacing: .01em; }
+.length-opt.is-two { width: 100%; font-size: 14px; letter-spacing: .01em; }
 .flow-break-btn { color: var(--accent-strong); border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
 body.is-flow.is-running .time .colon { animation: flow-blink 2s ease-in-out infinite; }
 @keyframes flow-blink { 50% { opacity: .35; } }

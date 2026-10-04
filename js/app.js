@@ -1,13 +1,13 @@
-import * as audio from './audio.js?v=77';
-import * as fx from './fx.js?v=77';
-import { toast, rehome as rehomeToasts } from './toast.js?v=77';
-import * as effects from './effects.js?v=77';
-import * as scenery from './scenery.js?v=77';
-import * as pip from './pip.js?v=77';
-import { shareCard, makeCardFile } from './share.js?v=77';
-import * as party from './party.js?v=77';
-import { clean as cleanWords } from './filter.js?v=77';
-import * as photo from './photo.js?v=77';
+import * as audio from './audio.js?v=78';
+import * as fx from './fx.js?v=78';
+import { toast, rehome as rehomeToasts } from './toast.js?v=78';
+import * as effects from './effects.js?v=78';
+import * as scenery from './scenery.js?v=78';
+import * as pip from './pip.js?v=78';
+import { shareCard, makeCardFile } from './share.js?v=78';
+import * as party from './party.js?v=78';
+import { clean as cleanWords } from './filter.js?v=78';
+import * as photo from './photo.js?v=78';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -122,6 +122,8 @@ function cleanTimer(raw) {
   out.distractions = clampInt(out.distractions, 0, 99, 0);
   out.flow = Boolean(out.flow) && out.mode === 'focus';
   out.nudged = Boolean(out.nudged);
+  out.two = Boolean(out.two) && out.mode === 'focus' && !out.flow; // "Just 2 minutes"
+
   out.rung = clampInt(out.rung, 0, 2, 0); // soft bells already rung this session
   if (!Number.isFinite(out.startAt)) out.startAt = 0;
   out.earned = out.mode !== 'focus' && Number.isFinite(out.earned) && out.earned >= 60000 ? Math.min(out.earned, 90 * 60000) : null;
@@ -1331,6 +1333,15 @@ function openLengthPop() {
     b.title = 'Count up and take a break when you\'re ready';
     b.setAttribute('aria-pressed', String(flow));
     buttons.push(b);
+    if (isFresh()) {
+      const two = document.createElement('button');
+      two.type = 'button';
+      two.className = 'length-opt is-two pressable';
+      two.dataset.min = 'two';
+      two.textContent = '🌱 Just 2 min';
+      two.title = "Can't get going? Start with two minutes";
+      buttons.push(two);
+    }
   }
   el.lengthPop.replaceChildren(...buttons);
   el.lengthPop.hidden = false;
@@ -1420,6 +1431,33 @@ function switchTo(mode, { earned = null } = {}) {
 }
 
 function complete({ late = 0, flowMs = 0 } = {}) {
+  if (timer.two && timer.mode === 'focus' && !flowMs && timer.running && Date.now() >= timer.endAt - 1500) {
+    // The two minutes are up: keep going seamlessly into a full session.
+    timer.two = false;
+    const full = Math.max(settings.focus, 5) * 60000;
+    timer.endAt += full - totalMs();
+    timer.total = full;
+    afterTimerChange();
+    audio.softBell('half');
+    toast({
+      icon: '🌱',
+      title: 'Two minutes done. Keep going?',
+      body: `You've started, so this is now a ${Math.round(full / 60000)}-minute session.`,
+      duration: 15000,
+      key: 'two-min',
+      actions: [
+        { label: "That's enough", kind: 'ghost', onClick: () => {
+          if (!timer.running || timer.mode !== 'focus') return;
+          // Count what was done and take the break.
+          timer.total = Math.max(60000, totalMs() - (timer.endAt - Date.now()));
+          timer.endAt = Date.now();
+          complete();
+        } },
+        { label: 'Keep going', onClick: () => audio.sfx('on', el.toggle) },
+      ],
+    });
+    return;
+  }
   const ended = timer.mode;
   const goalBefore = goalProgress().value;
   const endedAt = timer.running && !flowMs ? timer.endAt : Date.now();
@@ -4596,6 +4634,11 @@ el.lengthBtn.addEventListener('click', () => (el.lengthPop.hidden ? openLengthPo
 el.lengthPop.addEventListener('click', (e) => {
   const b = e.target.closest('.length-opt');
   if (!b) return;
+  if (b.dataset.min === 'two') {
+    closeLengthPop();
+    startTwoMinutes();
+    return;
+  }
   if (b.dataset.min === 'flow') {
     settings.flow = true;
   } else {
@@ -4827,6 +4870,7 @@ statTabs.forEach((t, i) => {
 
 // What's new: the newest first. Bump `id` when adding an entry.
 const CHANGES = [
+  { id: 33, icon: '🌱', text: 'Can’t get going? Tap the length under the timer and pick “Just 2 min”. When the two minutes are up you just keep going into a full session, or stop there with no guilt.' },
   { id: 32, icon: '🔥', text: 'Streak flame: your streak now shows at the top, changing colour as it grows. Every 7 days in a row earns a ❄️ freeze that covers a day you miss. Tap the flame for your best streak.' },
   { id: 31, icon: '📲', text: 'Comfier on small phones: a bigger timer dial, a tidier top bar and no sideways scrolling, down to the smallest iPhone.' },
   { id: 30, icon: '📱', text: 'Better on phones held sideways: the timer sits beside its controls and the tabs move to the right edge, so nothing is squashed or covered.' },
@@ -5207,6 +5251,18 @@ $('#palette-kbd').textContent = isMac ? '⌘K' : 'Ctrl K';
 $('#btn-palette').title = `Search commands (${isMac ? '⌘K' : 'Ctrl K'})`;
 
 // Start a one-off focus of a given length, leaving the usual length alone.
+// "Just 2 minutes", for days you can't get going: when they're up the session
+// simply carries on to a full one, and you can stop there if you like.
+function startTwoMinutes() {
+  if (isGuest()) {
+    guestNote('🌱', `${P.hostName} runs the timer in this party`);
+    return;
+  }
+  startCustomFocus(2 * 60000, 'Just 2 minutes. You can stop after that.');
+  timer.two = true;
+  save();
+}
+
 function startCustomFocus(ms, label) {
   if (timer.running && elapsedMs() > 5000 && !window.confirm('The timer is running. Start a new focus anyway?')) return;
   if (!isFresh() || timer.mode !== 'focus') switchTo('focus');
@@ -5270,6 +5326,7 @@ function paletteCommands(query) {
   // Timer
   add({ cat: 'Timer', top: true, icon: timer.running ? '⏸️' : '▶️', title: timer.running ? 'Pause' : isFresh() ? `Start ${isFlow() ? 'Flowtime' : label}` : 'Resume', keys: 'Space', run: () => toggleTimer(el.toggle) });
   if (!isFresh()) add({ cat: 'Timer', top: true, icon: '↺', title: 'Reset this session', keys: 'R', run: () => el.reset.click() });
+  if (isFresh() && timer.mode === 'focus') add({ cat: 'Timer', icon: '🌱', title: 'Just 2 minutes', words: 'two small start get going', run: startTwoMinutes });
   add({ cat: 'Timer', top: true, icon: '⏭️', title: timer.flow && !isFresh() ? 'Finish and take your break' : 'Skip to the next session', keys: 'S', run: () => el.skip.click() });
   MODE_ORDER.forEach((m, i) => {
     if (m !== timer.mode) add({ cat: 'Timer', icon: { focus: '🎯', short: '☕', long: '🌿' }[m], title: `Switch to ${MODES[m].label.toLowerCase()}`, keys: String(i + 1), run: () => el.tabs[i].click() });
