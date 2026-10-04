@@ -48,9 +48,18 @@ installed as an app on your phone or computer.
     directly (up to 5 changes every 30 s); timer changes are still requests
 
   The host also chooses what guests can ask about (the timer, sounds, tasks,
-  messages) and the role new guests start with, and can remove anyone. The
-  rules are checked on the host's device, so a tampered app can't get round
-  them; past 10 requests in 10 s, the rest are dropped unseen
+  messages; switching a topic off stops Add guests too) and the role new
+  guests start with, and can remove anyone. The rules are checked on the
+  host's device, so a tampered app can't get round them:
+  - however many guests there are, the host sees at most three open requests,
+    one new one every couple of seconds; past 10 requests in 10 s from one
+    guest, the rest are dropped unseen; at most 10 new people a minute
+  - **Ask me before letting people in**: each new person waits at the door
+    until the host taps **Let in**. Removing someone turns this on, so they
+    can't just join again
+  - each relayed guest and the host share a key of their own (ECDH), so
+    other members, who also know the code, can't read or fake their
+    messages, and numbered messages mean a recorded copy can't be replayed
 - **Language filter** (on by default, the host can turn it off): bad words in
   names, tasks and messages are starred out (`****`). It sees through
   capitals, accents, l33t spelling (`sh1t`), stretched letters (`fuuuck`) and

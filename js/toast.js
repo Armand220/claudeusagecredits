@@ -4,15 +4,44 @@ const MAX_VISIBLE = 3;
 let host = null;
 const keyed = new Map(); // key → dismiss, so a repeated toast replaces itself
 
+function topModal() {
+  const open = [...document.querySelectorAll('dialog[open]')];
+  try {
+    return open.filter((d) => d.matches(':modal')).pop() || null;
+  } catch {
+    return open.pop() || null; // no :modal support: assume the last one is
+  }
+}
+
 function container() {
   if (!host) {
     host = document.createElement('div');
     host.className = 'toasts';
     host.setAttribute('role', 'status');
     host.setAttribute('aria-live', 'polite');
-    document.body.appendChild(host);
+  }
+  // While a modal dialog is open the rest of the page can't be clicked, so
+  // toasts (and their buttons) live inside the dialog until it closes.
+  const modal = topModal();
+  const parent = modal || document.body;
+  if (host.parentNode !== parent) {
+    parent.appendChild(host);
+    host.classList.toggle('is-in-dialog', Boolean(modal));
+    if (modal) {
+      modal.addEventListener('close', () => {
+        if (host.parentNode === modal) {
+          host.classList.remove('is-in-dialog');
+          container();
+        }
+      }, { once: true });
+    }
   }
   return host;
+}
+
+/** Call after opening a modal dialog, so toasts already showing stay clickable. */
+export function rehome() {
+  if (host && host.childElementCount) container();
 }
 
 /**

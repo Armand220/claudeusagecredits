@@ -16,6 +16,9 @@
 //   sealed the same way, so your IP address is never given to anyone in the
 //   party, not even encrypted. (Over the internet a direct connection can't
 //   hide it: the other device has to send packets to your address.)
+// - Inside a party each relayed guest and the host also share a key of their
+//   own (ECDH), so members can't read or fake each other's messages, and
+//   every message is numbered so a recorded copy can't be played back.
 // - Like any server you connect to, the brokers see the address that
 //   connects to them, but not who you're talking to or what you say.
 //
@@ -382,9 +385,39 @@ function dedupe() {
   };
 }
 
+// Messages within one connection carry a rising number; a copy played back
+// later (by someone recording the relay) is refused.
+function seqWindow() {
+  let top = 0;
+  const seen = new Set();
+  return (n) => {
+    const seq = Number(n);
+    if (!Number.isInteger(seq) || seq <= 0 || seq <= top - 256 || seen.has(seq)) return false;
+    seen.add(seq);
+    if (seq > top) {
+      top = seq;
+      for (const x of seen) if (x <= top - 256) seen.delete(x);
+    }
+    return true;
+  };
+}
+
+// Each relayed guest and the host agree a key only the two of them know
+// (ECDH P-256), so other members of the party can't read or fake their messages.
+const ECDH = { name: 'ECDH', namedCurve: 'P-256' };
+async function newKeys() {
+  const keys = await crypto.subtle.generateKey(ECDH, false, ['deriveKey']);
+  return { priv: keys.privateKey, pub: b64(new Uint8Array(await crypto.subtle.exportKey('raw', keys.publicKey))) };
+}
+async function pairKey(priv, theirPub) {
+  const pub = await crypto.subtle.importKey('raw', unb64(theirPub), ECDH, false, []);
+  return crypto.subtle.deriveKey({ name: 'ECDH', public: pub }, priv, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
+}
+
 /**
  * Start hosting. Resolves with { code, broadcast(state), answer(guestId, reqId, ok, text, extra),
- * setAccess(guestId, access), remove(guestId), members(), end() } once the party can be joined.
+ * setAccess(guestId, access), setAdmit('open' | 'ask'), admitGuest(id, ok), remove(guestId),
+ * members(), end() } once the party can be joined.
  *
  * Guests reach the host in one of two ways:
  * - private (relayed): every message goes through the brokers, sealed with the
@@ -396,22 +429,33 @@ function dedupe() {
  * hooks: getState() → the state to share; cleanName(name) → the name to use
  * for a guest (e.g. with bad language starred out); accessFor(guest) → what a new
  * guest may do (sent to them, and their role shown to everyone);
+ * onKnock({ id, name }) when someone asks to come in (admit 'ask'),
  * onJoin(guest), onLeave(guest), onRequest(guest, request), onSignal(online).
  * The host's app enforces the rules: a guest's own app only mirrors them.
  */
-export async function host(name, hooks, { private: privately = true } = {}) {
+export async function host(name, hooks, { private: privately = true, admit = 'open' } = {}) {
   const code = makeCode();
   const secrets = await secretsFor(code);
+  const me = await newKeys(); // pairs with each guest's own key (relayed guests)
   const guests = new Map(); // connection id → guest
+  const waiting = new Map(); // connection id → someone asking to come in
+  const admitted = new Set(); // let in by the host, waiting to knock again
+  const removed = new Set(); // sent away by the host
+  const gone = new Set(); // left: their old knocks mustn't bring them back
+  const arrivals = []; // when new people turned up, to slow down a flood
   const fresh = dedupe();
+  let admitMode = admit === 'ask' ? 'ask' : 'open';
   let ended = false;
   let signal = null;
 
   const say = async (topic, body) => signal && signal.send(topic, await seal(secrets.key, { ...body, mid: randomId() }));
   const send = (g, msg) => {
     if (g.via === 'relay') {
+      // Sealed with the key only this guest and the host share, so another
+      // member (who also knows the party code) can't read or fake it.
       g.seq += 1;
-      say(g.reply, { t: 'msg', cid: g.id, seq: g.seq, data: msg });
+      const seq = g.seq;
+      (async () => say(g.reply, { t: 'msg', cid: g.id, seq, hk: me.pub, box: await seal(g.key, msg) }))().catch(() => {});
     } else if (g.ch && g.ch.readyState === 'open') {
       try {
         g.ch.send(JSON.stringify(msg));
@@ -420,20 +464,24 @@ export async function host(name, hooks, { private: privately = true } = {}) {
       }
     }
   };
-  const removed = new Set(); // connection ids the host sent away
-  const memberList = () => [
+  // Guests are told each other's names and roles, never connection ids.
+  const memberList = (forGuests = true) => [
     { id: 'host', name, host: true },
-    ...[...guests.values()].filter((g) => g.ready).map((g) => ({ id: g.id, name: g.name, role: (g.access && g.access.role) || '' })),
+    ...[...guests.values()].filter((g) => g.ready).map((g) => ({ id: forGuests ? g.pid : g.id, name: g.name, role: (g.access && g.access.role) || '' })),
   ];
   const sendMembers = () => {
     const members = memberList();
     guests.forEach((g) => g.ready && send(g, { t: 'members', members }));
   };
-  const welcome = (g) => send(g, { t: 'welcome', id: g.id, host: name, state: hooks.getState(), members: memberList(), access: g.access, now: Date.now() });
+  const welcome = (g) => {
+    g.lastWelcome = Date.now();
+    send(g, { t: 'welcome', id: g.pid, host: name, state: hooks.getState(), members: memberList(), access: g.access, now: Date.now() });
+  };
 
   function drop(g) {
     if (guests.get(g.id) !== g) return;
     guests.delete(g.id);
+    gone.add(g.id);
     if (g.pc) closePc(g.pc);
     if (g.ready && !ended) {
       hooks.onLeave(g);
@@ -444,7 +492,8 @@ export async function host(name, hooks, { private: privately = true } = {}) {
   // What a guest says, whichever way it arrives.
   function fromGuest(g, m) {
     if (!m || typeof m !== 'object' || g.removed) return;
-    g.lastSeen = Date.now();
+    const now = Date.now();
+    g.lastSeen = now;
     if (m.t === 'hello' && !g.ready) {
       g.name = (hooks.cleanName ? hooks.cleanName(str(m.name, 24)) : str(m.name, 24)) || 'Guest';
       g.access = hooks.accessFor ? hooks.accessFor(g) : null;
@@ -453,11 +502,12 @@ export async function host(name, hooks, { private: privately = true } = {}) {
       hooks.onJoin(g);
       sendMembers();
     } else if (m.t === 'ping') {
-      send(g, { t: 'pong', c: m.c, h: Date.now() });
+      if (now - (g.lastPing || 0) < 2000) return;
+      g.lastPing = now;
+      send(g, { t: 'pong', c: m.c, h: now });
     } else if (m.t === 'req' && g.ready && REQUEST_KINDS.includes(m.kind)) {
       // A flood guard under the app's own rules: past 10 requests in 10 s,
       // the rest are dropped without bothering the host.
-      const now = Date.now();
       g.reqs = (g.reqs || []).filter((t) => now - t < 10000);
       if (g.reqs.length >= 10) return;
       g.reqs.push(now);
@@ -465,6 +515,44 @@ export async function host(name, hooks, { private: privately = true } = {}) {
     } else if (m.t === 'bye') {
       drop(g);
     }
+  }
+
+  // Someone new at the door. False if they have to wait (or go away).
+  function letIn(cid, reply, who) {
+    if (removed.has(cid)) {
+      say(reply, { t: 'removed', cid });
+      return false;
+    }
+    if (gone.has(cid)) return false; // an old knock, played back
+    const now = Date.now();
+    if (admitMode === 'ask' && !admitted.has(cid)) {
+      const w = waiting.get(cid);
+      if (w) {
+        if (now - w.told > 5000) {
+          w.told = now;
+          say(reply, { t: 'wait', cid });
+        }
+        return false;
+      }
+      if (waiting.size >= 3 || guests.size >= MAX_GUESTS) {
+        say(reply, { t: 'full', cid });
+        return false;
+      }
+      const entry = { id: cid, reply, name: (hooks.cleanName ? hooks.cleanName(str(who, 24)) : str(who, 24)) || 'Guest', at: now, told: now };
+      waiting.set(cid, entry);
+      say(reply, { t: 'wait', cid });
+      if (hooks.onKnock) hooks.onKnock({ id: cid, name: entry.name });
+      return false;
+    }
+    // At most 10 new people a minute, so join-and-leave loops can't flood the host.
+    while (arrivals.length && now - arrivals[0] > 60000) arrivals.shift();
+    if (guests.size >= MAX_GUESTS || arrivals.length >= 10) {
+      say(reply, { t: 'full', cid });
+      return false;
+    }
+    arrivals.push(now);
+    admitted.delete(cid);
+    return true;
   }
 
   async function onMessage(topic, text) {
@@ -477,27 +565,32 @@ export async function host(name, hooks, { private: privately = true } = {}) {
     const known = guests.get(cid);
 
     if (body.t === 'msg') {
-      if (known && known.via === 'relay') fromGuest(known, body.data);
+      // Only the guest who owns this connection can seal for it; a replayed
+      // copy is caught by its sequence number.
+      if (!known || known.via !== 'relay' || !known.key) return;
+      const data = await open(known.key, body.box);
+      if (data && known.inbox(body.seq)) fromGuest(known, data);
       return;
     }
     if (!reply.startsWith(`${secrets.topic}/`)) return;
 
-    if (removed.has(cid)) {
-      say(reply, { t: 'removed', cid });
-      return;
-    }
     if (body.t === 'knock') {
       // A private guest at the door (they knock until welcomed).
       if (known) {
-        if (known.ready && known.via === 'relay') welcome(known);
+        // Our welcome must have got lost: send it again (not too often).
+        if (known.ready && known.via === 'relay' && body.pk === known.pk && Date.now() - known.lastWelcome > 3000) welcome(known);
         return;
       }
-      if (guests.size >= MAX_GUESTS) {
-        say(reply, { t: 'full', cid });
-        return;
-      }
-      const g = { id: cid, via: 'relay', reply, seq: 0, name: 'Guest', ready: false, lastSeen: Date.now() };
+      const pk = str(body.pk, 200);
+      if (!pk || !letIn(cid, reply, body.name)) return;
+      const g = { id: cid, pid: randomId(), via: 'relay', reply, pk, seq: 0, inbox: seqWindow(), name: 'Guest', ready: false, lastSeen: Date.now(), lastWelcome: 0 };
       guests.set(cid, g);
+      try {
+        g.key = await pairKey(me.priv, pk);
+      } catch {
+        guests.delete(cid);
+        return;
+      }
       fromGuest(g, { t: 'hello', name: body.name });
       return;
     }
@@ -514,11 +607,8 @@ export async function host(name, hooks, { private: privately = true } = {}) {
         if (!known.ready && known.answer) say(reply, known.answer);
         return;
       }
-      if (guests.size >= MAX_GUESTS) {
-        say(reply, { t: 'full', cid });
-        return;
-      }
-      const g = { id: cid, via: 'direct', name: 'Guest', ready: false, answer: null, lastSeen: Date.now() };
+      if (!letIn(cid, reply, body.name)) return;
+      const g = { id: cid, pid: randomId(), via: 'direct', name: 'Guest', ready: false, answer: null, lastSeen: Date.now(), lastWelcome: 0 };
       g.pc = newPeer(false, (s) => {
         if (s === 'failed' || s === 'closed') drop(g);
       });
@@ -562,12 +652,16 @@ export async function host(name, hooks, { private: privately = true } = {}) {
       if (g.via === 'relay' && now - g.lastSeen > 40000) drop(g);
       else if (g.ready) send(g, { t: 'state', state, now });
     });
+    waiting.forEach((w, id) => {
+      if (now - w.at > 120000) waiting.delete(id);
+    });
   }, 10000);
 
   const controller = {
     code,
     private: privately,
-    members: memberList,
+    /** Everyone here, with connection ids (for the host's own use only). */
+    members: () => memberList(false),
     broadcast(state) {
       const msg = { t: 'state', state, now: Date.now() };
       guests.forEach((g) => g.ready && send(g, msg));
@@ -584,6 +678,28 @@ export async function host(name, hooks, { private: privately = true } = {}) {
       g.access = access;
       send(g, { t: 'access', access });
       sendMembers();
+    },
+    /** 'open': anyone with the code comes straight in. 'ask': the host lets each person in. */
+    setAdmit(mode) {
+      admitMode = mode === 'ask' ? 'ask' : 'open';
+      if (admitMode === 'open') {
+        waiting.forEach((w) => admitted.add(w.id));
+        waiting.clear();
+      }
+    },
+    get admit() {
+      return admitMode;
+    },
+    /** The host's answer to someone waiting to come in. */
+    admitGuest(id, ok) {
+      const w = waiting.get(id);
+      if (!w) return;
+      waiting.delete(id);
+      if (ok) admitted.add(id);
+      else {
+        removed.add(id);
+        say(w.reply, { t: 'removed', cid: id });
+      }
     },
     /** Send a guest away. They can come back only by joining again. */
     remove(guestId) {
@@ -619,9 +735,9 @@ export async function host(name, hooks, { private: privately = true } = {}) {
  * back to relaying if the host keeps their party private.
  *
  * hooks: onWelcome(msg, controller), onState(state), onMembers(list),
- * onAccess(access), onAnswer(answer), onEnd(reason) where reason is 'ended',
- * 'removed' or 'lost'.
- * Rejects with Error('not-found' | 'full' | 'removed' | 'unreachable' | 'network:…' | 'setup:…').
+ * onAccess(access), onAnswer(answer), onWaiting() when the host has to let us
+ * in, onEnd(reason) where reason is 'ended', 'removed' or 'lost'.
+ * Rejects with Error('not-found' | 'full' | 'removed' | 'not-let-in' | 'unreachable' | 'network:…' | 'setup:…').
  */
 export async function join(code, name, hooks, { private: privately = true } = {}) {
   const secrets = await secretsFor(code);
@@ -641,11 +757,20 @@ export async function join(code, name, hooks, { private: privately = true } = {}
   let knocker = 0;
   let lastHeard = Date.now();
   let lastStateSeq = 0;
+  // Relayed messages are sealed with a key only we and the host share.
+  const me = await newKeys();
+  const inbox = seqWindow();
+  let hostKey = null; // the host's public key, trusted from its first message
+  let pair = null; // → the shared key
+  let outSeq = 0;
 
   const say = async (body) => signal && signal.send(secrets.topic, await seal(secrets.key, { ...body, cid, reply, mid: randomId() }));
   const send = (msg) => {
     if (via === 'relay') {
-      say({ t: 'msg', data: msg });
+      if (!pair) return;
+      outSeq += 1;
+      const seq = outSeq;
+      (async () => say({ t: 'msg', seq, box: await seal(await pair, msg) }))().catch(() => {});
     } else if (ch && ch.readyState === 'open') {
       try {
         ch.send(JSON.stringify(msg));
@@ -665,6 +790,7 @@ export async function join(code, name, hooks, { private: privately = true } = {}
   return new Promise((resolve, reject) => {
     let settled = false;
     let answered = false;
+    let waited = false;
     let timer = 0;
     const fail = (why) => {
       if (settled) return;
@@ -755,7 +881,7 @@ export async function join(code, name, hooks, { private: privately = true } = {}
       if (pc) closePc(pc);
       pc = null;
       clearInterval(knocker);
-      const knock = () => !welcomed && say({ t: 'knock', name, v: PROTOCOL });
+      const knock = () => !welcomed && say({ t: 'knock', name, v: PROTOCOL, pk: me.pub });
       knock();
       knocker = setInterval(knock, 3000);
     };
@@ -765,11 +891,31 @@ export async function join(code, name, hooks, { private: privately = true } = {}
       const body = await open(secrets.key, text);
       if (!body || body.cid !== cid || !fresh(body.mid)) return;
       if (body.t === 'msg') {
-        fromHost(body.data, Number(body.seq) || 0);
+        // Trust the host's key from its first message (its welcome), then
+        // accept only messages sealed with the key we share.
+        const hk = str(body.hk, 200);
+        if (!hk) return;
+        if (!hostKey) {
+          hostKey = hk;
+          pair = pairKey(me.priv, hk);
+        } else if (hk !== hostKey) return;
+        let data = null;
+        try {
+          data = await open(await pair, body.box);
+        } catch {
+          return;
+        }
+        if (data && inbox(body.seq)) fromHost(data, Number(body.seq) || 0);
       } else if (body.t === 'full') {
         fail('full');
       } else if (body.t === 'removed') {
         fail('removed');
+      } else if (body.t === 'wait' && !waited && !settled) {
+        // The host lets people in one by one: give them a couple of minutes.
+        waited = true;
+        clearTimeout(timer);
+        timer = setTimeout(() => fail('not-let-in'), 120000);
+        if (hooks.onWaiting) hooks.onWaiting();
       } else if (body.t === 'relay' && via === 'direct' && !answered) {
         // The host keeps the party private: come in through the relay instead.
         knockRelay();
@@ -806,7 +952,7 @@ export async function join(code, name, hooks, { private: privately = true } = {}
       await pc.setLocalDescription(await pc.createOffer());
       await gathered(pc, false);
       if (via !== 'direct') return;
-      const offer = { t: 'offer', sdp: shareable(pc, false) };
+      const offer = { t: 'offer', name, sdp: shareable(pc, false) };
       const knock = () => !answered && via === 'direct' && say(offer);
       knock();
       knocker = setInterval(knock, 3000);
