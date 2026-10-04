@@ -3210,7 +3210,8 @@ body.is-zen .time { font-size: calc(var(--dial) * .245); }
 /* ===================================================== Phones */
 
 @media (max-width: 760px), (max-height: 500px) and (pointer: coarse) {
-  .timer-card { --dial: min(84vw, 340px, calc(100dvh - 450px)); padding: 6px 4px 10px; }
+  /* As big as the screen allows, leaving room for the controls, the task and the tab bar. */
+  .timer-card { --dial: min(84vw, 340px, max(200px, calc(100dvh - 370px))); padding: 6px 4px 10px; }
   .timer-card .zen-btn { top: 64px; }
   .timer-card .pip-btn { left: 4px; }
   .timer-card .zen-btn:not(.pip-btn) { right: 4px; }
@@ -3324,4 +3325,24 @@ body.is-zen .time { font-size: calc(var(--dial) * .245); }
 }
 @media (max-height: 500px) and (pointer: coarse) and (orientation: landscape) {
   .sound-groups .chip-group .chips { grid-template-columns: repeat(auto-fill, minmax(86px, 1fr)); }
+}
+/* The smallest phones (320-360px): the top bar's buttons sit a little closer. */
+@media (max-width: 360px) {
+  /* Just the logo, so the goal pill has room (the link keeps its label). */
+  .brand > span { display: none; }
+  .topbar-actions { gap: 4px; }
+  .topbar { gap: 6px; }
+  .goal-pill { padding-left: 8px; }
+}
+/* Phones: the task you're working on stays on one line (the full name is in Tasks). */
+@media (max-width: 760px), (max-height: 500px) and (pointer: coarse) {
+  .timer-card .current-task { flex-wrap: nowrap; max-width: 100%; min-width: 0; }
+  .timer-card .current-task-kicker { flex: none; }
+  .timer-card .current-task-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+}
+/* Phones: the task you're working on stays on one line (the full name is in Tasks). */
+@media (max-width: 760px), (max-height: 500px) and (pointer: coarse) {
+  .timer-card .current-task { flex-wrap: nowrap; max-width: 100%; min-width: 0; }
+  .timer-card .current-task-kicker { flex: none; }
+  .timer-card .current-task-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 }

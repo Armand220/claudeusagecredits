@@ -1,13 +1,13 @@
-import * as audio from './audio.js?v=75';
-import * as fx from './fx.js?v=75';
-import { toast, rehome as rehomeToasts } from './toast.js?v=75';
-import * as effects from './effects.js?v=75';
-import * as scenery from './scenery.js?v=75';
-import * as pip from './pip.js?v=75';
-import { shareCard, makeCardFile } from './share.js?v=75';
-import * as party from './party.js?v=75';
-import { clean as cleanWords } from './filter.js?v=75';
-import * as photo from './photo.js?v=75';
+import * as audio from './audio.js?v=76';
+import * as fx from './fx.js?v=76';
+import { toast, rehome as rehomeToasts } from './toast.js?v=76';
+import * as effects from './effects.js?v=76';
+import * as scenery from './scenery.js?v=76';
+import * as pip from './pip.js?v=76';
+import { shareCard, makeCardFile } from './share.js?v=76';
+import * as party from './party.js?v=76';
+import { clean as cleanWords } from './filter.js?v=76';
+import * as photo from './photo.js?v=76';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -4777,6 +4777,7 @@ statTabs.forEach((t, i) => {
 
 // What's new: the newest first. Bump `id` when adding an entry.
 const CHANGES = [
+  { id: 31, icon: '📲', text: 'Comfier on small phones: a bigger timer dial, a tidier top bar and no sideways scrolling, down to the smallest iPhone.' },
   { id: 30, icon: '📱', text: 'Better on phones held sideways: the timer sits beside its controls and the tabs move to the right edge, so nothing is squashed or covered.' },
   { id: 29, icon: '✨', text: 'A fresh new look: the timer takes centre stage, and on a computer Sounds and Tasks live in one side panel you switch with the buttons on the right. Sounds are now picture tiles, and everything is a little calmer and quicker.' },
   { id: 28, icon: '🔐', text: 'Safer parties: turn on “Ask me before letting people in” (it switches on by itself when you remove someone), requests can no longer pile up on the host, and each guest’s messages are sealed with their own key so nobody can pretend to be someone else.' },
